@@ -178,7 +178,7 @@ export const NewRequestScreen: React.FC<NewRequestScreenProps> = ({ onSuccess })
                     }`}
                   >
                     <Clock className={`w-4 h-4 ${isSelected ? 'text-brand-600' : 'text-slate-400'}`} />
-                    <span>{URGENCY_LABELS[urg]}</span>
+                    <span>{URGENCY_LABELS[urg].label}</span>
                   </button>
                 );
               })}
