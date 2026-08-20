@@ -18,10 +18,35 @@ interface ProviderDashboardScreenProps {
 export const ProviderDashboardScreen: React.FC<ProviderDashboardScreenProps> = ({
   onOpenOnboarding,
 }) => {
-  const { requests, orders, providers } = useApp();
+  const { requests, orders, providers, currentUser } = useApp();
 
-  // Seleciona o prestador Carlos como exemplo
-  const currentProvider = providers[0];
+  const currentProvider = providers.find((p) => p.profileId === currentUser?.id) || providers[0] || {
+    id: 'my-prov-profile',
+    profileId: currentUser?.id || 'guest',
+    profile: currentUser || {
+      id: 'p-guest',
+      role: 'provider',
+      fullName: 'Professor de Matemática',
+      email: 'professor@rooserv.com.br',
+      phone: '(66) 99999-0000',
+      neighborhood: 'Centro',
+      city: 'Rondonópolis',
+      state: 'MT',
+      avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200',
+      isActive: true,
+      createdAt: new Date().toISOString(),
+    },
+    verificationStatus: 'verified',
+    bio: 'Professor de Matemática & Reforço Escolar especializado em Rondonópolis.',
+    experienceYears: 5,
+    hourlyRateEstimate: 80,
+    pixKeyType: 'phone',
+    pixKey: '(66) 99999-0000',
+    averageRating: 5.0,
+    totalReviews: 0,
+    totalCompletedOrders: 0,
+    isAvailable: true,
+  };
 
   // Cálculos da Carteira
   const completedOrders = orders.filter((o) => o.status === 'approved_by_client');
@@ -29,7 +54,7 @@ export const ProviderDashboardScreen: React.FC<ProviderDashboardScreenProps> = (
     (o) => o.status === 'payment_in_escrow' || o.status === 'completed_by_provider'
   );
 
-  const availableBalance = completedOrders.reduce((acc, o) => acc + o.providerPayoutAmount, 540);
+  const availableBalance = completedOrders.reduce((acc, o) => acc + o.providerPayoutAmount, 0);
   const escrowBalance = escrowOrders.reduce((acc, o) => acc + o.providerPayoutAmount, 0);
 
   const [payoutSuccess, setPayoutSuccess] = useState(false);
@@ -141,7 +166,20 @@ export const ProviderDashboardScreen: React.FC<ProviderDashboardScreenProps> = (
           </div>
 
           <div className="space-y-4">
-            {requests.map((req) => {
+            {requests.length === 0 ? (
+              <div className="bg-white rounded-3xl p-10 text-center border border-slate-200 shadow-sm space-y-3">
+                <div className="w-14 h-14 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center mx-auto">
+                  <Inbox className="w-7 h-7" />
+                </div>
+                <h4 className="text-base font-extrabold text-slate-900">
+                  Nenhuma oportunidade aberta no momento
+                </h4>
+                <p className="text-xs sm:text-sm text-slate-500 max-w-sm mx-auto leading-relaxed">
+                  Assim que um morador de Rondonópolis publicar um pedido de orçamento, ele aparecerá aqui instantaneamente com notificação sonora e no app.
+                </p>
+              </div>
+            ) : (
+              requests.map((req) => {
               const isSent = proposalSentId === req.id;
               return (
                 <div
@@ -208,7 +246,7 @@ export const ProviderDashboardScreen: React.FC<ProviderDashboardScreenProps> = (
                   </div>
                 </div>
               );
-            })}
+            }))}
           </div>
         </div>
       </div>

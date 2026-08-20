@@ -58,7 +58,13 @@ export const App: React.FC = () => {
           />
         );
       case 'messages':
-        return <ConversationsListScreen onSelectConversation={(p) => setActiveChatPartner(p)} />;
+        return (
+          <ConversationsListScreen
+            onSelectConversation={(p) => setActiveChatPartner(p)}
+            onExplore={() => setActiveTab('explore')}
+            onRequestQuote={() => setActiveTab('new_request')}
+          />
+        );
       case 'new_request':
         return <NewRequestScreen onSuccess={() => setActiveTab('orders')} />;
       case 'orders':
@@ -73,7 +79,13 @@ export const App: React.FC = () => {
       return <OrdersScreen />;
     }
     if (activeTab === 'messages') {
-      return <ConversationsListScreen onSelectConversation={(p) => setActiveChatPartner(p)} />;
+      return (
+        <ConversationsListScreen
+          onSelectConversation={(p) => setActiveChatPartner(p)}
+          onExplore={() => setActiveTab('provider_dashboard')}
+          onRequestQuote={() => setActiveTab('provider_leads')}
+        />
+      );
     }
     return <ProviderDashboardScreen onOpenOnboarding={() => setIsOnboardingOpen(true)} />;
   };

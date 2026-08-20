@@ -45,43 +45,29 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
 }) => {
   const { currentRole } = useApp();
   const [inputText, setInputText] = useState('');
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: 'm1',
-      senderId: 'other',
-      text: 'Olá! Sou profissional parceiro do RooServ. Vi seu pedido de manutenção elétrica.',
-      time: '14:30',
-    },
-    {
-      id: 'm2',
-      senderId: 'me',
-      text: 'Boa tarde! O disjuntor do chuveiro está desarmando direto quando coloco no quente. Quanto fica para revisar e trocar a fiação?',
-      time: '14:32',
-    },
-    {
-      id: 'm3',
-      senderId: 'other',
-      text: 'Consigo ir aí no seu bairro hoje à tarde por volta das 16h30 para fazer o serviço completo.',
-      time: '14:35',
-    },
-    {
-      id: 'm4',
-      senderId: 'other',
-      text: 'Acabei de gerar o orçamento formal com o seguro de 60 dias da plataforma:',
-      time: '14:36',
-      proposalData: {
-        totalAmount: 220.0,
-        description: 'Troca do cabeamento para 6mm antichamas + instalação de disjuntor DIN bipolar e conector cerâmico para o chuveiro.',
-        isAccepted: false,
-      },
-    },
-  ]);
+  const [messages, setMessages] = useState<Message[]>(() => {
+    try {
+      const saved = sessionStorage.getItem(`rooserv_chat_${recipientUser.id}`);
+      if (saved) return JSON.parse(saved);
+    } catch {
+      // Ignora
+    }
+    return [];
+  });
 
   const [isSendingProposal, setIsSendingProposal] = useState(false);
-  const [newProposalAmount, setNewProposalAmount] = useState('220');
+  const [newProposalAmount, setNewProposalAmount] = useState('80');
   const [newProposalDesc, setNewProposalDesc] = useState('');
   const [securityAlert, setSecurityAlert] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(`rooserv_chat_${recipientUser.id}`, JSON.stringify(messages));
+    } catch {
+      // Ignora
+    }
+  }, [messages, recipientUser.id]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -281,6 +267,36 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
 
       {/* Lista de Mensagens */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3.5 pb-24">
+        {messages.length === 0 && (
+          <div className="bg-white rounded-3xl p-6 text-center border border-slate-200 shadow-sm max-w-md mx-auto my-6 space-y-3">
+            <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto">
+              <Sparkles className="w-6 h-6" />
+            </div>
+            <h4 className="text-sm font-extrabold text-slate-900">
+              Início da conversa com {recipientUser.name}
+            </h4>
+            <p className="text-xs text-slate-500 leading-relaxed">
+              Tire dúvidas, envie detalhes do serviço ou solicite um orçamento formal com garantia e pagamento seguro por custódia.
+            </p>
+            <div className="flex flex-wrap gap-1.5 justify-center pt-2">
+              <button
+                type="button"
+                onClick={() => setInputText('Olá! Gostaria de um orçamento para o serviço.')}
+                className="text-xs font-semibold bg-slate-50 hover:bg-slate-100 text-slate-700 px-3 py-1.5 rounded-xl border border-slate-200 cursor-pointer"
+              >
+                "Olá! Gostaria de um orçamento."
+              </button>
+              <button
+                type="button"
+                onClick={() => setInputText('Qual a sua disponibilidade para atendimento em Rondonópolis?')}
+                className="text-xs font-semibold bg-slate-50 hover:bg-slate-100 text-slate-700 px-3 py-1.5 rounded-xl border border-slate-200 cursor-pointer"
+              >
+                "Qual a sua disponibilidade?"
+              </button>
+            </div>
+          </div>
+        )}
+
         {messages.map((msg) => {
           const isMe = msg.senderId === 'me';
 
