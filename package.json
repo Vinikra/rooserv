@@ -11,7 +11,9 @@
     "build": "npm --workspace=@servicos/shared run build && npm --workspace=@servicos/mobile run build",
     "build:shared": "npm --workspace=@servicos/shared run build",
     "build:mobile": "npm --workspace=@servicos/mobile run build",
-    "dev": "npm --workspace=@servicos/mobile run dev"
+    "dev": "npm --workspace=@servicos/mobile run dev",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "keywords": [
     "servicos",
@@ -26,5 +28,9 @@
   "license": "MIT",
   "dependencies": {
     "@supabase/supabase-js": "^2.112.3"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^4.1.11",
+    "vitest": "^4.1.11"
   }
 }
