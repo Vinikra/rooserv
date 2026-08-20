@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useApp } from '../context/AppContext';
+import { useApp, getOrCreateDeterministicUuid } from '../context/AppContext';
 import { formatCurrencyBRL, sanitizeChatMessage } from '@servicos/shared';
 import { 
   Send, 
@@ -198,35 +198,40 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
   useEffect(() => {
     const loadMessages = async () => {
       if (!currentUser?.id || !recipientUser.id) return;
+      const senderUuid = getOrCreateDeterministicUuid(currentUser.id || currentUser.email || 'sender');
+      const recipientUuid = getOrCreateDeterministicUuid(recipientUser.id || 'recipient');
       try {
         const { data, error } = await supabase
           .from('messages')
           .select('*')
-          .or(`and(sender_id.eq.${currentUser.id},recipient_id.eq.${recipientUser.id}),and(sender_id.eq.${recipientUser.id},recipient_id.eq.${currentUser.id})`)
+          .or(`and(sender_id.eq.${senderUuid},recipient_id.eq.${recipientUuid}),and(sender_id.eq.${recipientUuid},recipient_id.eq.${senderUuid})`)
           .order('created_at', { ascending: true });
 
-        if (data && !error) {
+        if (data && !error && data.length > 0) {
           const loadedMsgs = data.map((dbMsg: any) => {
             try {
               const parsed = JSON.parse(dbMsg.content);
-              // override senderId based on who is loading it
-              parsed.senderId = dbMsg.sender_id === currentUser.id ? 'me' : 'other';
+              parsed.senderId = dbMsg.sender_id === senderUuid ? 'me' : 'other';
               return parsed;
             } catch {
               return {
                 id: dbMsg.id,
-                senderId: dbMsg.sender_id === currentUser.id ? 'me' : 'other',
+                senderId: dbMsg.sender_id === senderUuid ? 'me' : 'other',
                 text: dbMsg.content,
                 time: new Date(dbMsg.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
               };
             }
           });
           setMessages(loadedMsgs);
+        } else {
+          try {
+            const saved = localStorage.getItem(`rooserv_chat_${recipientUser.id}`) || sessionStorage.getItem(`rooserv_chat_${recipientUser.id}`);
+            if (saved) setMessages(JSON.parse(saved));
+          } catch {}
         }
       } catch (err) {
-        // Fallback to sessionStorage if network fails
         try {
-          const saved = sessionStorage.getItem(`rooserv_chat_${recipientUser.id}`);
+          const saved = localStorage.getItem(`rooserv_chat_${recipientUser.id}`) || sessionStorage.getItem(`rooserv_chat_${recipientUser.id}`);
           if (saved) setMessages(JSON.parse(saved));
         } catch {}
       }
@@ -349,6 +354,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
 
   useEffect(() => {
     try {
+      localStorage.setItem(`rooserv_chat_${recipientUser.id}`, JSON.stringify(messages));
       sessionStorage.setItem(`rooserv_chat_${recipientUser.id}`, JSON.stringify(messages));
     } catch {
       // Ignora
@@ -403,9 +409,11 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
   const persistMessageToSupabase = async (msg: Message) => {
     if (!currentUser?.id || !recipientUser.id) return;
     try {
+      const senderUuid = getOrCreateDeterministicUuid(currentUser.id || currentUser.email || 'sender');
+      const recipientUuid = getOrCreateDeterministicUuid(recipientUser.id || 'recipient');
       await supabase.from('messages').insert([{
-        sender_id: currentUser.id,
-        recipient_id: recipientUser.id,
+        sender_id: senderUuid,
+        recipient_id: recipientUuid,
         content: JSON.stringify(msg),
         is_read: false
       }]);

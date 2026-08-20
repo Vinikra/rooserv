@@ -47,9 +47,9 @@ export const OrdersScreen: React.FC = () => {
     }
   };
 
-  const handleFinalizeAndRelease = () => {
+  const handleFinalizeAndRelease = async () => {
     if (!selectedOrderForReview) return;
-    confirmAndReleaseEscrow({
+    await confirmAndReleaseEscrow({
       orderId: selectedOrderForReview.id,
       rating,
       comment,
@@ -58,9 +58,9 @@ export const OrdersScreen: React.FC = () => {
     setSelectedOrderForReview(null);
   };
 
-  const handleConfirmDispute = () => {
+  const handleConfirmDispute = async () => {
     if (!selectedOrderForDispute) return;
-    openDispute(selectedOrderForDispute.id, disputeReason, disputeDetails);
+    await openDispute(selectedOrderForDispute.id, disputeReason, disputeDetails);
     setSelectedOrderForDispute(null);
     setDisputeDetails('');
   };

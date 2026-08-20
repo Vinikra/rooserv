@@ -21,15 +21,15 @@ export const ProviderDashboardScreen: React.FC<ProviderDashboardScreenProps> = (
 }) => {
   const { requests, orders, providers, currentUser } = useApp();
 
-  const currentProvider = providers.find((p) => p.profileId === currentUser?.id) || providers[0] || {
-    id: 'my-prov-profile',
+  const currentProvider = providers.find((p) => p.profileId === currentUser?.id || (currentUser?.email && p.profile?.email === currentUser.email)) || {
+    id: `prv-${currentUser?.id || 'guest'}`,
     profileId: currentUser?.id || 'guest',
     profile: currentUser || {
       id: 'p-guest',
       role: 'provider',
       fullName: 'Professor de Matemática',
       email: 'professor@rooserv.com.br',
-      phone: '(66) 99999-0000',
+      phone: '(66) 99909-7398',
       neighborhood: 'Centro',
       city: 'Rondonópolis',
       state: 'MT',
@@ -42,7 +42,7 @@ export const ProviderDashboardScreen: React.FC<ProviderDashboardScreenProps> = (
     experienceYears: 5,
     hourlyRateEstimate: 80,
     pixKeyType: 'phone',
-    pixKey: '(66) 99999-0000',
+    pixKey: currentUser?.phone || '(66) 99909-7398',
     averageRating: 5.0,
     totalReviews: 0,
     totalCompletedOrders: 0,

@@ -141,6 +141,17 @@ function mapDbCategory(c: any): ServiceCategory {
   };
 }
 
+export function generateUuid(): string {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
 export function getOrCreateDeterministicUuid(emailOrId: string): string {
   if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(emailOrId)) {
     return emailOrId;
@@ -258,12 +269,78 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [categories, setCategories] = useState<ServiceCategory[]>(INITIAL_CATEGORIES);
-  const [providers, setProviders] = useState<ProviderProfile[]>(INITIAL_PROVIDERS);
-  const [orders, setOrders] = useState<Order[]>(INITIAL_ORDERS);
-  const [reviews, setReviews] = useState<Review[]>(INITIAL_REVIEWS);
-  const [requests, setRequests] = useState<ServiceRequest[]>(INITIAL_REQUESTS);
+
+  const [providers, setProviders] = useState<ProviderProfile[]>(() => {
+    try {
+      const saved = localStorage.getItem('rooserv_providers');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return INITIAL_PROVIDERS;
+  });
+
+  const [orders, setOrders] = useState<Order[]>(() => {
+    try {
+      const saved = localStorage.getItem('rooserv_orders');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    return INITIAL_ORDERS;
+  });
+
+  const [reviews, setReviews] = useState<Review[]>(() => {
+    try {
+      const saved = localStorage.getItem('rooserv_reviews');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    return INITIAL_REVIEWS;
+  });
+
+  const [requests, setRequests] = useState<ServiceRequest[]>(() => {
+    try {
+      const saved = localStorage.getItem('rooserv_requests');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    return INITIAL_REQUESTS;
+  });
+
   const [selectedNeighborhood, setSelectedNeighborhood] = useState<string>('Todos os Bairros');
   const [selectedCategorySlug, setSelectedCategorySlug] = useState<string | null>(null);
+
+  // Sincronização contínua com o LocalStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('rooserv_providers', JSON.stringify(providers));
+    } catch {}
+  }, [providers]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('rooserv_orders', JSON.stringify(orders));
+    } catch {}
+  }, [orders]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('rooserv_reviews', JSON.stringify(reviews));
+    } catch {}
+  }, [reviews]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('rooserv_requests', JSON.stringify(requests));
+    } catch {}
+  }, [requests]);
 
   // Sistema de Notificações In-App em Tempo Real (Estilo Uber)
   const [notifications, setNotifications] = useState<InAppNotification[]>([]);
@@ -382,16 +459,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           `);
 
         if (!provError && dbProviders && dbProviders.length > 0) {
-          setProviders(dbProviders.map(mapDbProvider));
+          const mappedDbProviders = dbProviders.map(mapDbProvider);
+          setProviders((prev) => {
+            const map = new Map(prev.map((p) => [p.id, p]));
+            for (const p of mappedDbProviders) {
+              map.set(p.id, p);
+            }
+            return Array.from(map.values());
+          });
         }
 
         // Carrega pedidos do Supabase
         const userId = currentUser?.id;
         if (userId) {
+          const userUuid = getOrCreateDeterministicUuid(userId);
           const { data: dbOrders } = await supabase
             .from('orders')
             .select('*')
-            .or(`client_id.eq.${userId},provider_id.eq.${userId}`)
+            .or(`client_id.eq.${userUuid},provider_id.eq.${userUuid}`)
             .order('created_at', { ascending: false })
             .limit(100);
 
@@ -416,9 +501,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               createdAt: o.created_at,
             }));
             setOrders((prev) => {
-              const existingIds = new Set(prev.map((p) => p.id));
-              const newOrders = mappedOrders.filter((o) => !existingIds.has(o.id));
-              return newOrders.length > 0 ? [...newOrders, ...prev] : prev;
+              const map = new Map(prev.map((o) => [o.id, o]));
+              for (const ord of mappedOrders) {
+                map.set(ord.id, { ...(map.get(ord.id) || {}), ...ord });
+              }
+              return Array.from(map.values());
             });
           }
 
@@ -426,7 +513,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const { data: dbReviews } = await supabase
             .from('reviews')
             .select('*')
-            .or(`client_id.eq.${userId},provider_id.eq.${userId}`)
+            .or(`client_id.eq.${userUuid},provider_id.eq.${userUuid}`)
             .order('created_at', { ascending: false })
             .limit(100);
 
@@ -443,9 +530,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               createdAt: r.created_at,
             }));
             setReviews((prev) => {
-              const existingIds = new Set(prev.map((p) => p.id));
-              const newReviews = mappedReviews.filter((r) => !existingIds.has(r.id));
-              return newReviews.length > 0 ? [...newReviews, ...prev] : prev;
+              const map = new Map(prev.map((r) => [r.id, r]));
+              for (const rev of mappedReviews) {
+                map.set(rev.id, { ...(map.get(rev.id) || {}), ...rev });
+              }
+              return Array.from(map.values());
             });
           }
 
@@ -471,9 +560,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               createdAt: r.created_at,
             }));
             setRequests((prev) => {
-              const existingIds = new Set(prev.map((p) => p.id));
-              const newReqs = mappedRequests.filter((r) => !existingIds.has(r.id));
-              return newReqs.length > 0 ? [...newReqs, ...prev] : prev;
+              const map = new Map(prev.map((r) => [r.id, r]));
+              for (const req of mappedRequests) {
+                map.set(req.id, { ...(map.get(req.id) || {}), ...req });
+              }
+              return Array.from(map.values());
             });
           }
         }
@@ -947,11 +1038,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // 3. Persiste no Supabase
     try {
+      const provUuid = getOrCreateDeterministicUuid(currentUser.id || currentUser.email || 'provider');
       const myProv = providers.find((p) => p.profileId === currentUser.id);
       await supabase.from('provider_profiles').upsert([
         {
-          id: myProv?.id || `prv-${currentUser.id}`,
-          profile_id: currentUser.id,
+          id: provUuid,
+          profile_id: provUuid,
           bio: data.bio || myProv?.bio || 'Profissional em Rondonópolis',
           hourly_rate_estimate: data.hourlyRateEstimate || myProv?.hourlyRateEstimate || 80,
           experience_years: data.experienceYears || myProv?.experienceYears || 5,
@@ -984,12 +1076,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }) => {
     const category = categories.find((c) => c.id === data.categoryId) || categories[0];
     const client = currentUser || INITIAL_CLIENT;
+    const reqUuid = generateUuid();
+    const clientUuid = getOrCreateDeterministicUuid(client.id || client.email || 'guest-visitor');
+    const catUuid = getOrCreateDeterministicUuid(category.id);
 
     const newReq: ServiceRequest = {
-      id: `req-${Date.now()}`,
-      clientId: client.id,
+      id: reqUuid,
+      clientId: clientUuid,
       client,
-      categoryId: category.id,
+      categoryId: catUuid,
       category,
       title: data.title,
       description: data.description,
@@ -1006,9 +1101,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Persiste no Supabase
     try {
       await supabase.from('service_requests').upsert([{
-        id: newReq.id,
-        client_id: newReq.clientId,
-        category_id: newReq.categoryId,
+        id: reqUuid,
+        client_id: clientUuid,
+        category_id: catUuid,
         title: newReq.title,
         description: newReq.description,
         urgency: newReq.urgency,
@@ -1047,17 +1142,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const provider = providers.find((p) => p.id === params.providerId);
     const split = calculateServiceSplit(params.amount, 12.0);
     const client = currentUser || INITIAL_CLIENT;
+    const orderUuid = generateUuid();
+    const clientUuid = getOrCreateDeterministicUuid(client.id || client.email || 'guest-visitor');
+    const providerUuid = getOrCreateDeterministicUuid(params.providerId);
 
     const randomSuffix = typeof crypto !== 'undefined' && crypto.getRandomValues
       ? (1000 + (crypto.getRandomValues(new Uint32Array(1))[0] % 9000))
       : 5521;
 
     const newOrder: Order = {
-      id: `ord-${Date.now()}`,
+      id: orderUuid,
       orderNumber: `SRV-2026-${randomSuffix}`,
-      clientId: client.id,
+      clientId: clientUuid,
       client,
-      providerId: params.providerId,
+      providerId: providerUuid,
       provider,
       totalAmount: split.totalAmount,
       platformFeePercent: split.platformFeePercent,
@@ -1075,10 +1173,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Persiste no Supabase
     try {
       await supabase.from('orders').upsert([{
-        id: newOrder.id,
+        id: orderUuid,
         order_number: newOrder.orderNumber,
-        client_id: newOrder.clientId,
-        provider_id: newOrder.providerId,
+        client_id: clientUuid,
+        provider_id: providerUuid,
         total_amount: newOrder.totalAmount,
         platform_fee_percent: newOrder.platformFeePercent,
         platform_fee_amount: newOrder.platformFeeAmount,
@@ -1126,10 +1224,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Persiste status no Supabase
     try {
+      const orderUuid = getOrCreateDeterministicUuid(orderId);
       await supabase.from('orders').update({
         status: 'completed_by_provider',
         completed_at: new Date().toISOString(),
-      }).eq('id', orderId);
+      }).eq('id', orderUuid);
     } catch {
       // Fallback
     }
@@ -1158,6 +1257,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const targetOrder = orders.find((o) => o.id === params.orderId);
     if (!targetOrder) return;
     const client = currentUser || INITIAL_CLIENT;
+    const reviewUuid = generateUuid();
+    const orderUuid = getOrCreateDeterministicUuid(params.orderId);
+    const clientUuid = getOrCreateDeterministicUuid(client.id || client.email || 'guest-visitor');
+    const providerUuid = getOrCreateDeterministicUuid(targetOrder.providerId);
 
     setOrders((prev) =>
       prev.map((o) =>
@@ -1172,11 +1275,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
 
     const newReview: Review = {
-      id: `rev-${Date.now()}`,
-      orderId: params.orderId,
-      clientId: client.id,
+      id: reviewUuid,
+      orderId: orderUuid,
+      clientId: clientUuid,
       client,
-      providerId: targetOrder.providerId,
+      providerId: providerUuid,
       rating: params.rating,
       comment: params.comment,
       tags: params.tags,
@@ -1191,13 +1294,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       await supabase.from('orders').update({
         status: 'approved_by_client',
         funds_released_at: new Date().toISOString(),
-      }).eq('id', params.orderId);
+      }).eq('id', orderUuid);
 
       await supabase.from('reviews').upsert([{
-        id: newReview.id,
-        order_id: newReview.orderId,
-        client_id: newReview.clientId,
-        provider_id: newReview.providerId,
+        id: reviewUuid,
+        order_id: orderUuid,
+        client_id: clientUuid,
+        provider_id: providerUuid,
         rating: newReview.rating,
         comment: newReview.comment,
         tags: newReview.tags,
@@ -1253,12 +1356,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Persiste no Supabase
     try {
+      const orderUuid = getOrCreateDeterministicUuid(orderId);
       await supabase.from('orders').update({
         status: 'disputed',
         dispute_reason: reason,
         dispute_details: details,
         dispute_opened_at: new Date().toISOString(),
-      }).eq('id', orderId);
+      }).eq('id', orderUuid);
     } catch {
       // Fallback
     }
@@ -1305,11 +1409,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Persiste no Supabase
     try {
+      const orderUuid = getOrCreateDeterministicUuid(orderId);
       await supabase.from('orders').update({
         status: decision === 'refund_client' ? 'refunded' : 'approved_by_client',
         dispute_resolved_at: new Date().toISOString(),
         funds_released_at: decision === 'release_provider' ? new Date().toISOString() : null,
-      }).eq('id', orderId);
+      }).eq('id', orderUuid);
     } catch {
       // Fallback
     }

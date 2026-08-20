@@ -47,11 +47,11 @@ export const NewRequestScreen: React.FC<NewRequestScreenProps> = ({ onSuccess })
     setPhotos((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !description.trim()) return;
 
-    createServiceRequest({
+    await createServiceRequest({
       categoryId,
       title: title.trim(),
       description: description.trim(),

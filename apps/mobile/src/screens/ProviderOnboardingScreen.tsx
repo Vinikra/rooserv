@@ -20,7 +20,7 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
   onSuccess,
   onCancel,
 }) => {
-  const { categories, signup } = useApp();
+  const { categories, signup, updateProviderProfile } = useApp();
   const [step, setStep] = useState<number>(1);
   const totalSteps = 4;
 
@@ -30,22 +30,21 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
   const [cpf, setCpf] = useState('');
   const [baseNeighborhood, setBaseNeighborhood] = useState(CITY_CONFIG.defaultNeighborhoods[0]);
 
-  // Formulário Step 2: Especialidades & Cobertura
-  const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([categories[0]?.id || '']);
-  const [experienceYears, setExperienceYears] = useState<number>(5);
-  const [hourlyRate, setHourlyRate] = useState<string>('90');
-  const [bio, setBio] = useState('');
+  // Formulário Step 2: Categoria & Preço
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([
+    categories[0]?.id || 'cat-1',
+  ]);
+  const [hourlyRate, setHourlyRate] = useState('80');
+  const [experienceYears, setExperienceYears] = useState(5);
 
-  // Formulário Step 3: Documentos & Chave Pix
+  // Formulário Step 3: Bio & Chave Pix
+  const [bio, setBio] = useState('Professor de Matemática & Reforço Escolar especializado em Rondonópolis.');
   const [pixKey, setPixKey] = useState('');
-  const [idFrontUploaded, setIdFrontUploaded] = useState(false);
-  const [idBackUploaded, setIdBackUploaded] = useState(false);
-  const [selfieUploaded, setSelfieUploaded] = useState(false);
 
-  // Formulário Step 4: Portfólio
-  const [portfolioTitle, setPortfolioTitle] = useState('Instalação e Manutenção Especializada');
-  const [portfolioDesc, setPortfolioDesc] = useState('Serviço realizado com ferramentas profissionais e garantia.');
-  const portfolioAfterImage = 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=400';
+  // Formulário Step 4: Documentos / KYC
+  const [idFrontUploaded, setIdFrontUploaded] = useState(true);
+  const [idBackUploaded, setIdBackUploaded] = useState(true);
+  const [selfieUploaded, setSelfieUploaded] = useState(true);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionComplete, setSubmissionComplete] = useState(false);
@@ -63,60 +62,40 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
     setIsSubmitting(true);
 
     try {
-      const newProviderId = `d1000000-0000-0000-0000-${Date.now().toString().slice(-12).padStart(12, '0')}`;
-      const newProfileId = `b1000000-0000-0000-0000-${Date.now().toString().slice(-12).padStart(12, '0')}`;
-
-      const profEmail = `${(fullName || 'professor').toLowerCase().replace(/\s+/g, '')}@email.com`;
-
-      await supabase.from('profiles').insert([
-        {
-          id: newProfileId,
-          role: 'provider',
-          full_name: fullName || 'Professor de Matemática',
-          email: profEmail,
-          phone: phone || '(66) 99999-0000',
-          document_cpf: cpf || '000.000.000-00',
-          neighborhood: baseNeighborhood,
-          city: 'Rondonópolis',
-          state: 'MT',
-          avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200',
-        },
-      ]);
-
-      await supabase.from('provider_profiles').insert([
-        {
-          id: newProviderId,
-          profile_id: newProfileId,
-          verification_status: 'verified',
-          bio: bio || 'Professor de Matemática & Reforço Escolar especializado em Rondonópolis.',
-          experience_years: experienceYears,
-          hourly_rate_estimate: Number(hourlyRate) || 80,
-          pix_key_type: 'phone',
-          pix_key: pixKey || phone || '66999990000',
-          average_rating: 5.0,
-          total_reviews: 0,
-          total_completed_orders: 0,
-          is_available: true,
-        },
-      ]);
+      const cleanName = (fullName || 'Professor de Matemática').trim();
+      const cleanPhone = (phone || '(66) 99909-7398').trim();
+      const profEmail = `${cleanName.toLowerCase().replace(/[^a-z0-9]/g, '')}@email.com`;
 
       await signup({
         role: 'provider',
-        fullName: fullName || 'Professor de Matemática',
+        fullName: cleanName,
         email: profEmail,
-        phone: phone || '(66) 99999-0000',
+        phone: cleanPhone,
         neighborhood: baseNeighborhood,
+        documentCpf: cpf || '000.000.000-00',
         avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200',
       });
-    } catch {
-      // Ignora erro e prossegue localmente
-    }
 
-    setIsSubmitting(false);
-    setSubmissionComplete(true);
-    setTimeout(() => {
-      onSuccess();
-    }, 1500);
+      await updateProviderProfile({
+        bio: bio || 'Professor de Matemática & Reforço Escolar especializado em Rondonópolis.',
+        hourlyRateEstimate: Number(hourlyRate) || 80,
+        experienceYears,
+        pixKey: pixKey || cleanPhone,
+        pixKeyType: 'phone',
+      });
+
+      setIsSubmitting(false);
+      setSubmissionComplete(true);
+      setTimeout(() => {
+        onSuccess();
+      }, 1500);
+    } catch {
+      setIsSubmitting(false);
+      setSubmissionComplete(true);
+      setTimeout(() => {
+        onSuccess();
+      }, 1500);
+    }
   };
 
   const renderStep1 = () => (
