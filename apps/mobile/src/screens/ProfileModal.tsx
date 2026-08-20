@@ -29,8 +29,20 @@ const PRESET_AVATARS = [
 ];
 
 export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
-  const { currentUser, currentRole, providers, updateUserProfile, updateProviderProfile } = useApp();
+  const { currentUser, providers, updateUserProfile, updateProviderProfile } = useApp();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const savedProviderData = (() => {
+    try {
+      if (currentUser?.id) {
+        const item = localStorage.getItem(`rooserv_provider_data_${currentUser.id}`);
+        if (item) return JSON.parse(item);
+      }
+    } catch {
+      // Ignora
+    }
+    return null;
+  })();
 
   const providerData = providers.find((p) => p.profileId === currentUser?.id);
 
@@ -40,12 +52,22 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
   const [neighborhood, setNeighborhood] = useState(currentUser?.neighborhood || CITY_CONFIG.defaultNeighborhoods[0]);
   const [avatarUrl, setAvatarUrl] = useState(currentUser?.avatarUrl || PRESET_AVATARS[0]);
 
-  // Estados do prestador
-  const [bio, setBio] = useState(providerData?.bio || 'Professor de Matemática & Reforço Escolar especializado em Rondonópolis.');
-  const [hourlyRate, setHourlyRate] = useState(String(providerData?.hourlyRateEstimate || 80));
-  const [experienceYears, setExperienceYears] = useState(providerData?.experienceYears || 5);
-  const [pixKeyType, setPixKeyType] = useState(providerData?.pixKeyType || 'phone');
-  const [pixKey, setPixKey] = useState(providerData?.pixKey || currentUser?.phone || '');
+  // Estados do prestador com fallback persistente em localStorage
+  const [bio, setBio] = useState(
+    savedProviderData?.bio || providerData?.bio || 'Professor de Matemática & Reforço Escolar especializado em Rondonópolis.'
+  );
+  const [hourlyRate, setHourlyRate] = useState(
+    String(savedProviderData?.hourlyRateEstimate ?? providerData?.hourlyRateEstimate ?? 80)
+  );
+  const [experienceYears, setExperienceYears] = useState(
+    savedProviderData?.experienceYears ?? providerData?.experienceYears ?? 5
+  );
+  const [pixKeyType, setPixKeyType] = useState(
+    savedProviderData?.pixKeyType || providerData?.pixKeyType || 'phone'
+  );
+  const [pixKey, setPixKey] = useState(
+    savedProviderData?.pixKey || providerData?.pixKey || currentUser?.phone || ''
+  );
 
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -75,15 +97,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
       avatarUrl,
     });
 
-    if (currentRole === 'provider') {
-      await updateProviderProfile({
-        bio,
-        hourlyRateEstimate: Number(hourlyRate) || 80,
-        experienceYears,
-        pixKey,
-        pixKeyType,
-      });
-    }
+    await updateProviderProfile({
+      bio,
+      hourlyRateEstimate: Number(hourlyRate) || 80,
+      experienceYears,
+      pixKey,
+      pixKeyType,
+    });
 
     setIsSaving(false);
     setSaveSuccess(true);
@@ -91,6 +111,21 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
       setSaveSuccess(false);
       onClose();
     }, 1200);
+  };
+
+  const renderSaveButtonContent = () => {
+    if (saveSuccess) {
+      return (
+        <>
+          <CheckCircle className="w-5 h-5 text-emerald-300" />
+          <span>Alterações Salvas com Sucesso!</span>
+        </>
+      );
+    }
+    if (isSaving) {
+      return <span>Salvando...</span>;
+    }
+    return <span>Salvar Meu Perfil</span>;
   };
 
   return (
@@ -243,110 +278,108 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
             </div>
           </div>
 
-          {/* Configurações Específicas de Prestador */}
-          {currentRole === 'provider' && (
-            <div className="space-y-4 pt-4 border-t border-slate-100">
-              <div className="flex items-center justify-between">
-                <h4 className="text-xs font-extrabold text-amber-800 uppercase tracking-wider flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>Configurações do Profissional</span>
-                </h4>
-                <span className="text-[10px] bg-amber-100 text-amber-900 font-bold px-2 py-0.5 rounded">
-                  Visível aos Clientes
-                </span>
+          {/* Configurações Específicas de Prestador / Chave Pix */}
+          <div className="space-y-4 pt-4 border-t border-slate-100">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-extrabold text-amber-800 uppercase tracking-wider flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Configurações do Profissional & Chave Pix</span>
+              </h4>
+              <span className="text-[10px] bg-amber-100 text-amber-900 font-bold px-2 py-0.5 rounded">
+                Recebimento & Clientes
+              </span>
+            </div>
+
+            <div>
+              <label htmlFor="input-bio" className="block text-xs font-bold text-slate-700 mb-1.5">
+                Apresentação / Bio dos Serviços
+              </label>
+              <textarea
+                id="input-bio"
+                value={bio}
+                onChange={(e) => setBio(e.target.value)}
+                rows={3}
+                placeholder="Descreva suas qualificações, experiência com aulas ou reparos..."
+                className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-3.5 text-xs sm:text-sm font-medium text-slate-900 focus:outline-none focus:border-brand-500"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="input-hourly-rate" className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Valor Estimado por Hora / Aula (R$)
+                </label>
+                <div className="relative">
+                  <DollarSign className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    id="input-hourly-rate"
+                    type="number"
+                    value={hourlyRate}
+                    onChange={(e) => setHourlyRate(e.target.value)}
+                    placeholder="80"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-3.5 pl-10 text-sm font-semibold text-slate-900 focus:outline-none focus:border-brand-500"
+                  />
+                </div>
               </div>
 
               <div>
-                <label htmlFor="input-bio" className="block text-xs font-bold text-slate-700 mb-1.5">
-                  Apresentação / Bio dos Serviços
+                <label htmlFor="input-exp-years" className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Anos de Experiência
                 </label>
-                <textarea
-                  id="input-bio"
-                  value={bio}
-                  onChange={(e) => setBio(e.target.value)}
-                  rows={3}
-                  placeholder="Descreva suas qualificações, experiência com aulas ou reparos..."
-                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-3.5 text-xs sm:text-sm font-medium text-slate-900 focus:outline-none focus:border-brand-500"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="input-hourly-rate" className="block text-xs font-bold text-slate-700 mb-1.5">
-                    Valor Estimado por Hora / Aula (R$)
-                  </label>
-                  <div className="relative">
-                    <DollarSign className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                    <input
-                      id="input-hourly-rate"
-                      type="number"
-                      value={hourlyRate}
-                      onChange={(e) => setHourlyRate(e.target.value)}
-                      placeholder="80"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-3.5 pl-10 text-sm font-semibold text-slate-900 focus:outline-none focus:border-brand-500"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label htmlFor="input-exp-years" className="block text-xs font-bold text-slate-700 mb-1.5">
-                    Anos de Experiência
-                  </label>
-                  <div className="relative">
-                    <BookOpen className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                    <input
-                      id="input-exp-years"
-                      type="number"
-                      value={experienceYears}
-                      onChange={(e) => setExperienceYears(Number(e.target.value))}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-3.5 pl-10 text-sm font-semibold text-slate-900 focus:outline-none focus:border-brand-500"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Chave Pix para Saques */}
-              <div className="bg-amber-50/70 p-4 rounded-2xl border border-amber-200/80 space-y-3">
-                <div className="flex items-center gap-2 text-xs font-extrabold text-amber-950">
-                  <Wallet className="w-4 h-4 text-amber-600" />
-                  <span>Chave Pix para Recebimento de Repasses</span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                  <div>
-                    <label htmlFor="select-pix-type" className="block text-[11px] font-bold text-slate-600 mb-1">
-                      Tipo
-                    </label>
-                    <select
-                      id="select-pix-type"
-                      value={pixKeyType}
-                      onChange={(e) => setPixKeyType(e.target.value)}
-                      className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-900"
-                    >
-                      <option value="phone">Telefone</option>
-                      <option value="cpf">CPF</option>
-                      <option value="email">E-mail</option>
-                      <option value="random">Aleatória</option>
-                    </select>
-                  </div>
-
-                  <div className="sm:col-span-2">
-                    <label htmlFor="input-pix-key" className="block text-[11px] font-bold text-slate-600 mb-1">
-                      Chave Pix
-                    </label>
-                    <input
-                      id="input-pix-key"
-                      type="text"
-                      value={pixKey}
-                      onChange={(e) => setPixKey(e.target.value)}
-                      placeholder="Sua chave Pix para recebimento"
-                      className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-semibold text-slate-900"
-                    />
-                  </div>
+                <div className="relative">
+                  <BookOpen className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    id="input-exp-years"
+                    type="number"
+                    value={experienceYears}
+                    onChange={(e) => setExperienceYears(Number(e.target.value))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-3.5 pl-10 text-sm font-semibold text-slate-900 focus:outline-none focus:border-brand-500"
+                  />
                 </div>
               </div>
             </div>
-          )}
+
+            {/* Chave Pix para Saques */}
+            <div className="bg-amber-50/70 p-4 rounded-2xl border border-amber-200/80 space-y-3">
+              <div className="flex items-center gap-2 text-xs font-extrabold text-amber-950">
+                <Wallet className="w-4 h-4 text-amber-600" />
+                <span>Chave Pix para Recebimento de Repasses</span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <div>
+                  <label htmlFor="select-pix-type" className="block text-[11px] font-bold text-slate-600 mb-1">
+                    Tipo
+                  </label>
+                  <select
+                    id="select-pix-type"
+                    value={pixKeyType}
+                    onChange={(e) => setPixKeyType(e.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-900"
+                  >
+                    <option value="phone">Telefone</option>
+                    <option value="cpf">CPF</option>
+                    <option value="email">E-mail</option>
+                    <option value="random">Aleatória</option>
+                  </select>
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label htmlFor="input-pix-key" className="block text-[11px] font-bold text-slate-600 mb-1">
+                    Chave Pix
+                  </label>
+                  <input
+                    id="input-pix-key"
+                    type="text"
+                    value={pixKey}
+                    onChange={(e) => setPixKey(e.target.value)}
+                    placeholder="Sua chave Pix para recebimento"
+                    className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-semibold text-slate-900"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
 
           {/* Botão de Salvar */}
           <div className="pt-2">
@@ -355,16 +388,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
               disabled={isSaving}
               className="w-full bg-gradient-to-r from-brand-600 to-brand-700 hover:from-brand-500 hover:to-brand-600 text-white font-extrabold text-sm sm:text-base py-4 rounded-2xl shadow-lg shadow-brand-500/25 transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer disabled:opacity-50"
             >
-              {saveSuccess ? (
-                <>
-                  <CheckCircle className="w-5 h-5 text-emerald-300" />
-                  <span>Alterações Salvas com Sucesso!</span>
-                </>
-              ) : isSaving ? (
-                <span>Salvando...</span>
-              ) : (
-                <span>Salvar Meu Perfil</span>
-              )}
+              {renderSaveButtonContent()}
             </button>
           </div>
         </form>

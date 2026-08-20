@@ -6,7 +6,6 @@ import {
   Clock, 
   CheckCircle2,
   Camera,
-  Upload,
   X
 } from 'lucide-react';
 
@@ -219,7 +218,7 @@ export const NewRequestScreen: React.FC<NewRequestScreenProps> = ({ onSuccess })
 
             <div className="grid grid-cols-3 gap-3">
               {photos.map((photo, index) => (
-                <div key={index} className="relative aspect-square rounded-2xl overflow-hidden border border-slate-200 shadow-sm group">
+                <div key={photo.slice(0, 40) + index} className="relative aspect-square rounded-2xl overflow-hidden border border-slate-200 shadow-sm group">
                   <img src={photo} alt={`Foto ${index + 1}`} className="w-full h-full object-cover" />
                   <button
                     type="button"

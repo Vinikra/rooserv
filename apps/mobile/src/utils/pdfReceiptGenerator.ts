@@ -150,7 +150,7 @@ export function generateOrderReceiptPDF(order: Order) {
 
   const printWindow = window.open('', '_blank');
   if (printWindow) {
-    printWindow.document.write(receiptHtml);
-    printWindow.document.close();
+    printWindow.document.documentElement.innerHTML = receiptHtml;
+    printWindow.print();
   }
 }

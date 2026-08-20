@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { 
   Order, 
@@ -15,9 +15,7 @@ import {
   AlertTriangle, 
   ShieldAlert, 
   RotateCcw,
-  FileText,
-  Camera,
-  Upload
+  FileText
 } from 'lucide-react';
 import { generateOrderReceiptPDF } from '../utils/pdfReceiptGenerator';
 
@@ -206,7 +204,7 @@ export const OrdersScreen: React.FC = () => {
                       <div className="flex gap-2 overflow-x-auto pb-1">
                         {order.photos.map((photo, pIdx) => (
                           <img
-                            key={pIdx}
+                            key={photo.slice(0, 40) + pIdx}
                             src={photo}
                             alt={`Anexo ${pIdx + 1}`}
                             className="w-14 h-14 rounded-xl object-cover border border-slate-200 shrink-0 shadow-xs"

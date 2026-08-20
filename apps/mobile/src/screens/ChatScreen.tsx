@@ -12,7 +12,6 @@ import {
   DollarSign, 
   ShieldAlert,
   Mic,
-  Square,
   Play,
   Pause,
   Trash2
@@ -44,6 +43,148 @@ interface Message {
     isAccepted: boolean;
   };
 }
+
+// Subcomponente de Card de Proposta Formal
+const ChatProposalCard: React.FC<{
+  isMe: boolean;
+  currentRole: string;
+  msgId: string;
+  proposalData: NonNullable<Message['proposalData']>;
+  onAccept: (msgId: string, amount: number) => void;
+}> = ({ isMe, currentRole, msgId, proposalData, onAccept }) => {
+  return (
+    <div
+      className={`mt-3 p-4 rounded-2xl border ${
+        isMe
+          ? 'bg-brand-700/90 border-brand-500 text-white'
+          : 'bg-slate-900 text-white border-slate-800'
+      } shadow-md space-y-2.5`}
+    >
+      <div className="flex items-center justify-between border-b border-white/10 pb-2">
+        <span className="flex items-center gap-1.5 text-xs font-black text-amber-400">
+          <Sparkles className="w-4 h-4" />
+          <span>Orçamento Formal com Garantia</span>
+        </span>
+        <span className="text-xs bg-white/10 px-2.5 py-0.5 rounded-full text-slate-200 font-bold">
+          Custódia RooServ
+        </span>
+      </div>
+
+      <p className="text-xs sm:text-sm text-slate-200 leading-relaxed font-medium">
+        {proposalData.description}
+      </p>
+
+      <div className="flex items-center justify-between pt-1">
+        <div>
+          <span className="text-[10px] text-slate-400 block font-semibold uppercase">
+            Valor Total
+          </span>
+          <strong className="text-base sm:text-lg font-black text-white">
+            {formatCurrencyBRL(proposalData.totalAmount)}
+          </strong>
+        </div>
+
+        {!isMe && currentRole === 'client' && (
+          <button
+            type="button"
+            disabled={proposalData.isAccepted}
+            onClick={() => onAccept(msgId, proposalData.totalAmount)}
+            className={`font-extrabold text-xs sm:text-sm px-4 py-2.5 rounded-xl transition-all shadow-md active:scale-95 flex items-center gap-1.5 ${
+              proposalData.isAccepted
+                ? 'bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 cursor-default'
+                : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-500/25 cursor-pointer'
+            }`}
+          >
+            {proposalData.isAccepted ? (
+              <>
+                <CheckCircle className="w-4 h-4" />
+                <span>Proposta Aceita!</span>
+              </>
+            ) : (
+              <>
+                <DollarSign className="w-4 h-4" />
+                <span>Aceitar & Pagar</span>
+              </>
+            )}
+          </button>
+        )}
+
+        {proposalData.isAccepted && isMe && (
+          <div className="flex items-center gap-1.5 text-xs text-emerald-400 font-extrabold bg-emerald-500/20 px-3 py-1.5 rounded-xl border border-emerald-500/30">
+            <CheckCircle className="w-4 h-4" />
+            <span>Cliente Aceitou e Pagou</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// Subcomponente de Balão de Mensagem Individual
+const ChatMessageBubble: React.FC<{
+  msg: Message;
+  currentRole: string;
+  playingAudioId: string | null;
+  onPlayAudio: (id: string, url: string) => void;
+  onAcceptProposal: (msgId: string, amount: number) => void;
+}> = ({ msg, currentRole, playingAudioId, onPlayAudio, onAcceptProposal }) => {
+  const isMe = msg.senderId === 'me';
+
+  return (
+    <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} space-y-1`}>
+      <div
+        className={`max-w-[88%] sm:max-w-[78%] rounded-3xl p-4 text-sm shadow-sm ${
+          isMe
+            ? 'bg-brand-600 text-white rounded-br-none'
+            : 'bg-white text-slate-800 border border-slate-200/80 rounded-bl-none'
+        }`}
+      >
+        {msg.audioUrl ? (
+          <div className="flex items-center gap-3 py-1.5 min-w-[200px]">
+            <button
+              type="button"
+              onClick={() => onPlayAudio(msg.id, msg.audioUrl!)}
+              className={`w-10 h-10 rounded-full flex items-center justify-center transition-transform active:scale-95 cursor-pointer shrink-0 ${
+                isMe ? 'bg-white text-brand-700 shadow' : 'bg-brand-600 text-white shadow'
+              }`}
+            >
+              {playingAudioId === msg.id ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
+            </button>
+            <div className="flex-1 min-w-0">
+              <div className={`h-2 rounded-full overflow-hidden ${isMe ? 'bg-white/30' : 'bg-slate-200'}`}>
+                <div className={`h-full ${isMe ? 'bg-white' : 'bg-brand-600'} w-3/4 rounded-full`} />
+              </div>
+              <span className={`text-[10px] font-bold block mt-1 ${isMe ? 'text-blue-100' : 'text-slate-500'}`}>
+                Áudio • {msg.audioDuration || '0:05'}
+              </span>
+            </div>
+          </div>
+        ) : (
+          <p className="leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+        )}
+
+        {msg.proposalData && (
+          <ChatProposalCard
+            isMe={isMe}
+            currentRole={currentRole}
+            msgId={msg.id}
+            proposalData={msg.proposalData}
+            onAccept={onAcceptProposal}
+          />
+        )}
+
+        <div
+          className={`flex items-center justify-end gap-1 text-[11px] mt-1 font-semibold ${
+            isMe ? 'text-blue-100' : 'text-slate-400'
+          }`}
+        >
+          <span>{msg.time}</span>
+          {isMe && <CheckCheck className="w-3.5 h-3.5 text-blue-200" />}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export const ChatScreen: React.FC<ChatScreenProps> = ({
   recipientUser,
@@ -230,12 +371,11 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
     if (e) e.preventDefault();
     if (!inputText.trim()) return;
 
-    // Executa motor de proteção anti-vazamento RooServ
     const scanResult = sanitizeChatMessage(inputText);
 
     if (scanResult.hasSensitiveContact) {
       setSecurityAlert(
-        '⚠️ Tentativa de contato externo bloqueada! Para sua segurança, garantia e proteção contra golpes, números de telefone, chaves Pix e redes sociais não podem ser enviados no chat.'
+        '⚠️ Tentativa de contato externo bloqueada! Para sua segurança e garantia, números de telefone e redes sociais não podem ser enviados no chat.'
       );
     }
 
@@ -318,64 +458,59 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
 
           <div className="relative">
             <img
-              src={recipientUser.avatarUrl || 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=150'}
+              src={recipientUser.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100'}
               alt={recipientUser.name}
-              className="w-12 h-12 rounded-full object-cover border-2 border-slate-700 shadow-xs"
+              className="w-11 h-11 rounded-full object-cover border-2 border-brand-500 shadow-sm"
             />
-            <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-emerald-500 rounded-full border-2 border-slate-900" />
+            <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-slate-900 rounded-full" />
           </div>
 
           <div>
             <h3 className="text-sm sm:text-base font-extrabold text-white leading-tight">
               {recipientUser.name}
             </h3>
-            <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
-              <span>{`${recipientUser.subtitle} •`}</span>
-              <span className="text-emerald-400 font-bold flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse inline-block" />
-                <span>Realtime Ativo</span>
-              </span>
-            </p>
+            <span className="text-xs text-brand-300 font-medium block">
+              {recipientUser.subtitle}
+            </span>
           </div>
         </div>
 
-        {/* Ação de Criar Proposta (Visão Prestador) */}
-        {currentRole === 'provider' && (
-          <button
-            type="button"
-            onClick={() => setIsSendingProposal(true)}
-            className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-black px-3.5 py-2 rounded-xl shadow-sm flex items-center gap-1.5 active:scale-95 transition-all"
-          >
-            <DollarSign className="w-4 h-4" />
-            <span>Enviar Orçamento</span>
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {currentRole === 'provider' && (
+            <button
+              type="button"
+              onClick={() => setIsSendingProposal(true)}
+              className="bg-amber-600 hover:bg-amber-500 text-white font-extrabold text-xs px-3.5 py-2 rounded-xl shadow-sm flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Enviar Orçamento</span>
+              <span className="sm:hidden">Orçar</span>
+            </button>
+          )}
+
+          <div className="flex items-center gap-1 bg-emerald-950/80 text-emerald-300 border border-emerald-800 px-3 py-1 rounded-full text-xs font-bold">
+            <ShieldCheck className="w-4 h-4 text-emerald-400" />
+            <span className="hidden sm:inline">Garantia RooServ</span>
+          </div>
+        </div>
       </div>
 
-      {/* Alerta Flutuante de Tentativa de Vazamento Bloqueada */}
+      {/* Alerta de Segurança e Anti-Vazamento */}
       {securityAlert && (
-        <div className="bg-red-600 text-white px-4 py-3 text-xs sm:text-sm font-semibold flex items-center justify-between shadow-lg animate-in slide-in-from-top duration-200 sticky top-[65px] z-20">
-          <div className="flex items-center gap-2.5">
-            <ShieldAlert className="w-6 h-6 text-red-200 shrink-0" />
-            <span className="leading-snug">{securityAlert}</span>
+        <div className="bg-amber-500 text-slate-950 px-4 py-2.5 text-xs font-black flex items-center justify-between gap-2 shadow-sm animate-in slide-in-from-top-2">
+          <div className="flex items-center gap-2">
+            <ShieldAlert className="w-4 h-4 shrink-0" />
+            <span>{securityAlert}</span>
           </div>
           <button
             type="button"
             onClick={() => setSecurityAlert(null)}
-            className="p-1.5 hover:bg-red-700 rounded-lg text-white shrink-0"
+            className="p-1 hover:bg-black/10 rounded-lg"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
       )}
-
-      {/* Alerta de Segurança e Anti-Vazamento */}
-      <div className="bg-amber-50 border-b border-amber-200/80 px-4 py-2.5 flex items-center gap-2.5 text-xs text-amber-950 font-medium">
-        <ShieldCheck className="w-5 h-5 text-amber-600 shrink-0" />
-        <p className="leading-tight">
-          <strong>Proteção RooServ:</strong> Mantenha as negociações pelo chat para garantir o direito à garantia e mediação de disputas.
-        </p>
-      </div>
 
       {/* Lista de Mensagens */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3.5 pb-24">
@@ -409,128 +544,16 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
           </div>
         )}
 
-        {messages.map((msg) => {
-          const isMe = msg.senderId === 'me';
-
-          return (
-            <div
-              key={msg.id}
-              className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} space-y-1`}
-            >
-              <div
-                className={`max-w-[88%] sm:max-w-[78%] rounded-3xl p-4 text-sm shadow-sm ${
-                  isMe
-                    ? 'bg-brand-600 text-white rounded-br-none'
-                    : 'bg-white text-slate-800 border border-slate-200/80 rounded-bl-none'
-                }`}
-              >
-                {/* Renderiza Mensagem de Áudio ou Texto */}
-                {msg.audioUrl ? (
-                  <div className="flex items-center gap-3 py-1.5 min-w-[200px]">
-                    <button
-                      type="button"
-                      onClick={() => handlePlayAudio(msg.id, msg.audioUrl!)}
-                      className={`w-10 h-10 rounded-full flex items-center justify-center transition-transform active:scale-95 cursor-pointer shrink-0 ${
-                        isMe ? 'bg-white text-brand-700 shadow' : 'bg-brand-600 text-white shadow'
-                      }`}
-                    >
-                      {playingAudioId === msg.id ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
-                    </button>
-                    <div className="flex-1 min-w-0">
-                      <div className={`h-2 rounded-full overflow-hidden ${isMe ? 'bg-white/30' : 'bg-slate-200'}`}>
-                        <div className={`h-full ${isMe ? 'bg-white' : 'bg-brand-600'} w-3/4 rounded-full`} />
-                      </div>
-                      <span className={`text-[10px] font-bold block mt-1 ${isMe ? 'text-blue-100' : 'text-slate-500'}`}>
-                        Áudio • {msg.audioDuration || '0:05'}
-                      </span>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="leading-relaxed whitespace-pre-wrap">{msg.text}</p>
-                )}
-
-                {/* Cartão de Proposta / Orçamento Formal */}
-                {msg.proposalData && (
-                  <div
-                    className={`mt-3 p-4 rounded-2xl border ${
-                      isMe
-                        ? 'bg-brand-700/90 border-brand-500 text-white'
-                        : 'bg-slate-900 text-white border-slate-800'
-                    } shadow-md space-y-2.5`}
-                  >
-                    <div className="flex items-center justify-between border-b border-white/10 pb-2">
-                      <span className="flex items-center gap-1.5 text-xs font-black text-amber-400">
-                        <Sparkles className="w-4 h-4" />
-                        <span>Orçamento Formal com Garantia</span>
-                      </span>
-                      <span className="text-xs bg-white/10 px-2.5 py-0.5 rounded-full text-slate-200 font-bold">
-                        Custódia RooServ
-                      </span>
-                    </div>
-
-                    <p className="text-xs sm:text-sm text-slate-200 leading-relaxed font-medium">
-                      {msg.proposalData.description}
-                    </p>
-
-                    <div className="flex items-center justify-between pt-1">
-                      <div>
-                        <span className="text-[10px] text-slate-400 block font-semibold uppercase">
-                          Valor Total
-                        </span>
-                        <strong className="text-base sm:text-lg font-black text-white">
-                          {formatCurrencyBRL(msg.proposalData.totalAmount)}
-                        </strong>
-                      </div>
-
-                      {/* Botão de Aceitar Proposta (Cliente) */}
-                      {!isMe && currentRole === 'client' && (
-                        <button
-                          type="button"
-                          disabled={msg.proposalData.isAccepted}
-                          onClick={() => handleAcceptFormalProposal(msg.id, msg.proposalData!.totalAmount)}
-                          className={`font-extrabold text-xs sm:text-sm px-4 py-2.5 rounded-xl transition-all shadow-md active:scale-95 flex items-center gap-1.5 ${
-                            msg.proposalData.isAccepted
-                              ? 'bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 cursor-default'
-                              : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-500/25 cursor-pointer'
-                          }`}
-                        >
-                          {msg.proposalData.isAccepted ? (
-                            <>
-                              <CheckCircle className="w-4 h-4" />
-                              <span>Proposta Aceita!</span>
-                            </>
-                          ) : (
-                            <>
-                              <DollarSign className="w-4 h-4" />
-                              <span>Aceitar & Pagar</span>
-                            </>
-                          )}
-                        </button>
-                      )}
-
-                      {/* Status de Aceite para o Prestador */}
-                      {msg.proposalData.isAccepted && isMe && (
-                        <div className="flex items-center gap-1.5 text-xs text-emerald-400 font-extrabold bg-emerald-500/20 px-3 py-1.5 rounded-xl border border-emerald-500/30">
-                          <CheckCircle className="w-4 h-4" />
-                          <span>Cliente Aceitou e Pagou</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                <div
-                  className={`flex items-center justify-end gap-1 text-[11px] mt-1 font-semibold ${
-                    isMe ? 'text-blue-100' : 'text-slate-400'
-                  }`}
-                >
-                  <span>{msg.time}</span>
-                  {isMe && <CheckCheck className="w-3.5 h-3.5 text-blue-200" />}
-                </div>
-              </div>
-            </div>
-          );
-        })}
+        {messages.map((msg) => (
+          <ChatMessageBubble
+            key={msg.id}
+            msg={msg}
+            currentRole={currentRole}
+            playingAudioId={playingAudioId}
+            onPlayAudio={handlePlayAudio}
+            onAcceptProposal={handleAcceptFormalProposal}
+          />
+        ))}
         <div ref={messagesEndRef} />
       </div>
 

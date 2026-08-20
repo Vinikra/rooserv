@@ -9,15 +9,11 @@ import {
   LogOut, 
   Bell, 
   ChevronDown,
-  Compass,
-  LogIn, 
   Inbox, 
   Wallet, 
   FileText, 
   MessageSquare,
-  Camera,
-  Compass,
-  PlusCircle
+  Camera
 } from 'lucide-react';
 import { CITY_CONFIG, UserRole, UserProfile } from '@servicos/shared';
 

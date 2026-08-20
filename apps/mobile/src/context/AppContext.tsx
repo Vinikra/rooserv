@@ -631,48 +631,87 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     categories?: ServiceCategory[];
   }) => {
     if (!currentUser) return;
-    setProviders((prev) =>
-      prev.map((p) => {
-        if (p.profileId === currentUser.id) {
-          return {
-            ...p,
-            bio: data.bio !== undefined ? data.bio : p.bio,
-            hourlyRateEstimate: data.hourlyRateEstimate !== undefined ? data.hourlyRateEstimate : p.hourlyRateEstimate,
-            experienceYears: data.experienceYears !== undefined ? data.experienceYears : p.experienceYears,
-            pixKey: data.pixKey !== undefined ? data.pixKey : p.pixKey,
-            pixKeyType: data.pixKeyType !== undefined ? data.pixKeyType : p.pixKeyType,
-            categories: data.categories !== undefined ? data.categories : p.categories,
-          };
-        }
-        return p;
-      })
-    );
 
+    // 1. Persiste imediatamente no localStorage
+    const storageKey = `rooserv_provider_data_${currentUser.id}`;
+    let existingSaved = {};
     try {
-      const myProv = providers.find((p) => p.profileId === currentUser.id);
-      if (myProv) {
-        await supabase.from('provider_profiles').upsert([
-          {
-            id: myProv.id,
-            profile_id: currentUser.id,
-            bio: data.bio || myProv.bio,
-            hourly_rate_estimate: data.hourlyRateEstimate || myProv.hourlyRateEstimate,
-            experience_years: data.experienceYears || myProv.experienceYears,
-            pix_key: data.pixKey || myProv.pixKey,
-            pix_key_type: data.pixKeyType || myProv.pixKeyType,
-            verification_status: myProv.verificationStatus,
-            average_rating: myProv.averageRating,
-            is_available: true,
-          },
-        ]);
-      }
+      const item = localStorage.getItem(storageKey);
+      if (item) existingSaved = JSON.parse(item);
     } catch {
       // Ignora
     }
 
+    const mergedProviderData = {
+      ...existingSaved,
+      ...data,
+    };
+    localStorage.setItem(storageKey, JSON.stringify(mergedProviderData));
+
+    // 2. Atualiza ou insere no estado providers
+    setProviders((prev) => {
+      const exists = prev.some((p) => p.profileId === currentUser.id);
+      if (exists) {
+        return prev.map((p) => {
+          if (p.profileId === currentUser.id) {
+            return {
+              ...p,
+              bio: data.bio ?? p.bio,
+              hourlyRateEstimate: data.hourlyRateEstimate ?? p.hourlyRateEstimate,
+              experienceYears: data.experienceYears ?? p.experienceYears,
+              pixKey: data.pixKey ?? p.pixKey,
+              pixKeyType: data.pixKeyType ?? p.pixKeyType,
+              categories: data.categories ?? p.categories,
+            };
+          }
+          return p;
+        });
+      }
+
+      const newProv: ProviderProfile = {
+        id: `prv-${currentUser.id}`,
+        profileId: currentUser.id,
+        profile: currentUser,
+        verificationStatus: 'verified',
+        bio: data.bio || 'Professor de Matemática & Reforço Escolar especializado em Rondonópolis.',
+        experienceYears: data.experienceYears || 5,
+        hourlyRateEstimate: data.hourlyRateEstimate || 80,
+        pixKeyType: data.pixKeyType || 'phone',
+        pixKey: data.pixKey || currentUser.phone || '',
+        averageRating: 5.0,
+        totalReviews: 0,
+        totalCompletedOrders: 0,
+        isAvailable: true,
+        categories: data.categories || [categories[0]],
+        portfolio: [],
+      };
+      return [newProv, ...prev];
+    });
+
+    // 3. Persiste no Supabase
+    try {
+      const myProv = providers.find((p) => p.profileId === currentUser.id);
+      await supabase.from('provider_profiles').upsert([
+        {
+          id: myProv?.id || `prv-${currentUser.id}`,
+          profile_id: currentUser.id,
+          bio: data.bio || myProv?.bio || 'Profissional em Rondonópolis',
+          hourly_rate_estimate: data.hourlyRateEstimate || myProv?.hourlyRateEstimate || 80,
+          experience_years: data.experienceYears || myProv?.experienceYears || 5,
+          pix_key: data.pixKey || myProv?.pixKey || currentUser.phone || '',
+          pix_key_type: data.pixKeyType || myProv?.pixKeyType || 'phone',
+          verification_status: myProv?.verificationStatus || 'verified',
+          average_rating: myProv?.averageRating || 5.0,
+          is_available: true,
+        },
+      ]);
+    } catch {
+      // Ignora erro de rede
+    }
+
     sendInAppNotification({
-      title: '✓ Perfil Profissional Atualizado!',
-      message: 'Seus dados de atendimento e chave Pix foram salvos.',
+      title: '✓ Chave Pix e Perfil Salvos!',
+      message: `Chave Pix (${data.pixKeyType || 'telefone'}: ${data.pixKey}) configurada com sucesso.`,
       type: 'system',
     });
   };
