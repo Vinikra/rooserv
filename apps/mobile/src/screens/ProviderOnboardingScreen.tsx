@@ -20,7 +20,7 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
   onSuccess,
   onCancel,
 }) => {
-  const { categories } = useApp();
+  const { categories, signup } = useApp();
   const [step, setStep] = useState<number>(1);
   const totalSteps = 4;
 
@@ -66,18 +66,20 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
       const newProviderId = `d1000000-0000-0000-0000-${Date.now().toString().slice(-12).padStart(12, '0')}`;
       const newProfileId = `b1000000-0000-0000-0000-${Date.now().toString().slice(-12).padStart(12, '0')}`;
 
+      const profEmail = `${(fullName || 'professor').toLowerCase().replace(/\s+/g, '')}@email.com`;
+
       await supabase.from('profiles').insert([
         {
           id: newProfileId,
           role: 'provider',
-          full_name: fullName || 'Novo Profissional RooServ',
-          email: `${fullName.toLowerCase().replace(/\s+/g, '') || 'prestador'}@email.com`,
+          full_name: fullName || 'Professor de Matemática',
+          email: profEmail,
           phone: phone || '(66) 99999-0000',
           document_cpf: cpf || '000.000.000-00',
           neighborhood: baseNeighborhood,
           city: 'Rondonópolis',
           state: 'MT',
-          avatar_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200',
+          avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200',
         },
       ]);
 
@@ -85,27 +87,27 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
         {
           id: newProviderId,
           profile_id: newProfileId,
-          verification_status: 'under_review',
-          bio: bio || 'Profissional autônomo com foco em qualidade e pontualidade em Rondonópolis.',
+          verification_status: 'verified',
+          bio: bio || 'Professor de Matemática & Reforço Escolar especializado em Rondonópolis.',
           experience_years: experienceYears,
           hourly_rate_estimate: Number(hourlyRate) || 80,
-          pix_key_type: 'cpf',
-          pix_key: pixKey || cpf || '66999990000',
+          pix_key_type: 'phone',
+          pix_key: pixKey || phone || '66999990000',
           average_rating: 5.0,
           total_reviews: 0,
           total_completed_orders: 0,
-          is_available: false,
+          is_available: true,
         },
       ]);
 
-      await supabase.from('provider_wallets').insert([
-        {
-          provider_id: newProviderId,
-          balance_available: 0,
-          balance_in_escrow: 0,
-          total_earned_lifetime: 0,
-        },
-      ]);
+      await signup({
+        role: 'provider',
+        fullName: fullName || 'Professor de Matemática',
+        email: profEmail,
+        phone: phone || '(66) 99999-0000',
+        neighborhood: baseNeighborhood,
+        avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200',
+      });
     } catch {
       // Ignora erro e prossegue localmente
     }
@@ -114,7 +116,7 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
     setSubmissionComplete(true);
     setTimeout(() => {
       onSuccess();
-    }, 2500);
+    }, 1500);
   };
 
   const renderStep1 = () => (

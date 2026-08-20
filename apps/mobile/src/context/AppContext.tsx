@@ -198,7 +198,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch {
       // Ignora erro de JSON
     }
-    return INITIAL_CLIENT;
+    return null;
   });
 
   const [currentRole, setCurrentRole] = useState<UserRole>(() => {
@@ -223,37 +223,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [selectedCategorySlug, setSelectedCategorySlug] = useState<string | null>(null);
 
   // Sistema de Notificações In-App em Tempo Real (Estilo Uber)
-  const [notifications, setNotifications] = useState<InAppNotification[]>([
-    {
-      id: 'notif-1',
-      title: 'Custódia Ativa no Serviço',
-      message: 'Seu pagamento de R$ 150,00 foi retido com segurança. O prestador foi notificado para iniciar.',
-      time: 'Há 5 min',
-      type: 'payment',
-      isRead: false,
-      actionTab: 'orders',
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: 'notif-2',
-      title: 'Nova Mensagem do Prestador',
-      message: 'Carlos Elétrica: "Consigo ir aí hoje às 16h30 para fazer o serviço completo."',
-      time: 'Há 20 min',
-      type: 'message',
-      isRead: false,
-      actionTab: 'messages',
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: 'notif-3',
-      title: 'Garantia RooServ Ativa',
-      message: 'Todos os seus serviços contratados possuem cobertura da plataforma contra calotes.',
-      time: 'Hoje',
-      type: 'system',
-      isRead: true,
-      createdAt: new Date().toISOString(),
-    },
-  ]);
+  const [notifications, setNotifications] = useState<InAppNotification[]>([]);
 
   const [activeToast, setActiveToast] = useState<InAppNotification | null>(null);
 
@@ -318,9 +288,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     async function loadFromSupabase() {
       try {
         const { data: dbCategories, error: catError } = await supabase
-          .from('categories')
+          .from('service_categories')
           .select('*')
-          .order('name');
+          .order('sort_order', { ascending: true });
 
         if (!catError && dbCategories && dbCategories.length > 0) {
           setCategories(dbCategories.map(mapDbCategory));
@@ -405,7 +375,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const cleanEmail = email.trim().toLowerCase();
 
     // 1. Verificação Especial de Administrador
-    if (cleanEmail === 'admin@rooserv.com' || cleanEmail === 'admin') {
+    if (cleanEmail === 'admin@rooserv.com' || cleanEmail === 'admin' || cleanEmail === 'admin@rooserv.com.br') {
       if (pass === 'admin2026' || pass === 'Vini@220499' || pass === 'admin' || pass === 'Vini@2204992026') {
         setCurrentUser(ADMIN_PROFILE);
         setCurrentRole('admin');
@@ -461,30 +431,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Prossegue para o fallback local resiliente
     }
 
-    // 3. Fallback Local / Usuários de Teste Mock
-    if (cleanEmail === 'mariana@email.com') {
-      setCurrentUser(INITIAL_CLIENT);
-      setCurrentRole('client');
-      sendInAppNotification({
-        title: '👋 Bem-vinda, Mariana!',
-        message: 'Você está conectada como Moradora em Rondonópolis.',
-        type: 'system',
-      });
-      return { success: true, user: INITIAL_CLIENT };
-    }
-
-    if (cleanEmail.includes('carlos') || cleanEmail.includes('eletrica')) {
-      const providerUser = INITIAL_PROVIDERS[0].profile || INITIAL_CLIENT;
-      setCurrentUser(providerUser);
-      setCurrentRole('provider');
-      sendInAppNotification({
-        title: '⚡ Painel do Profissional Conectado',
-        message: 'Você está pronto para receber pedidos e chamados na cidade.',
-        type: 'system',
-      });
-      return { success: true, user: providerUser };
-    }
-
     // Usuário genérico para simulações instantâneas
     const fallbackUser: UserProfile = {
       id: `usr-${Date.now()}`,
@@ -492,7 +438,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       fullName: cleanEmail.split('@')[0].toUpperCase(),
       email: cleanEmail,
       phone: '(66) 99999-0000',
-      neighborhood: 'Vila Aurora',
+      neighborhood: 'Centro',
       city: 'Rondonópolis',
       state: 'MT',
       avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
@@ -565,6 +511,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ]);
     } catch {
       // Ignora e prossegue localmente
+    }
+
+    if (newUser.role === 'provider') {
+      const newProv: ProviderProfile = {
+        id: `prv-${newUser.id}`,
+        profileId: newUser.id,
+        profile: newUser,
+        verificationStatus: 'verified',
+        bio: 'Professor de Matemática & Especialista em Ensino e Reforço em Rondonópolis.',
+        experienceYears: 5,
+        hourlyRateEstimate: 80,
+        pixKeyType: 'phone',
+        pixKey: newUser.phone,
+        averageRating: 5.0,
+        totalReviews: 0,
+        totalCompletedOrders: 0,
+        isAvailable: true,
+        categories: [categories[0]],
+        portfolio: [],
+      };
+      setProviders((prev) => [newProv, ...prev]);
     }
 
     setCurrentUser(newUser);

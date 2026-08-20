@@ -11,6 +11,9 @@ import {
   Sparkles, 
   Hammer, 
   Fan, 
+  GraduationCap,
+  BookOpen,
+  Calculator,
   ChevronRight, 
   CheckCircle2, 
   Flame, 
@@ -19,6 +22,9 @@ import {
 } from 'lucide-react';
 
 const ICON_MAP: Record<string, React.ReactNode> = {
+  GraduationCap: <GraduationCap className="w-6 h-6 text-indigo-500" />,
+  BookOpen: <BookOpen className="w-6 h-6 text-indigo-500" />,
+  Calculator: <Calculator className="w-6 h-6 text-indigo-500" />,
   Zap: <Zap className="w-6 h-6 text-amber-500" />,
   Droplets: <Droplets className="w-6 h-6 text-blue-500" />,
   Paintbrush: <Paintbrush className="w-6 h-6 text-purple-500" />,
