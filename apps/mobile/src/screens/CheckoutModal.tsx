@@ -13,11 +13,14 @@ import {
   ArrowRight, 
   Clock, 
   CheckCircle2, 
-  RefreshCw 
+  RefreshCw,
+  Info,
+  TrendingDown
 } from 'lucide-react';
 import { 
   calculateServiceSplit, 
   calculateInstallments, 
+  calculateCheckoutPricing,
   formatCurrencyBRL 
 } from '@servicos/shared';
 import { RooServPaymentService } from '../services/paymentService';
@@ -51,8 +54,14 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
   if (!provider) return null;
 
-  const split = calculateServiceSplit(serviceAmount, 12.0);
-  const installmentOptions = calculateInstallments(serviceAmount, 12, 3);
+  // Cálculo da precificação com repasse de taxas de cartão ao pagador
+  const pricing = calculateCheckoutPricing({
+    serviceAmount,
+    paymentMethod,
+    installments: selectedInstallment,
+  });
+
+  const installmentOptions = calculateInstallments(serviceAmount, 12);
 
   // Gera código Pix dinâmico com identificador do prestador e valor
   useEffect(() => {
@@ -84,7 +93,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     setTimeout(() => {
       hireProviderWithEscrow({
         providerId: provider.id,
-        amount: serviceAmount,
+        amount: pricing.serviceBaseAmount,
         paymentMethod,
         installments: paymentMethod === 'credit_card' ? selectedInstallment : 1,
       });
@@ -125,7 +134,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           {/* Valor do Serviço */}
           <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2">
             <div className="flex items-center justify-between">
-              <span className="font-semibold text-slate-700">Valor Total do Serviço</span>
+              <span className="font-semibold text-slate-700">Valor Acordado do Serviço</span>
               <span className="text-base font-black text-slate-900">
                 {formatCurrencyBRL(serviceAmount)}
               </span>
@@ -147,15 +156,15 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               ))}
             </div>
 
-            {/* Explicação da Divisão do Split (Regra dos 12% / 88%) */}
+            {/* Repartição 100% Protegida (12% Plataforma / 88% Prestador) */}
             <div className="pt-2 border-t border-slate-200/80 text-[11px] text-slate-500 space-y-1">
               <div className="flex justify-between">
-                <span>Repasse ao Prestador (88% após aprovação):</span>
-                <strong className="text-slate-900">{formatCurrencyBRL(split.providerPayoutAmount)}</strong>
+                <span>Repasse Líquido ao Profissional (88%):</span>
+                <strong className="text-slate-900">{formatCurrencyBRL(pricing.providerPayoutAmount)}</strong>
               </div>
               <div className="flex justify-between">
                 <span>Taxa de Proteção RooServ (12%):</span>
-                <strong className="text-emerald-700 font-semibold">{formatCurrencyBRL(split.platformFeeAmount)}</strong>
+                <strong className="text-emerald-700 font-semibold">{formatCurrencyBRL(pricing.platformFeeAmount)}</strong>
               </div>
             </div>
           </div>
@@ -167,7 +176,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             </label>
             <div className="grid grid-cols-2 gap-2">
               <button
-                onClick={() => setPaymentMethod('pix')}
+                onClick={() => {
+                  setPaymentMethod('pix');
+                  setSelectedInstallment(1);
+                }}
                 className={`p-3 rounded-xl border flex items-center gap-2.5 font-semibold text-xs transition-all ${
                   paymentMethod === 'pix'
                     ? 'border-emerald-500 bg-emerald-50/50 text-emerald-950 ring-1 ring-emerald-500'
@@ -179,7 +191,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 </div>
                 <div className="text-left">
                   <span className="block leading-tight">Pix Instantâneo</span>
-                  <span className="text-[10px] text-emerald-600 font-normal">Aprovação imediata</span>
+                  <span className="text-[10px] text-emerald-600 font-bold">Sem taxas extras</span>
                 </div>
               </button>
 
@@ -321,21 +333,37 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   >
                     {installmentOptions.map((opt) => (
                       <option key={opt.installments} value={opt.installments}>
-                        {opt.installments}x de {formatCurrencyBRL(opt.installmentAmount)}{' '}
-                        {opt.hasInterest ? `(Total ${formatCurrencyBRL(opt.totalWithInterest)})` : 'sem juros'}
+                        {opt.installments === 1
+                          ? `1x de ${formatCurrencyBRL(opt.installmentAmount)} à vista no cartão`
+                          : `${opt.installments}x de ${formatCurrencyBRL(opt.installmentAmount)} (Total ${formatCurrencyBRL(opt.totalWithInterest)})`}
                       </option>
                     ))}
                   </select>
+                </div>
+
+                {/* Resumo do Acréscimo do Cartão Repassado ao Comprador */}
+                <div className="bg-amber-50 border border-amber-200/80 rounded-xl p-2.5 text-[11px] space-y-1 text-amber-950">
+                  <div className="flex justify-between font-semibold">
+                    <span>Taxa da operadora de cartão:</span>
+                    <span>+{formatCurrencyBRL(pricing.gatewayFeeChargedToBuyer)}</span>
+                  </div>
+                  <div className="flex justify-between font-extrabold text-xs text-slate-900 border-t border-amber-200/60 pt-1">
+                    <span>Total a pagar no Cartão:</span>
+                    <span>{formatCurrencyBRL(pricing.totalChargedToClient)}</span>
+                  </div>
+                  <p className="text-[10px] text-amber-800 italic pt-0.5">
+                    * O custo de processamento do cartão é pago pelo titular, mantendo o repasse integral do prestador e da plataforma.
+                  </p>
                 </div>
               </div>
             </div>
           )}
 
           {/* Aviso de Garantia e Custódia */}
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2.5">
-            <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-            <p className="text-[11px] text-amber-900 leading-tight">
-              <strong>Garantia RooServ:</strong> O dinheiro fica bloqueado sob custódia segura. O profissional só recebe os <strong>{formatCurrencyBRL(split.providerPayoutAmount)}</strong> após você inspecionar e aprovar o serviço finalizado.
+          <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-xl p-3 flex items-start gap-2.5">
+            <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+            <p className="text-[11px] text-emerald-950 leading-tight">
+              <strong>Garantia RooServ:</strong> O dinheiro fica bloqueado sob custódia segura. O profissional só recebe os <strong>{formatCurrencyBRL(pricing.providerPayoutAmount)}</strong> após você inspecionar e aprovar o serviço finalizado.
             </p>
           </div>
         </div>
@@ -355,7 +383,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             ) : (
               <>
                 <CheckCircle2 className="w-4 h-4" />
-                <span>Confirmar Pagamento Seguro ({formatCurrencyBRL(serviceAmount)})</span>
+                <span>
+                  Confirmar Pagamento ({formatCurrencyBRL(pricing.totalChargedToClient)})
+                </span>
               </>
             )}
           </button>

@@ -1,4 +1,7 @@
-export const DEFAULT_PLATFORM_FEE_PERCENT = 12.0; // 12% take rate
+export const DEFAULT_PLATFORM_FEE_PERCENT = 12.0; // 12% take rate RooServ
+export const CREDIT_CARD_SURCHARGE_PERCENT = 2.99; // Taxa de intermediação de cartão (repassada ao comprador)
+export const CREDIT_CARD_FIXED_FEE = 0.49; // Taxa fixa por transação de cartão
+export const MONTHLY_INSTALLMENT_INTEREST_RATE = 0.0239; // 2.39% a.m. (juros de parcelamento repassado ao pagador)
 
 export interface SplitCalculation {
   totalAmount: number;
@@ -8,17 +11,17 @@ export interface SplitCalculation {
 }
 
 /**
- * Calcula o split do serviço entre a plataforma e o prestador
+ * Calcula o split do serviço base entre a plataforma e o prestador
  */
 export function calculateServiceSplit(
-  totalAmount: number,
+  serviceAmount: number,
   platformFeePercent: number = DEFAULT_PLATFORM_FEE_PERCENT
 ): SplitCalculation {
-  const feeAmount = Number(((totalAmount * platformFeePercent) / 100).toFixed(2));
-  const providerAmount = Number((totalAmount - feeAmount).toFixed(2));
+  const feeAmount = Number(((serviceAmount * platformFeePercent) / 100).toFixed(2));
+  const providerAmount = Number((serviceAmount - feeAmount).toFixed(2));
 
   return {
-    totalAmount,
+    totalAmount: serviceAmount,
     platformFeePercent,
     platformFeeAmount: feeAmount,
     providerPayoutAmount: providerAmount,
@@ -30,46 +33,113 @@ export interface InstallmentOption {
   installmentAmount: number;
   totalWithInterest: number;
   hasInterest: boolean;
+  gatewayFeeAdded: number;
 }
 
 /**
  * Simula as opções de parcelamento no Cartão de Crédito
- * Ex: até 3x sem juros ou até 12x com taxa padrão de cartão
+ * O custo financeiro do gateway é 100% repassado ao comprador (pagador),
+ * garantindo que a margem da administração (12%) e do prestador (88%) fiquem intocadas.
  */
 export function calculateInstallments(
-  totalAmount: number,
-  maxInstallments: number = 12,
-  interestFreeLimit: number = 3
+  serviceAmount: number,
+  maxInstallments: number = 12
 ): InstallmentOption[] {
   const options: InstallmentOption[] = [];
-  const monthlyInterestRate = 0.0249; // 2.49% a.m (padrão médio gateway Brasil)
 
   for (let i = 1; i <= maxInstallments; i++) {
-    if (i <= interestFreeLimit) {
+    if (i === 1) {
+      // 1x no Cartão: Apenas a taxa de processamento do cartão (2.99% + R$ 0,49)
+      const gatewayFee = Number(((serviceAmount * CREDIT_CARD_SURCHARGE_PERCENT) / 100 + CREDIT_CARD_FIXED_FEE).toFixed(2));
+      const totalCharged = Number((serviceAmount + gatewayFee).toFixed(2));
+
       options.push({
-        installments: i,
-        installmentAmount: Number((totalAmount / i).toFixed(2)),
-        totalWithInterest: totalAmount,
+        installments: 1,
+        installmentAmount: totalCharged,
+        totalWithInterest: totalCharged,
         hasInterest: false,
+        gatewayFeeAdded: gatewayFee,
       });
     } else {
-      // Fórmula de amortização Price
+      // 2x a 12x no Cartão: Amortização com juros repassados ao comprador
       const factor =
-        (monthlyInterestRate * Math.pow(1 + monthlyInterestRate, i)) /
-        (Math.pow(1 + monthlyInterestRate, i) - 1);
-      const installmentValue = Number((totalAmount * factor).toFixed(2));
-      const totalFinal = Number((installmentValue * i).toFixed(2));
+        (MONTHLY_INSTALLMENT_INTEREST_RATE * Math.pow(1 + MONTHLY_INSTALLMENT_INTEREST_RATE, i)) /
+        (Math.pow(1 + MONTHLY_INSTALLMENT_INTEREST_RATE, i) - 1);
+      
+      const installmentValue = Number((serviceAmount * factor).toFixed(2));
+      const totalCharged = Number((installmentValue * i).toFixed(2));
+      const gatewayFee = Number((totalCharged - serviceAmount).toFixed(2));
 
       options.push({
         installments: i,
         installmentAmount: installmentValue,
-        totalWithInterest: totalFinal,
+        totalWithInterest: totalCharged,
         hasInterest: true,
+        gatewayFeeAdded: gatewayFee,
       });
     }
   }
 
   return options;
+}
+
+export interface CheckoutPricingBreakdown {
+  serviceBaseAmount: number;          // Ex: R$ 200,00 (Valor acordado do serviço)
+  paymentMethod: 'pix' | 'credit_card';
+  installments: number;
+  gatewayFeeChargedToBuyer: number;   // Taxa do cartão repassada ao morador
+  totalChargedToClient: number;       // Total final pago pelo morador
+  platformFeeAmount: number;          // 12% RooServ INTOCADO (Ex: R$ 24,00)
+  platformFeePercent: number;         // 12.0%
+  providerPayoutAmount: number;       // 88% Prestador INTOCADO (Ex: R$ 176,00)
+  installmentValue: number;           // Valor de cada parcela
+}
+
+/**
+ * Calcula a precificação completa do checkout:
+ * - No Pix: Cliente paga exatamente o valor base com desconto/à vista.
+ * - No Cartão: O acréscimo de gateway é somado no total do cliente.
+ * - Em todos os casos, a administração recebe os 12% cheios e o prestador recebe os 88% cheios!
+ */
+export function calculateCheckoutPricing(params: {
+  serviceAmount: number;
+  paymentMethod: 'pix' | 'credit_card';
+  installments?: number;
+  platformFeePercent?: number;
+}): CheckoutPricingBreakdown {
+  const feePercent = params.platformFeePercent ?? DEFAULT_PLATFORM_FEE_PERCENT;
+  const split = calculateServiceSplit(params.serviceAmount, feePercent);
+  const installments = params.installments ?? 1;
+
+  if (params.paymentMethod === 'pix') {
+    return {
+      serviceBaseAmount: params.serviceAmount,
+      paymentMethod: 'pix',
+      installments: 1,
+      gatewayFeeChargedToBuyer: 0,
+      totalChargedToClient: params.serviceAmount,
+      platformFeeAmount: split.platformFeeAmount,
+      platformFeePercent: feePercent,
+      providerPayoutAmount: split.providerPayoutAmount,
+      installmentValue: params.serviceAmount,
+    };
+  }
+
+  // Cartão de Crédito
+  const installmentOptions = calculateInstallments(params.serviceAmount, 12);
+  const selectedOpt = installmentOptions.find((o) => o.installments === installments) || installmentOptions[0];
+
+  return {
+    serviceBaseAmount: params.serviceAmount,
+    paymentMethod: 'credit_card',
+    installments: selectedOpt.installments,
+    gatewayFeeChargedToBuyer: selectedOpt.gatewayFeeAdded,
+    totalChargedToClient: selectedOpt.totalWithInterest,
+    platformFeeAmount: split.platformFeeAmount,
+    platformFeePercent: feePercent,
+    providerPayoutAmount: split.providerPayoutAmount,
+    installmentValue: selectedOpt.installmentAmount,
+  };
 }
 
 /**
