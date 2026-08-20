@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { 
   Order, 
@@ -14,8 +14,12 @@ import {
   X, 
   AlertTriangle, 
   ShieldAlert, 
-  RotateCcw 
+  RotateCcw,
+  FileText,
+  Camera,
+  Upload
 } from 'lucide-react';
+import { generateOrderReceiptPDF } from '../utils/pdfReceiptGenerator';
 
 export const OrdersScreen: React.FC = () => {
   const { 
@@ -193,7 +197,38 @@ export const OrdersScreen: React.FC = () => {
                     </button>
                   )}
 
+                  {/* Fotos Anexadas do Pedido */}
+                  {order.photos && order.photos.length > 0 && (
+                    <div className="space-y-1.5 pt-1">
+                      <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider block">
+                        Fotos Anexadas ({order.photos.length})
+                      </span>
+                      <div className="flex gap-2 overflow-x-auto pb-1">
+                        {order.photos.map((photo, pIdx) => (
+                          <img
+                            key={pIdx}
+                            src={photo}
+                            alt={`Anexo ${pIdx + 1}`}
+                            className="w-14 h-14 rounded-xl object-cover border border-slate-200 shrink-0 shadow-xs"
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="flex items-center gap-2 ml-auto">
+                    {/* Botão Baixar Recibo PDF (Quando Concluído) */}
+                    {order.status === 'approved_by_client' && (
+                      <button
+                        type="button"
+                        onClick={() => generateOrderReceiptPDF(order)}
+                        className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs sm:text-sm px-4 py-2.5 rounded-xl transition-all shadow-sm active:scale-95 flex items-center gap-2 cursor-pointer"
+                      >
+                        <FileText className="w-4 h-4 text-emerald-400" />
+                        <span>Baixar Recibo & Garantia (PDF)</span>
+                      </button>
+                    )}
+
                     {/* Ação do Prestador: Concluir serviço */}
                     {currentRole === 'provider' && order.status === 'payment_in_escrow' && (
                       <button

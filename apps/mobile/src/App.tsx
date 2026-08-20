@@ -18,6 +18,7 @@ import { PWAInstallBanner } from './components/PWAInstallBanner';
 import { TermsModal } from './components/TermsModal';
 import { ReferralModal } from './components/ReferralModal';
 import { InAppToast } from './components/InAppToast';
+import { ProfileModal } from './screens/ProfileModal';
 import { ProviderProfile } from '@servicos/shared';
 
 export const App: React.FC = () => {
@@ -31,6 +32,7 @@ export const App: React.FC = () => {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isTermsOpen, setIsTermsOpen] = useState(false);
   const [isReferralOpen, setIsReferralOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
   
   const [activeChatPartner, setActiveChatPartner] = useState<{
     id: string;
@@ -143,6 +145,7 @@ export const App: React.FC = () => {
         <Header
           onOpenAuth={() => setIsAuthOpen(true)}
           onOpenNotifications={() => setIsNotificationsOpen(true)}
+          onOpenProfile={() => setIsProfileOpen(true)}
           activeTab={activeTab}
           setActiveTab={setActiveTab}
         />
@@ -208,6 +211,7 @@ export const App: React.FC = () => {
 
       {isTermsOpen && <TermsModal onClose={() => setIsTermsOpen(false)} />}
       {isReferralOpen && <ReferralModal onClose={() => setIsReferralOpen(false)} />}
+      {isProfileOpen && <ProfileModal onClose={() => setIsProfileOpen(false)} />}
     </div>
   );
 };

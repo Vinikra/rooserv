@@ -275,6 +275,23 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                   <p className="text-xs sm:text-sm text-slate-600 line-clamp-2 leading-relaxed">
                     {provider.bio || 'Profissional com ferramentas próprias e garantia de serviço em Rondonópolis.'}
                   </p>
+
+                  {/* Badges de Confiança & Gamificação AAA */}
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {(Number(provider.averageRating) || 5.0) >= 4.8 && (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-extrabold bg-amber-50 text-amber-900 px-2.5 py-0.5 rounded-lg border border-amber-200">
+                        <span>🏅 Super Prestador</span>
+                      </span>
+                    )}
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded-lg border border-emerald-200">
+                      <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                      <span>Garantia 60 Dias</span>
+                    </span>
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold bg-blue-50 text-blue-800 px-2 py-0.5 rounded-lg border border-blue-200">
+                      <Zap className="w-3 h-3 text-blue-600" />
+                      <span>Resposta Rápida</span>
+                    </span>
+                  </div>
                 </div>
 
                 {/* Barra Inferior do Card com Preço e Ação Ampla */}

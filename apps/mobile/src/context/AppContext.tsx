@@ -77,6 +77,16 @@ interface AppContextType {
   markAllNotificationsAsRead: () => void;
   clearNotifications: () => void;
 
+  updateUserProfile: (data: Partial<UserProfile>) => Promise<void>;
+  updateProviderProfile: (data: {
+    bio?: string;
+    hourlyRateEstimate?: number;
+    experienceYears?: number;
+    pixKey?: string;
+    pixKeyType?: string;
+    categories?: ServiceCategory[];
+  }) => Promise<void>;
+
   createServiceRequest: (data: {
     categoryId: string;
     title: string;
@@ -84,6 +94,7 @@ interface AppContextType {
     urgency: 'low' | 'normal' | 'urgent_today';
     neighborhood: string;
     budget?: number;
+    photos?: string[];
   }) => ServiceRequest;
 
   hireProviderWithEscrow: (params: {
@@ -93,7 +104,7 @@ interface AppContextType {
     installments: number;
   }) => Order;
 
-  markOrderAsCompletedByProvider: (orderId: string) => void;
+  markOrderAsCompletedByProvider: (orderId: string, proofPhotos?: string[]) => void;
 
   confirmAndReleaseEscrow: (params: {
     orderId: string;
@@ -572,6 +583,100 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.removeItem(AUTH_STORAGE_KEY);
   };
 
+  const updateUserProfile = async (data: Partial<UserProfile>) => {
+    if (!currentUser) return;
+    const updatedUser: UserProfile = {
+      ...currentUser,
+      ...data,
+      updatedAt: new Date().toISOString(),
+    };
+    setCurrentUser(updatedUser);
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updatedUser));
+
+    setProviders((prev) =>
+      prev.map((p) => (p.profileId === updatedUser.id ? { ...p, profile: updatedUser } : p))
+    );
+
+    try {
+      await supabase.from('profiles').upsert([
+        {
+          id: updatedUser.id,
+          role: updatedUser.role,
+          full_name: updatedUser.fullName,
+          email: updatedUser.email,
+          phone: updatedUser.phone,
+          neighborhood: updatedUser.neighborhood,
+          city: updatedUser.city,
+          state: updatedUser.state,
+          avatar_url: updatedUser.avatarUrl,
+        },
+      ]);
+    } catch {
+      // Ignora
+    }
+
+    sendInAppNotification({
+      title: '✓ Perfil Atualizado com Sucesso!',
+      message: 'Suas informações e foto foram salvas.',
+      type: 'system',
+    });
+  };
+
+  const updateProviderProfile = async (data: {
+    bio?: string;
+    hourlyRateEstimate?: number;
+    experienceYears?: number;
+    pixKey?: string;
+    pixKeyType?: string;
+    categories?: ServiceCategory[];
+  }) => {
+    if (!currentUser) return;
+    setProviders((prev) =>
+      prev.map((p) => {
+        if (p.profileId === currentUser.id) {
+          return {
+            ...p,
+            bio: data.bio !== undefined ? data.bio : p.bio,
+            hourlyRateEstimate: data.hourlyRateEstimate !== undefined ? data.hourlyRateEstimate : p.hourlyRateEstimate,
+            experienceYears: data.experienceYears !== undefined ? data.experienceYears : p.experienceYears,
+            pixKey: data.pixKey !== undefined ? data.pixKey : p.pixKey,
+            pixKeyType: data.pixKeyType !== undefined ? data.pixKeyType : p.pixKeyType,
+            categories: data.categories !== undefined ? data.categories : p.categories,
+          };
+        }
+        return p;
+      })
+    );
+
+    try {
+      const myProv = providers.find((p) => p.profileId === currentUser.id);
+      if (myProv) {
+        await supabase.from('provider_profiles').upsert([
+          {
+            id: myProv.id,
+            profile_id: currentUser.id,
+            bio: data.bio || myProv.bio,
+            hourly_rate_estimate: data.hourlyRateEstimate || myProv.hourlyRateEstimate,
+            experience_years: data.experienceYears || myProv.experienceYears,
+            pix_key: data.pixKey || myProv.pixKey,
+            pix_key_type: data.pixKeyType || myProv.pixKeyType,
+            verification_status: myProv.verificationStatus,
+            average_rating: myProv.averageRating,
+            is_available: true,
+          },
+        ]);
+      }
+    } catch {
+      // Ignora
+    }
+
+    sendInAppNotification({
+      title: '✓ Perfil Profissional Atualizado!',
+      message: 'Seus dados de atendimento e chave Pix foram salvos.',
+      type: 'system',
+    });
+  };
+
   const createServiceRequest = (data: {
     categoryId: string;
     title: string;
@@ -579,6 +684,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     urgency: 'low' | 'normal' | 'urgent_today';
     neighborhood: string;
     budget?: number;
+    photos?: string[];
   }) => {
     const category = categories.find((c) => c.id === data.categoryId) || categories[0];
     const client = currentUser || INITIAL_CLIENT;
@@ -594,7 +700,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       urgency: data.urgency,
       addressNeighborhood: data.neighborhood,
       budgetEstimate: data.budget,
-      photos: [],
+      photos: data.photos || [],
       status: 'open',
       createdAt: new Date().toISOString(),
     };
@@ -671,11 +777,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return newOrder;
   };
 
-  const markOrderAsCompletedByProvider = (orderId: string) => {
+  const markOrderAsCompletedByProvider = (orderId: string, proofPhotos?: string[]) => {
     setOrders((prev) =>
       prev.map((o) =>
         o.id === orderId
-          ? { ...o, status: 'completed_by_provider', completedAt: new Date().toISOString() }
+          ? {
+              ...o,
+              status: 'completed_by_provider',
+              completedAt: new Date().toISOString(),
+              photos: proofPhotos || o.photos,
+            }
           : o
       )
     );
@@ -804,23 +915,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     decision: 'refund_client' | 'release_provider'
   ) => {
     setOrders((prev) =>
-      prev.map((o) => {
-        if (o.id !== orderId) return o;
-        if (decision === 'refund_client') {
-          return {
-            ...o,
-            status: 'refunded',
-            disputeResolvedAt: new Date().toISOString(),
-          };
-        }
-        return {
-          ...o,
-          status: 'approved_by_client',
-          fundsReleasedAt: new Date().toISOString(),
-          disputeResolvedAt: new Date().toISOString(),
-        };
-      })
+      prev.map((o) =>
+        o.id === orderId
+          ? {
+              ...o,
+              status: decision === 'refund_client' ? 'refunded' : 'approved_by_client',
+              disputeResolvedAt: new Date().toISOString(),
+              fundsReleasedAt: decision === 'release_provider' ? new Date().toISOString() : undefined,
+            }
+          : o
+      )
     );
+
+    sendInAppNotification({
+      title: '⚖️ Disputa Concluída pela Gestão',
+      message: decision === 'refund_client' ? 'Reembolso integral ao cliente.' : 'Valor liberado ao profissional.',
+      type: 'system',
+      actionTab: 'orders',
+    });
 
     const globalChannel = supabase.channel('rooserv_global_events');
     globalChannel.send({
@@ -848,6 +960,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     signup,
     loginAsAdmin,
     logout,
+    updateUserProfile,
+    updateProviderProfile,
     categories,
     providers,
     orders,

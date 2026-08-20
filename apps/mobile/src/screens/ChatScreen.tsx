@@ -10,7 +10,12 @@ import {
   ArrowLeft, 
   Sparkles, 
   DollarSign, 
-  ShieldAlert 
+  ShieldAlert,
+  Mic,
+  Square,
+  Play,
+  Pause,
+  Trash2
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
@@ -31,6 +36,8 @@ interface Message {
   senderId: 'me' | 'other';
   text: string;
   time: string;
+  audioUrl?: string;
+  audioDuration?: string;
   proposalData?: {
     totalAmount: number;
     description: string;
@@ -59,7 +66,112 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
   const [newProposalAmount, setNewProposalAmount] = useState('80');
   const [newProposalDesc, setNewProposalDesc] = useState('');
   const [securityAlert, setSecurityAlert] = useState<string | null>(null);
+  
+  // Estados de Gravação e Reprodução de Áudio
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
+  
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordingTimerRef = useRef<any>(null);
+  const activeAudioRef = useRef<HTMLAudioElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const startRecording = async () => {
+    try {
+      if (typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const mediaRecorder = new MediaRecorder(stream);
+        mediaRecorderRef.current = mediaRecorder;
+        audioChunksRef.current = [];
+
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data.size > 0) audioChunksRef.current.push(e.data);
+        };
+
+        mediaRecorder.start();
+        setIsRecording(true);
+        setRecordingSeconds(0);
+        recordingTimerRef.current = setInterval(() => {
+          setRecordingSeconds((prev) => prev + 1);
+        }, 1000);
+      }
+    } catch {
+      setSecurityAlert('Permissão de microfone não concedida.');
+    }
+  };
+
+  const stopAndSendAudio = () => {
+    if (!mediaRecorderRef.current) return;
+    clearInterval(recordingTimerRef.current);
+
+    mediaRecorderRef.current.onstop = () => {
+      const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+      const audioUrl = URL.createObjectURL(audioBlob);
+      const mins = Math.floor(recordingSeconds / 60);
+      const secs = recordingSeconds % 60;
+      const durationStr = `${mins}:${secs.toString().padStart(2, '0')}`;
+
+      const audioMessage: Message = {
+        id: `aud-${Date.now()}`,
+        senderId: 'me',
+        text: '🎙️ Mensagem de Áudio',
+        time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+        audioUrl,
+        audioDuration: durationStr,
+      };
+
+      setMessages((prev) => [...prev, audioMessage]);
+
+      const channelName = `rooserv_chat_${recipientUser.id}`;
+      const channel = supabase.channel(channelName);
+      channel.send({
+        type: 'broadcast',
+        event: 'new_message',
+        payload: { ...audioMessage, senderId: 'other' },
+      });
+    };
+
+    mediaRecorderRef.current.stop();
+    mediaRecorderRef.current.stream.getTracks().forEach((track) => track.stop());
+    setIsRecording(false);
+    setRecordingSeconds(0);
+  };
+
+  const cancelRecording = () => {
+    if (mediaRecorderRef.current) {
+      clearInterval(recordingTimerRef.current);
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current.stream.getTracks().forEach((track) => track.stop());
+      setIsRecording(false);
+      setRecordingSeconds(0);
+    }
+  };
+
+  const handlePlayAudio = (msgId: string, url: string) => {
+    if (playingAudioId === msgId && activeAudioRef.current) {
+      activeAudioRef.current.pause();
+      setPlayingAudioId(null);
+      return;
+    }
+
+    if (activeAudioRef.current) {
+      activeAudioRef.current.pause();
+    }
+
+    const audio = new Audio(url);
+    activeAudioRef.current = audio;
+    setPlayingAudioId(msgId);
+
+    audio.onended = () => {
+      setPlayingAudioId(null);
+    };
+
+    audio.play().catch(() => {
+      setPlayingAudioId(null);
+    });
+  };
 
   useEffect(() => {
     try {
@@ -150,7 +262,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
     setInputText(text);
   };
 
-  const handleAcceptProposalCard = (msgId: string, amount: number) => {
+  const handleAcceptFormalProposal = (msgId: string, amount: number) => {
     setMessages((prev) =>
       prev.map((m) =>
         m.id === msgId && m.proposalData
@@ -312,7 +424,30 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
                     : 'bg-white text-slate-800 border border-slate-200/80 rounded-bl-none'
                 }`}
               >
-                <p className="leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+                {/* Renderiza Mensagem de Áudio ou Texto */}
+                {msg.audioUrl ? (
+                  <div className="flex items-center gap-3 py-1.5 min-w-[200px]">
+                    <button
+                      type="button"
+                      onClick={() => handlePlayAudio(msg.id, msg.audioUrl!)}
+                      className={`w-10 h-10 rounded-full flex items-center justify-center transition-transform active:scale-95 cursor-pointer shrink-0 ${
+                        isMe ? 'bg-white text-brand-700 shadow' : 'bg-brand-600 text-white shadow'
+                      }`}
+                    >
+                      {playingAudioId === msg.id ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
+                    </button>
+                    <div className="flex-1 min-w-0">
+                      <div className={`h-2 rounded-full overflow-hidden ${isMe ? 'bg-white/30' : 'bg-slate-200'}`}>
+                        <div className={`h-full ${isMe ? 'bg-white' : 'bg-brand-600'} w-3/4 rounded-full`} />
+                      </div>
+                      <span className={`text-[10px] font-bold block mt-1 ${isMe ? 'text-blue-100' : 'text-slate-500'}`}>
+                        Áudio • {msg.audioDuration || '0:05'}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+                )}
 
                 {/* Cartão de Proposta / Orçamento Formal */}
                 {msg.proposalData && (
@@ -337,29 +472,48 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
                       {msg.proposalData.description}
                     </p>
 
-                    <div className="flex items-center justify-between pt-2">
+                    <div className="flex items-center justify-between pt-1">
                       <div>
-                        <span className="text-xs text-slate-400 block font-medium">Total com Mão de Obra</span>
-                        <span className="text-base sm:text-lg font-black text-emerald-400">
-                          {formatCurrencyBRL(msg.proposalData.totalAmount)}
+                        <span className="text-[10px] text-slate-400 block font-semibold uppercase">
+                          Valor Total
                         </span>
+                        <strong className="text-base sm:text-lg font-black text-white">
+                          {formatCurrencyBRL(msg.proposalData.totalAmount)}
+                        </strong>
                       </div>
 
-                      {msg.proposalData.isAccepted ? (
-                        <span className="bg-emerald-500/20 text-emerald-300 font-black text-xs px-3.5 py-2 rounded-xl border border-emerald-500/40 flex items-center gap-1.5">
+                      {/* Botão de Aceitar Proposta (Cliente) */}
+                      {!isMe && currentRole === 'client' && (
+                        <button
+                          type="button"
+                          disabled={msg.proposalData.isAccepted}
+                          onClick={() => handleAcceptFormalProposal(msg.id, msg.proposalData!.totalAmount)}
+                          className={`font-extrabold text-xs sm:text-sm px-4 py-2.5 rounded-xl transition-all shadow-md active:scale-95 flex items-center gap-1.5 ${
+                            msg.proposalData.isAccepted
+                              ? 'bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 cursor-default'
+                              : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-500/25 cursor-pointer'
+                          }`}
+                        >
+                          {msg.proposalData.isAccepted ? (
+                            <>
+                              <CheckCircle className="w-4 h-4" />
+                              <span>Proposta Aceita!</span>
+                            </>
+                          ) : (
+                            <>
+                              <DollarSign className="w-4 h-4" />
+                              <span>Aceitar & Pagar</span>
+                            </>
+                          )}
+                        </button>
+                      )}
+
+                      {/* Status de Aceite para o Prestador */}
+                      {msg.proposalData.isAccepted && isMe && (
+                        <div className="flex items-center gap-1.5 text-xs text-emerald-400 font-extrabold bg-emerald-500/20 px-3 py-1.5 rounded-xl border border-emerald-500/30">
                           <CheckCircle className="w-4 h-4" />
-                          <span>Proposta Aceita!</span>
-                        </span>
-                      ) : (
-                        currentRole === 'client' && (
-                          <button
-                            type="button"
-                            onClick={() => handleAcceptProposalCard(msg.id, msg.proposalData!.totalAmount)}
-                            className="bg-emerald-500 hover:bg-emerald-600 text-white font-black text-xs sm:text-sm px-5 py-2.5 rounded-xl shadow-lg transition-all active:scale-95 flex items-center gap-1.5"
-                          >
-                            <span>Aceitar Proposta</span>
-                          </button>
-                        )
+                          <span>Cliente Aceitou e Pagou</span>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -399,25 +553,68 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
         ))}
       </div>
 
-      {/* Input de Mensagem com Botão Grande */}
-      <div className="bg-white p-3.5 border-t border-slate-200 flex items-center gap-2.5">
-        <input
-          type="text"
-          placeholder="Digite sua mensagem aqui..."
-          value={inputText}
-          onChange={(e) => setInputText(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-          className="flex-1 bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3.5 text-sm sm:text-base text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-brand-500 focus:bg-white"
-        />
+      {/* Input de Mensagem com Botão de Áudio e Envio */}
+      <div className="bg-white p-3.5 border-t border-slate-200">
+        {isRecording ? (
+          <div className="flex items-center justify-between gap-3 bg-red-50 p-2 rounded-2xl border border-red-200 animate-in fade-in">
+            <div className="flex items-center gap-3 pl-2">
+              <span className="w-3 h-3 bg-red-600 rounded-full animate-ping" />
+              <span className="text-xs sm:text-sm font-extrabold text-red-700">
+                Gravando áudio... {Math.floor(recordingSeconds / 60)}:{(recordingSeconds % 60).toString().padStart(2, '0')}
+              </span>
+            </div>
 
-        <button
-          type="button"
-          onClick={() => handleSendMessage()}
-          disabled={!inputText.trim()}
-          className="bg-brand-600 hover:bg-brand-700 disabled:opacity-40 text-white w-12 h-12 rounded-2xl flex items-center justify-center transition-all shadow-md active:scale-95 shrink-0"
-        >
-          <Send className="w-5 h-5" />
-        </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={cancelRecording}
+                className="p-2.5 text-slate-500 hover:text-red-600 rounded-xl hover:bg-white transition-colors cursor-pointer"
+                title="Cancelar Gravação"
+              >
+                <Trash2 className="w-5 h-5" />
+              </button>
+
+              <button
+                type="button"
+                onClick={stopAndSendAudio}
+                className="bg-red-600 hover:bg-red-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-md flex items-center gap-1.5 cursor-pointer active:scale-95"
+              >
+                <Send className="w-4 h-4" />
+                <span>Enviar Áudio</span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2.5">
+            <input
+              type="text"
+              placeholder="Digite sua mensagem ou grave um áudio..."
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+              className="flex-1 bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3.5 text-sm sm:text-base text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-brand-500 focus:bg-white"
+            />
+
+            {inputText.trim() ? (
+              <button
+                type="button"
+                onClick={() => handleSendMessage()}
+                className="bg-brand-600 hover:bg-brand-700 text-white w-12 h-12 rounded-2xl flex items-center justify-center transition-all shadow-md active:scale-95 shrink-0 cursor-pointer"
+              >
+                <Send className="w-5 h-5" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={startRecording}
+                className="bg-slate-100 hover:bg-brand-50 text-slate-700 hover:text-brand-600 w-12 h-12 rounded-2xl flex items-center justify-center transition-all border border-slate-200 shadow-xs active:scale-95 shrink-0 cursor-pointer"
+                title="Gravar Mensagem de Áudio"
+              >
+                <Mic className="w-5 h-5" />
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Modal de Criação de Proposta Rápida (Para o Prestador) */}

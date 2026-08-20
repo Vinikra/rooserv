@@ -1,10 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { CITY_CONFIG, URGENCY_LABELS, RequestUrgency } from '@servicos/shared';
 import { 
   Send, 
   Clock, 
-  CheckCircle2
+  CheckCircle2,
+  Camera,
+  Upload,
+  X
 } from 'lucide-react';
 
 interface NewRequestScreenProps {
@@ -13,6 +16,7 @@ interface NewRequestScreenProps {
 
 export const NewRequestScreen: React.FC<NewRequestScreenProps> = ({ onSuccess }) => {
   const { categories, createServiceRequest, selectedNeighborhood } = useApp();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [categoryId, setCategoryId] = useState<string>(categories[0]?.id || '');
   const [title, setTitle] = useState<string>('');
@@ -21,8 +25,26 @@ export const NewRequestScreen: React.FC<NewRequestScreenProps> = ({ onSuccess })
   const [neighborhood, setNeighborhood] = useState<string>(
     selectedNeighborhood !== 'Todos os Bairros' ? selectedNeighborhood : CITY_CONFIG.defaultNeighborhoods[0]
   );
-  const [budget, setBudget] = useState<string>('200');
+  const [budget, setBudget] = useState<string>('150');
+  const [photos, setPhotos] = useState<string[]>([]);
   const [isSuccess, setIsSuccess] = useState(false);
+
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && photos.length < 3) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === 'string') {
+          setPhotos((prev) => [...prev, reader.result as string]);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removePhoto = (index: number) => {
+    setPhotos((prev) => prev.filter((_, i) => i !== index));
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,6 +57,7 @@ export const NewRequestScreen: React.FC<NewRequestScreenProps> = ({ onSuccess })
       urgency,
       neighborhood,
       budget: budget ? Number(budget) : undefined,
+      photos,
     });
 
     setIsSuccess(true);
@@ -183,6 +206,50 @@ export const NewRequestScreen: React.FC<NewRequestScreenProps> = ({ onSuccess })
                 );
               })}
             </div>
+          </div>
+
+          {/* Fotos do Problema / Anexo */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="block text-xs sm:text-sm font-extrabold text-slate-800">
+                Fotos do Problema ou Material (Opcional - até 3 fotos)
+              </span>
+              <span className="text-[11px] font-bold text-slate-500">{photos.length}/3 fotos</span>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              {photos.map((photo, index) => (
+                <div key={index} className="relative aspect-square rounded-2xl overflow-hidden border border-slate-200 shadow-sm group">
+                  <img src={photo} alt={`Foto ${index + 1}`} className="w-full h-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => removePhoto(index)}
+                    className="absolute top-1.5 right-1.5 bg-red-600/90 text-white p-1 rounded-full shadow-md cursor-pointer hover:bg-red-700 transition-colors"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+
+              {photos.length < 3 && (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="aspect-square rounded-2xl border-2 border-dashed border-slate-300 hover:border-brand-500 bg-slate-50 hover:bg-brand-50/50 flex flex-col items-center justify-center gap-1.5 text-slate-500 hover:text-brand-600 transition-all cursor-pointer p-2 text-center"
+                >
+                  <Camera className="w-6 h-6 text-slate-400 group-hover:text-brand-500" />
+                  <span className="text-[11px] font-bold leading-tight">Adicionar Foto</span>
+                </button>
+              )}
+            </div>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handlePhotoUpload}
+            />
           </div>
 
           {/* Botão de Envio */}

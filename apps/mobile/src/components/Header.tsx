@@ -10,17 +10,21 @@ import {
   Bell, 
   ChevronDown,
   Compass,
-  FileText,
-  PlusCircle,
+  LogIn, 
+  Inbox, 
+  Wallet, 
+  FileText, 
   MessageSquare,
-  Wallet,
-  Inbox
+  Camera,
+  Compass,
+  PlusCircle
 } from 'lucide-react';
 import { CITY_CONFIG, UserRole, UserProfile } from '@servicos/shared';
 
 interface HeaderProps {
   onOpenAuth?: () => void;
   onOpenNotifications?: () => void;
+  onOpenProfile?: () => void;
   activeTab?: string;
   setActiveTab?: (tab: string) => void;
 }
@@ -45,8 +49,8 @@ const DesktopNav: React.FC<{
               : 'text-slate-300 hover:text-white hover:bg-slate-750'
           }`}
         >
-          <Compass className="w-4 h-4" />
-          <span>Início</span>
+          <MapPin className="w-4 h-4" />
+          <span>Explorar</span>
         </button>
 
         <button
@@ -74,7 +78,7 @@ const DesktopNav: React.FC<{
           <FileText className="w-4 h-4" />
           <span>Meus Pedidos</span>
           {activeOrdersCount > 0 && (
-            <span className="bg-emerald-500 text-slate-950 text-[10px] px-1.5 py-0.2 rounded-full font-black">
+            <span className="bg-brand-500 text-white text-[10px] px-1.5 py-0.2 rounded-full font-black">
               {activeOrdersCount}
             </span>
           )}
@@ -171,8 +175,9 @@ const UserDropdownMenu: React.FC<{
   isAdmin: boolean;
   onLogout: () => void;
   onClose: () => void;
+  onOpenProfile?: () => void;
   roleLabel: string;
-}> = ({ currentUser, currentRole, setCurrentRole, isAdmin, onLogout, onClose, roleLabel }) => {
+}> = ({ currentUser, currentRole, setCurrentRole, isAdmin, onLogout, onClose, onOpenProfile, roleLabel }) => {
   return (
     <div className="absolute right-0 mt-2 w-72 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-3.5 z-50 animate-in fade-in space-y-3">
       <div className="border-b border-slate-800 pb-3">
@@ -201,6 +206,23 @@ const UserDropdownMenu: React.FC<{
           </span>
         </div>
       </div>
+
+      {/* Botão de Customização de Perfil */}
+      {onOpenProfile && (
+        <div>
+          <button
+            type="button"
+            onClick={() => {
+              onOpenProfile();
+              onClose();
+            }}
+            className="w-full flex items-center gap-2.5 py-2.5 px-3 text-xs font-bold text-slate-200 hover:text-white hover:bg-slate-800 rounded-xl transition-colors cursor-pointer border border-slate-700/60"
+          >
+            <Camera className="w-4 h-4 text-brand-400" />
+            <span>Editar Meu Perfil & Foto</span>
+          </button>
+        </div>
+      )}
 
       {currentUser.role === 'provider' && (
         <div className="bg-slate-800/90 p-2 rounded-xl border border-slate-700/80 space-y-1.5">
@@ -281,6 +303,7 @@ const UserDropdownMenu: React.FC<{
 export const Header: React.FC<HeaderProps> = ({ 
   onOpenAuth, 
   onOpenNotifications,
+  onOpenProfile,
   activeTab = 'explore',
   setActiveTab
 }) => {
@@ -404,6 +427,7 @@ export const Header: React.FC<HeaderProps> = ({
                   isAdmin={isAdmin}
                   onLogout={handleLogout}
                   onClose={() => setIsMenuOpen(false)}
+                  onOpenProfile={onOpenProfile}
                   roleLabel={getRoleLabel()}
                 />
               )}
