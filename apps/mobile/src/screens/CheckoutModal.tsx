@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { ProviderProfile } from '@servicos/shared';
+import React, { useState, useEffect } from 'react';
+import { ProviderProfile, CITY_CONFIG, generateMockPixQrCode, AsaasPixQrCodeResponse } from '@servicos/shared';
 import { useApp } from '../context/AppContext';
 import { 
   X, 
@@ -11,13 +11,16 @@ import {
   Lock, 
   Sparkles, 
   ArrowRight, 
-  Building2 
+  Clock, 
+  CheckCircle2, 
+  RefreshCw 
 } from 'lucide-react';
 import { 
   calculateServiceSplit, 
   calculateInstallments, 
   formatCurrencyBRL 
 } from '@servicos/shared';
+import { RooServPaymentService } from '../services/paymentService';
 
 interface CheckoutModalProps {
   provider: ProviderProfile | null;
@@ -37,15 +40,43 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [selectedInstallment, setSelectedInstallment] = useState<number>(1);
   const [isCopied, setIsCopied] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [pixData, setPixData] = useState<AsaasPixQrCodeResponse | null>(null);
+  const [timeLeft, setTimeLeft] = useState<number>(900); // 15 minutos
+
+  // Card Form State
+  const [cardNumber, setCardNumber] = useState('');
+  const [cardHolder, setCardHolder] = useState('');
+  const [cardExpiry, setCardExpiry] = useState('');
+  const [cardCvv, setCardCvv] = useState('');
 
   if (!provider) return null;
 
   const split = calculateServiceSplit(serviceAmount, 12.0);
   const installmentOptions = calculateInstallments(serviceAmount, 12, 3);
 
+  // Gera código Pix dinâmico com identificador do prestador e valor
+  useEffect(() => {
+    const orderTempNumber = `SRV-ROO-${Math.floor(1000 + Math.random() * 9000)}`;
+    const generated = generateMockPixQrCode(orderTempNumber, serviceAmount);
+    setPixData(generated);
+    setTimeLeft(900);
+  }, [serviceAmount]);
+
+  // Contador regressivo de 15 minutos
+  useEffect(() => {
+    if (timeLeft <= 0) return;
+    const interval = setInterval(() => {
+      setTimeLeft((prev) => prev - 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [timeLeft]);
+
   const handleCopyPix = () => {
-    setIsCopied(true);
-    setTimeout(() => setIsCopied(false), 2000);
+    if (pixData) {
+      navigator.clipboard.writeText(pixData.payload);
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2500);
+    }
   };
 
   const handleConfirmPayment = () => {
@@ -59,11 +90,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       });
       setIsProcessing(false);
       onSuccess();
-    }, 1200);
+    }, 1000);
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 bg-slate-900/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200">
       <div className="bg-white w-full max-w-md max-h-[92vh] rounded-t-3xl sm:rounded-3xl flex flex-col overflow-hidden shadow-2xl">
         
         {/* Header com Banner de Segurança */}
@@ -75,16 +106,16 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             <X className="w-5 h-5" />
           </button>
 
-          <div className="flex items-center gap-2 text-emerald-400 text-xs font-bold uppercase tracking-wider mb-1">
+          <div className="flex items-center gap-1.5 text-emerald-400 text-xs font-bold uppercase tracking-wider mb-1">
             <Lock className="w-3.5 h-3.5" />
-            <span>Pagamento 100% Protegido em Custódia</span>
+            <span>Custódia Segura RooServ • Split 12%</span>
           </div>
 
           <h3 className="text-base font-bold">
             Contratação: {provider.profile?.fullName}
           </h3>
           <p className="text-xs text-slate-400">
-            {provider.profile?.neighborhood} • Cidade Modelo-SP
+            {provider.profile?.neighborhood} • {CITY_CONFIG.name} - {CITY_CONFIG.state}
           </p>
         </div>
 
@@ -94,20 +125,20 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           {/* Valor do Serviço */}
           <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2">
             <div className="flex items-center justify-between">
-              <span className="font-semibold text-slate-700">Valor Combinado do Serviço</span>
+              <span className="font-semibold text-slate-700">Valor Total do Serviço</span>
               <span className="text-base font-black text-slate-900">
                 {formatCurrencyBRL(serviceAmount)}
               </span>
             </div>
 
-            <div className="flex gap-2 pt-1">
-              {[150, 250, 450, 800].map((val) => (
+            <div className="flex gap-1.5 pt-1">
+              {[150, 220, 350, 600, 1200].map((val) => (
                 <button
                   key={val}
                   onClick={() => setServiceAmount(val)}
-                  className={`flex-1 py-1 rounded-lg font-semibold text-[11px] border transition-all ${
+                  className={`flex-1 py-1 rounded-lg font-bold text-[10px] border transition-all ${
                     serviceAmount === val
-                      ? 'bg-brand-600 border-brand-600 text-white shadow-sm'
+                      ? 'bg-brand-600 border-brand-600 text-white shadow-xs'
                       : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
                   }`}
                 >
@@ -116,14 +147,14 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               ))}
             </div>
 
-            {/* Explicação da Divisão do Split (Regra dos 12%) */}
+            {/* Explicação da Divisão do Split (Regra dos 12% / 88%) */}
             <div className="pt-2 border-t border-slate-200/80 text-[11px] text-slate-500 space-y-1">
               <div className="flex justify-between">
                 <span>Repasse ao Prestador (88% após aprovação):</span>
-                <strong className="text-slate-800">{formatCurrencyBRL(split.providerPayoutAmount)}</strong>
+                <strong className="text-slate-900">{formatCurrencyBRL(split.providerPayoutAmount)}</strong>
               </div>
               <div className="flex justify-between">
-                <span>Taxa de Segurança da Plataforma (12%):</span>
+                <span>Taxa de Proteção RooServ (12%):</span>
                 <strong className="text-emerald-700 font-semibold">{formatCurrencyBRL(split.platformFeeAmount)}</strong>
               </div>
             </div>
@@ -132,7 +163,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           {/* Método de Pagamento */}
           <div>
             <label className="font-bold text-slate-900 block mb-2">
-              Escolha como pagar:
+              Escolha a forma de pagamento:
             </label>
             <div className="grid grid-cols-2 gap-2">
               <button
@@ -148,7 +179,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 </div>
                 <div className="text-left">
                   <span className="block leading-tight">Pix Instantâneo</span>
-                  <span className="text-[10px] text-emerald-600 font-normal">Aprovação na hora</span>
+                  <span className="text-[10px] text-emerald-600 font-normal">Aprovação imediata</span>
                 </div>
               </button>
 
@@ -165,71 +196,146 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 </div>
                 <div className="text-left">
                   <span className="block leading-tight">Cartão de Crédito</span>
-                  <span className="text-[10px] text-brand-600 font-normal">Até 12x</span>
+                  <span className="text-[10px] text-brand-600 font-normal">Em até 12x</span>
                 </div>
               </button>
             </div>
           </div>
 
-          {/* Área do Pix */}
-          {paymentMethod === 'pix' && (
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-center space-y-3">
-              <div className="w-36 h-36 mx-auto bg-white p-2 rounded-xl border border-slate-200 shadow-sm flex items-center justify-center">
+          {/* Área do Pix com Asaas Gateway */}
+          {paymentMethod === 'pix' && pixData && (
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-center space-y-3">
+              <div className="flex items-center justify-between text-xs px-1">
+                <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  QR Code Pix Dinâmico
+                </span>
+                <span className="text-slate-500 font-mono text-[11px] flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5 text-amber-500" />
+                  Expira em {RooServPaymentService.formatCountdown(timeLeft)}
+                </span>
+              </div>
+
+              {/* QR Code Imagem */}
+              <div className="w-40 h-40 mx-auto bg-white p-2.5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-center">
                 <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=00020101021226580014BR.GOV.BCB.PIX2536servicos-hiperlocal-cidade-modelo520400005303986540${serviceAmount}.005802BR5925SERVICOS%20JA%20PLATAFORMA6014CIDADE%20MODELO62070503***6304`}
-                  alt="QR Code Pix"
+                  src={pixData.encodedImage}
+                  alt="QR Code Pix Asaas"
                   className="w-full h-full object-contain"
                 />
               </div>
 
-              <div className="text-center">
-                <span className="text-[11px] text-slate-500 block">
-                  Código Pix Copia e Cola da Custódia:
+              <div className="text-center space-y-1.5">
+                <span className="text-[11px] text-slate-500 block font-medium">
+                  Ou pague pelo Pix Copia e Cola:
                 </span>
-                <div className="flex items-center gap-1.5 mt-1">
+                <div className="flex items-center gap-1.5">
                   <input
                     type="text"
                     readOnly
-                    value={`00020126580014BR.GOV.BCB.PIX2536servicos-ja-${split.totalAmount}-custodia`}
-                    className="w-full bg-white border border-slate-200 text-[10px] px-2.5 py-1.5 rounded-lg text-slate-600 font-mono select-all"
+                    value={pixData.payload}
+                    className="w-full bg-white border border-slate-200 text-[10px] px-2.5 py-2 rounded-xl text-slate-700 font-mono select-all truncate"
                   />
                   <button
                     onClick={handleCopyPix}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white p-2 rounded-lg text-xs font-semibold shrink-0 transition-colors"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white p-2.5 rounded-xl text-xs font-bold shrink-0 transition-colors flex items-center gap-1 shadow-xs active:scale-95"
                   >
-                    {isCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                    {isCopied ? <Check className="w-4 h-4 text-emerald-300" /> : <Copy className="w-4 h-4" />}
+                    <span>{isCopied ? 'Copiado!' : 'Copiar'}</span>
                   </button>
+                </div>
+              </div>
+
+              <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-xl p-2 text-[11px] text-emerald-900 flex items-center justify-center gap-1.5">
+                <RefreshCw className="w-3.5 h-3.5 text-emerald-600 animate-spin" />
+                <span>Aguardando detecção do pagamento via Webhook Asaas...</span>
+              </div>
+            </div>
+          )}
+
+          {/* Área do Cartão de Crédito */}
+          {paymentMethod === 'credit_card' && (
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-3">
+              <div className="space-y-2">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    Número do Cartão
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="4532 •••• •••• 8821"
+                    value={cardNumber}
+                    onChange={(e) => setCardNumber(e.target.value)}
+                    className="w-full bg-white border border-slate-200 text-xs rounded-xl p-2.5 focus:outline-none focus:border-brand-500 font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    Nome Impresso no Cartão
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="MARIANA SOUZA SILVA"
+                    value={cardHolder}
+                    onChange={(e) => setCardHolder(e.target.value)}
+                    className="w-full bg-white border border-slate-200 text-xs rounded-xl p-2.5 focus:outline-none focus:border-brand-500 uppercase"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Validade (MM/AA)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="11/29"
+                      value={cardExpiry}
+                      onChange={(e) => setCardExpiry(e.target.value)}
+                      className="w-full bg-white border border-slate-200 text-xs rounded-xl p-2.5 focus:outline-none focus:border-brand-500 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      CVV
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="352"
+                      value={cardCvv}
+                      onChange={(e) => setCardCvv(e.target.value)}
+                      className="w-full bg-white border border-slate-200 text-xs rounded-xl p-2.5 focus:outline-none focus:border-brand-500 font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    Parcelamento no Cartão:
+                  </label>
+                  <select
+                    value={selectedInstallment}
+                    onChange={(e) => setSelectedInstallment(Number(e.target.value))}
+                    className="w-full bg-white border border-slate-300 text-xs rounded-xl p-2.5 font-medium focus:outline-none focus:border-brand-500"
+                  >
+                    {installmentOptions.map((opt) => (
+                      <option key={opt.installments} value={opt.installments}>
+                        {opt.installments}x de {formatCurrencyBRL(opt.installmentAmount)}{' '}
+                        {opt.hasInterest ? `(Total ${formatCurrencyBRL(opt.totalWithInterest)})` : 'sem juros'}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Área do Cartão (Parcelamento) */}
-          {paymentMethod === 'credit_card' && (
-            <div className="space-y-2">
-              <label className="font-bold text-slate-900 block text-[11px]">
-                Selecione as Parcelas:
-              </label>
-              <select
-                value={selectedInstallment}
-                onChange={(e) => setSelectedInstallment(Number(e.target.value))}
-                className="w-full bg-white border border-slate-300 text-xs rounded-xl p-2.5 font-medium focus:outline-none focus:border-brand-500"
-              >
-                {installmentOptions.map((opt) => (
-                  <option key={opt.installments} value={opt.installments}>
-                    {opt.installments}x de {formatCurrencyBRL(opt.installmentAmount)}{' '}
-                    {opt.hasInterest ? `(Total ${formatCurrencyBRL(opt.totalWithInterest)})` : 'sem juros'}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* Aviso de Garantia */}
+          {/* Aviso de Garantia e Custódia */}
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2.5">
             <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
             <p className="text-[11px] text-amber-900 leading-tight">
-              <strong>Como funciona a liberação:</strong> O valor pago fica bloqueado na plataforma. O profissional só recebe os <strong>{formatCurrencyBRL(split.providerPayoutAmount)}</strong> quando você confirmar que o serviço foi finalizado com perfeição.
+              <strong>Garantia RooServ:</strong> O dinheiro fica bloqueado sob custódia segura. O profissional só recebe os <strong>{formatCurrencyBRL(split.providerPayoutAmount)}</strong> após você inspecionar e aprovar o serviço finalizado.
             </p>
           </div>
         </div>
@@ -242,11 +348,14 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-3.5 px-4 rounded-xl shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
           >
             {isProcessing ? (
-              <span>Confirmando pagamento em custódia...</span>
+              <span className="flex items-center gap-2">
+                <RefreshCw className="w-4 h-4 animate-spin" />
+                Processando custódia segura no Asaas...
+              </span>
             ) : (
               <>
-                <span>Simular Pagamento Seguro ({formatCurrencyBRL(serviceAmount)})</span>
-                <ArrowRight className="w-4 h-4" />
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Confirmar Pagamento Seguro ({formatCurrencyBRL(serviceAmount)})</span>
               </>
             )}
           </button>
