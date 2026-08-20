@@ -134,7 +134,7 @@ export function generateMockPixQrCode(orderNumber: string, amount: number): Asaa
   let base64Image = '';
   if (typeof (globalThis as any).btoa === 'function') {
     base64Image = (globalThis as any).btoa(qrSvg);
-  } else if (typeof (globalThis as any).Buffer !== 'undefined') {
+  } else if ((globalThis as any).Buffer !== undefined) {
     base64Image = (globalThis as any).Buffer.from(qrSvg).toString('base64');
   }
 

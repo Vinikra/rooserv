@@ -1,104 +1,99 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
-  X, 
   Bell, 
-  Sparkles, 
+  X, 
+  CheckCircle, 
   MessageSquare, 
   DollarSign, 
-  ChevronRight, 
-  ShieldCheck 
+  ShieldCheck, 
+  ChevronRight 
 } from 'lucide-react';
-import { useApp } from '../context/AppContext';
 
-export interface NotificationItem {
+interface NotificationItem {
   id: string;
-  type: 'order' | 'chat' | 'proposal' | 'payout' | 'verification';
   title: string;
   message: string;
   time: string;
+  type: 'order' | 'message' | 'payment' | 'system';
   isRead: boolean;
   actionTab?: string;
 }
 
 interface NotificationModalProps {
+  isOpen: boolean;
   onClose: () => void;
-  onNavigateTab: (tab: string) => void;
+  onSelectNotification?: (tab: string) => void;
 }
 
 export const NotificationModal: React.FC<NotificationModalProps> = ({
+  isOpen,
   onClose,
-  onNavigateTab,
+  onSelectNotification,
 }) => {
-  const { currentRole } = useApp();
-
-  const notifications: NotificationItem[] = currentRole === 'provider' ? [
+  const [notifications] = useState<NotificationItem[]>([
     {
-      id: 'n1',
-      type: 'order',
-      title: 'Novo Pedido na Vila Aurora! ⚡',
-      message: 'Mariana Alcantara precisa de troca de fiação de chuveiro urgente.',
+      id: 'notif-1',
+      title: 'Custódia Ativa no Serviço',
+      message: 'Seu pagamento de R$ 150,00 foi retido com segurança. O prestador foi notificado para iniciar.',
       time: 'Há 5 min',
+      type: 'payment',
       isRead: false,
-      actionTab: 'provider_leads',
+      actionTab: 'orders',
     },
     {
-      id: 'n2',
-      type: 'chat',
-      title: 'Nova Mensagem no Chat',
-      message: 'Mariana: "O disjuntor de 20A está desarmando após o banho..."',
-      time: 'Há 12 min',
+      id: 'notif-2',
+      title: 'Nova Mensagem do Prestador',
+      message: 'Marcos Silva: "Chego por volta das 14h no Jardim Atlântico com o material."',
+      time: 'Há 25 min',
+      type: 'message',
       isRead: false,
       actionTab: 'messages',
     },
     {
-      id: 'n3',
-      type: 'payout',
-      title: 'Pagamento em Custódia Garantido! 💰',
-      message: 'O cliente confirmou R$ 250,00. O valor já está garantido para você.',
+      id: 'notif-3',
+      title: 'Novo Orçamento Disponível',
+      message: 'Um profissional enviou proposta para sua solicitação de "Troca de Chuveiro 220v".',
       time: 'Há 2 horas',
-      isRead: true,
-      actionTab: 'orders',
-    },
-  ] : [
-    {
-      id: 'n1',
-      type: 'proposal',
-      title: 'Orçamento Oficial Recebido! ✨',
-      message: 'Carlos Eduardo enviou uma proposta de R$ 220,00 com 60 dias de garantia.',
-      time: 'Há 3 min',
-      isRead: false,
-      actionTab: 'messages',
-    },
-    {
-      id: 'n2',
       type: 'order',
-      title: 'Custódia Ativa no RooServ',
-      message: 'Seu pagamento está 100% protegido. O profissional iniciará o atendimento.',
-      time: 'Há 1 hora',
       isRead: true,
       actionTab: 'orders',
     },
-  ];
+    {
+      id: 'notif-4',
+      title: 'Garantia RooServ Ativa',
+      message: 'Seu serviço possui cobertura de 60 dias pela Garantia de Conclusão da plataforma.',
+      time: 'Ontem',
+      type: 'system',
+      isRead: true,
+    },
+  ]);
+
+  if (!isOpen) return null;
 
   const getIcon = (type: NotificationItem['type']) => {
     switch (type) {
-      case 'proposal':
-        return <Sparkles className="w-4 h-4 text-amber-500" />;
-      case 'chat':
-        return <MessageSquare className="w-4 h-4 text-brand-500" />;
-      case 'payout':
-        return <DollarSign className="w-4 h-4 text-emerald-500" />;
-      case 'verification':
-        return <ShieldCheck className="w-4 h-4 text-blue-500" />;
+      case 'payment':
+        return <DollarSign className="w-4 h-4 text-emerald-600" />;
+      case 'message':
+        return <MessageSquare className="w-4 h-4 text-brand-600" />;
+      case 'order':
+        return <CheckCircle className="w-4 h-4 text-indigo-600" />;
+      case 'system':
       default:
-        return <Bell className="w-4 h-4 text-indigo-500" />;
+        return <ShieldCheck className="w-4 h-4 text-amber-600" />;
     }
+  };
+
+  const handleNotificationClick = (actionTab?: string) => {
+    if (actionTab && onSelectNotification) {
+      onSelectNotification(actionTab);
+    }
+    onClose();
   };
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200">
       <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl space-y-4">
-        
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <div className="flex items-center gap-2">
@@ -115,6 +110,7 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
             className="text-slate-400 hover:text-slate-600 p-1"
           >
@@ -125,15 +121,11 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
         {/* Lista de Notificações */}
         <div className="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1">
           {notifications.map((item) => (
-            <div
+            <button
+              type="button"
               key={item.id}
-              onClick={() => {
-                if (item.actionTab) {
-                  onNavigateTab(item.actionTab);
-                }
-                onClose();
-              }}
-              className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-start gap-3 active:scale-[0.99] ${
+              onClick={() => handleNotificationClick(item.actionTab)}
+              className={`w-full text-left p-3.5 rounded-2xl border transition-all flex items-start gap-3 active:scale-[0.99] ${
                 item.isRead
                   ? 'bg-slate-50 border-slate-200'
                   : 'bg-indigo-50/40 border-indigo-200 shadow-sm'
@@ -159,11 +151,12 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
               </div>
 
               <ChevronRight className="w-4 h-4 text-slate-300 shrink-0 mt-1" />
-            </div>
+            </button>
           ))}
         </div>
 
         <button
+          type="button"
           onClick={onClose}
           className="w-full bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs py-2.5 rounded-xl transition-colors"
         >

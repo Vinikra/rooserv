@@ -79,6 +79,7 @@ export const PWAInstallBanner: React.FC = () => {
 
         <div className="flex items-center gap-1.5 shrink-0">
           <button
+            type="button"
             onClick={handleInstallClick}
             className="bg-brand-600 hover:bg-brand-500 text-white text-[11px] font-bold px-3 py-1.5 rounded-lg shadow-sm flex items-center gap-1 active:scale-95 transition-all"
           >
@@ -86,6 +87,7 @@ export const PWAInstallBanner: React.FC = () => {
             <span>Instalar</span>
           </button>
           <button
+            type="button"
             onClick={handleDismiss}
             className="p-1 text-slate-400 hover:text-white rounded-lg"
           >
@@ -124,6 +126,7 @@ export const PWAInstallBanner: React.FC = () => {
             </div>
 
             <button
+              type="button"
               onClick={() => setShowIOSInstructions(false)}
               className="w-full bg-brand-600 text-white font-bold text-xs py-2.5 rounded-xl shadow"
             >

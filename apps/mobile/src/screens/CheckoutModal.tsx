@@ -53,7 +53,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   // Gera código Pix dinâmico com identificador do prestador e valor
   useEffect(() => {
     if (!provider) return;
-    const orderTempNumber = `SRV-ROO-${Math.floor(1000 + Math.random() * 9000)}`;
+    const rnd = typeof crypto !== 'undefined' && crypto.getRandomValues
+      ? (1000 + (crypto.getRandomValues(new Uint32Array(1))[0] % 9000))
+      : 7789;
+    const orderTempNumber = `SRV-ROO-${rnd}`;
     const generated = generateMockPixQrCode(orderTempNumber, serviceAmount);
     setPixData(generated);
     setTimeLeft(900);
@@ -108,6 +111,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         {/* Header com Banner de Segurança */}
         <div className="bg-slate-900 text-white p-4 relative">
           <button
+            type="button"
             onClick={onClose}
             className="absolute top-3.5 right-3.5 text-slate-400 hover:text-white p-1 rounded-full"
           >
@@ -142,6 +146,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             <div className="flex gap-1.5 pt-1">
               {[150, 220, 350, 600, 1200].map((val) => (
                 <button
+                  type="button"
                   key={val}
                   onClick={() => setServiceAmount(val)}
                   className={`flex-1 py-1 rounded-lg font-bold text-[10px] border transition-all ${
@@ -170,11 +175,12 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
           {/* Método de Pagamento */}
           <div>
-            <label className="font-bold text-slate-900 block mb-2">
+            <p className="font-bold text-slate-900 block mb-2">
               Escolha a forma de pagamento:
-            </label>
+            </p>
             <div className="grid grid-cols-2 gap-2">
               <button
+                type="button"
                 onClick={() => {
                   setPaymentMethod('pix');
                   setSelectedInstallment(1);
@@ -195,6 +201,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               </button>
 
               <button
+                type="button"
                 onClick={() => setPaymentMethod('credit_card')}
                 className={`p-3 rounded-xl border flex items-center gap-2.5 font-semibold text-xs transition-all ${
                   paymentMethod === 'credit_card'
@@ -219,11 +226,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               <div className="flex items-center justify-between text-xs px-1">
                 <span className="font-bold text-slate-800 flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  QR Code Pix Dinâmico
+                  <span>QR Code Pix Dinâmico</span>
                 </span>
                 <span className="text-slate-500 font-mono text-[11px] flex items-center gap-1">
                   <Clock className="w-3.5 h-3.5 text-amber-500" />
-                  Expira em {RooServPaymentService.formatCountdown(timeLeft)}
+                  <span>{`Expira em ${RooServPaymentService.formatCountdown(timeLeft)}`}</span>
                 </span>
               </div>
 
@@ -248,6 +255,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     className="w-full bg-white border border-slate-200 text-[10px] px-2.5 py-2 rounded-xl text-slate-700 font-mono select-all truncate"
                   />
                   <button
+                    type="button"
                     onClick={handleCopyPix}
                     className="bg-emerald-600 hover:bg-emerald-700 text-white p-2.5 rounded-xl text-xs font-bold shrink-0 transition-colors flex items-center gap-1 shadow-xs active:scale-95"
                   >
@@ -269,10 +277,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-3">
               <div className="space-y-2">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  <label htmlFor="checkout-card-num" className="block text-[11px] font-bold text-slate-700 mb-1">
                     Número do Cartão
                   </label>
                   <input
+                    id="checkout-card-num"
                     type="text"
                     placeholder="4532 •••• •••• 8821"
                     value={cardNumber}
@@ -282,10 +291,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  <label htmlFor="checkout-card-holder" className="block text-[11px] font-bold text-slate-700 mb-1">
                     Nome Impresso no Cartão
                   </label>
                   <input
+                    id="checkout-card-holder"
                     type="text"
                     placeholder="MARIANA SOUZA SILVA"
                     value={cardHolder}
@@ -296,10 +306,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    <label htmlFor="checkout-card-expiry" className="block text-[11px] font-bold text-slate-700 mb-1">
                       Validade (MM/AA)
                     </label>
                     <input
+                      id="checkout-card-expiry"
                       type="text"
                       placeholder="11/29"
                       value={cardExpiry}
@@ -308,10 +319,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    <label htmlFor="checkout-card-cvv" className="block text-[11px] font-bold text-slate-700 mb-1">
                       CVV
                     </label>
                     <input
+                      id="checkout-card-cvv"
                       type="text"
                       placeholder="352"
                       value={cardCvv}
@@ -322,10 +334,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  <label htmlFor="checkout-card-installments" className="block text-[11px] font-bold text-slate-700 mb-1">
                     Parcelamento no Cartão:
                   </label>
                   <select
+                    id="checkout-card-installments"
                     value={selectedInstallment}
                     onChange={(e) => setSelectedInstallment(Number(e.target.value))}
                     className="w-full bg-white border border-slate-300 text-xs rounded-xl p-2.5 font-medium focus:outline-none focus:border-brand-500"
@@ -370,6 +383,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         {/* Botão de Confirmação */}
         <div className="p-4 bg-white border-t border-slate-200">
           <button
+            type="button"
             onClick={handleConfirmPayment}
             disabled={isProcessing}
             className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-3.5 px-4 rounded-xl shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"

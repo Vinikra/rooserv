@@ -36,6 +36,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenAuth, onOpenNotifications 
         {/* Simulador de Papéis (Alternador de visão) */}
         <div className="flex items-center bg-slate-800 p-0.5 rounded-lg border border-slate-700 text-xs">
           <button
+            type="button"
             onClick={() => setCurrentRole('client')}
             className={`flex items-center gap-1 px-2.5 py-1 rounded-md font-medium transition-all ${
               currentRole === 'client'
@@ -49,6 +50,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenAuth, onOpenNotifications 
           </button>
 
           <button
+            type="button"
             onClick={() => setCurrentRole('provider')}
             className={`flex items-center gap-1 px-2.5 py-1 rounded-md font-medium transition-all ${
               currentRole === 'provider'
@@ -62,6 +64,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenAuth, onOpenNotifications 
           </button>
 
           <button
+            type="button"
             onClick={() => setCurrentRole('admin')}
             className={`flex items-center gap-1 px-2.5 py-1 rounded-md font-medium transition-all ${
               currentRole === 'admin'
@@ -79,6 +82,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenAuth, onOpenNotifications 
           {/* Botão de Notificações com Badge */}
           {onOpenNotifications && (
             <button
+              type="button"
               onClick={onOpenNotifications}
               className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg border border-slate-700 transition-colors relative"
               title="Notificações"
@@ -91,6 +95,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenAuth, onOpenNotifications 
           {/* Botão de Autenticação */}
           {onOpenAuth && (
             <button
+              type="button"
               onClick={onOpenAuth}
               className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg border border-slate-700 transition-colors"
               title="Entrar ou Criar Conta"
@@ -108,13 +113,12 @@ export const Header: React.FC<HeaderProps> = ({ onOpenAuth, onOpenNotifications 
             <SlidersHorizontal className="w-3 h-3 text-slate-400" />
             <span>Filtrar Bairro:</span>
           </div>
-
           <select
             value={selectedNeighborhood}
             onChange={(e) => setSelectedNeighborhood(e.target.value)}
-            className="bg-slate-800 text-slate-200 text-xs px-2 py-0.5 rounded border border-slate-700 focus:outline-none focus:border-brand-500"
+            className="bg-slate-800 text-brand-400 font-semibold border border-slate-700 rounded-lg px-2 py-0.5 text-xs focus:outline-none focus:border-brand-500 cursor-pointer"
           >
-            <option value="Todos os Bairros">Todos os Bairros ({CITY_CONFIG.estimatedPopulation.toLocaleString('pt-BR')} hab)</option>
+            <option value="Todos os Bairros">Todos os Bairros ({CITY_CONFIG.name})</option>
             {CITY_CONFIG.defaultNeighborhoods.map((bairro) => (
               <option key={bairro} value={bairro}>
                 {bairro}

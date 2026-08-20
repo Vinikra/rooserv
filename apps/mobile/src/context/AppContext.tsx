@@ -260,9 +260,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const provider = providers.find((p) => p.id === params.providerId);
     const split = calculateServiceSplit(params.amount, 12.0);
 
+    const randomSuffix = typeof crypto !== 'undefined' && crypto.getRandomValues
+      ? (1000 + (crypto.getRandomValues(new Uint32Array(1))[0] % 9000))
+      : 5521;
+
     const newOrder: Order = {
       id: `ord-${Date.now()}`,
-      orderNumber: `SRV-2026-${Math.floor(1000 + Math.random() * 9000)}`,
+      orderNumber: `SRV-2026-${randomSuffix}`,
       clientId: currentUser.id,
       client: currentUser,
       providerId: params.providerId,

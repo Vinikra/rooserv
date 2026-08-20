@@ -62,7 +62,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
   // Filtragem limpa e otimizada
   const filteredProviders = (providers || []).filter((p) => {
-    if (!p || p.verificationStatus !== 'verified') return false;
+    if (p?.verificationStatus !== 'verified') return false;
     if (selectedNeighborhood !== 'Todos os Bairros' && p.profile?.neighborhood !== selectedNeighborhood) return false;
     if (selectedCategorySlug && !(p.categories || []).some((c) => c?.slug === selectedCategorySlug)) return false;
     return matchesSearch(p, searchTerm.trim());
@@ -96,6 +96,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             O dinheiro só é repassado ao prestador após você aprovar o serviço concluído.
           </p>
           <button
+            type="button"
             onClick={onOpenNewRequest}
             className="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-xs px-4 py-2 rounded-lg shadow transition-all active:scale-95 flex items-center gap-1.5"
           >
@@ -110,6 +111,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       <div className="grid grid-cols-2 gap-2">
         {onOpenReferral && (
           <button
+            type="button"
             onClick={onOpenReferral}
             className="bg-amber-50 hover:bg-amber-100/80 border border-amber-200 p-2.5 rounded-xl flex items-center gap-2 text-left transition-all active:scale-95 shadow-xs"
           >
@@ -129,6 +131,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
         {onOpenTerms && (
           <button
+            type="button"
             onClick={onOpenTerms}
             className="bg-slate-50 hover:bg-slate-100 border border-slate-200 p-2.5 rounded-xl flex items-center gap-2 text-left transition-all active:scale-95 shadow-xs"
           >
@@ -155,6 +158,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </h3>
           {selectedCategorySlug && (
             <button
+              type="button"
               onClick={() => setSelectedCategorySlug(null)}
               className="text-xs font-medium text-brand-600 hover:underline"
             >
@@ -168,6 +172,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             const isSelected = selectedCategorySlug === cat.slug;
             return (
               <button
+                type="button"
                 key={cat.id}
                 onClick={() => setSelectedCategorySlug(isSelected ? null : cat.slug)}
                 className={`p-3 rounded-xl border flex flex-col items-center text-center gap-1.5 transition-all ${
@@ -206,6 +211,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               Tente selecionar outro bairro ou limpar o filtro de busca.
             </p>
             <button
+              type="button"
               onClick={() => {
                 setSelectedCategorySlug(null);
                 setSearchTerm('');
@@ -217,13 +223,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </div>
         ) : (
           filteredProviders.map((provider) => (
-            <div
+            <button
+              type="button"
               key={provider.id}
               onClick={() => onSelectProvider(provider)}
-              className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer group"
+              className="w-full text-left bg-white rounded-2xl p-4 border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer group"
             >
               <div className="flex items-start gap-3">
-                <div className="relative">
+                <div className="relative shrink-0">
                   <img
                     src={provider.profile?.avatarUrl || 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=150'}
                     alt={provider.profile?.fullName || 'Profissional'}
@@ -267,7 +274,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                   </div>
                 </div>
               </div>
-            </div>
+            </button>
           ))
         )}
       </div>
@@ -288,6 +295,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </div>
 
           <button
+            type="button"
             onClick={onOpenOnboarding}
             className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-3.5 py-2 rounded-xl shrink-0 active:scale-95 transition-transform shadow"
           >

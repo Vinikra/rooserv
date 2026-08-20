@@ -27,6 +27,7 @@ export const TermsModal: React.FC<TermsModalProps> = ({ onClose }) => {
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
             className="text-slate-400 hover:text-slate-600 p-1"
           >
@@ -85,6 +86,7 @@ export const TermsModal: React.FC<TermsModalProps> = ({ onClose }) => {
         </div>
 
         <button
+          type="button"
           onClick={onClose}
           className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs py-2.5 rounded-xl transition-colors"
         >

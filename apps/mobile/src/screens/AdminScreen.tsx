@@ -137,6 +137,7 @@ export const AdminScreen: React.FC = () => {
                 {/* Ações de Arbitragem */}
                 <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-100">
                   <button
+                    type="button"
                     onClick={() => resolveDisputeByAdmin(order.id, 'refund_client')}
                     className="bg-white hover:bg-slate-50 text-red-600 border border-red-300 font-bold text-xs px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 active:scale-95 shadow-xs"
                   >
@@ -145,6 +146,7 @@ export const AdminScreen: React.FC = () => {
                   </button>
 
                   <button
+                    type="button"
                     onClick={() => resolveDisputeByAdmin(order.id, 'release_provider')}
                     className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-1 shadow-sm active:scale-95"
                   >
@@ -210,6 +212,7 @@ export const AdminScreen: React.FC = () => {
               {/* Ações de Moderação */}
               <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-200/60">
                 <button
+                  type="button"
                   onClick={() => verifyProviderByAdmin(provider.id, 'rejected')}
                   className="bg-white hover:bg-red-50 text-red-600 border border-red-200 font-semibold text-xs px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 active:scale-95"
                 >
@@ -218,6 +221,7 @@ export const AdminScreen: React.FC = () => {
                 </button>
 
                 <button
+                  type="button"
                   onClick={() => verifyProviderByAdmin(provider.id, 'verified')}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-1 shadow-sm active:scale-95"
                 >

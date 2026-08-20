@@ -2,33 +2,33 @@ import { describe, it, expect } from 'vitest';
 import { sanitizeChatMessage } from '../utils/security';
 
 describe('RooServ Anti-Disintermediation Security Engine', () => {
-  it('detects and masks standard Brazilian phone numbers', () => {
-    const text = 'Me chama no whats 66999887766 para combinar';
-    const result = sanitizeChatMessage(text);
-    expect(result.hasSensitiveContact).toBe(true);
-    expect(result.sanitizedText).toContain('[🔒');
-    expect(result.sanitizedText).not.toContain('66999887766');
-  });
+  const sensitiveCases = [
+    {
+      description: 'Brazilian phone numbers',
+      input: 'Me chama no whats 66999887766 para combinar',
+      expectedPlaceholder: '[🔒 TELEFONE BLOQUEADO PELO ROOSERV]',
+    },
+    {
+      description: 'email addresses',
+      input: 'Manda o orçamento para contato@prestador.com',
+      expectedPlaceholder: '[🔒 E-MAIL BLOQUEADO PELO ROOSERV]',
+    },
+    {
+      description: 'social media handles',
+      input: 'Segue meu insta: @eletricista_rondonopolis',
+      expectedPlaceholder: '[🔒 REDE SOCIAL BLOQUEADA]',
+    },
+    {
+      description: 'CPF Pix keys',
+      input: 'Faz o pix para 123.456.789-00',
+      expectedPlaceholder: '[🔒 PIX DIRETO BLOQUEADO]',
+    },
+  ];
 
-  it('detects and masks email addresses', () => {
-    const text = 'Manda o orçamento para contato@prestador.com';
-    const result = sanitizeChatMessage(text);
+  it.each(sensitiveCases)('detects and masks $description', ({ input, expectedPlaceholder }) => {
+    const result = sanitizeChatMessage(input);
     expect(result.hasSensitiveContact).toBe(true);
-    expect(result.sanitizedText).toContain('[🔒 E-MAIL BLOQUEADO PELO ROOSERV]');
-  });
-
-  it('detects and masks social media handles', () => {
-    const text = 'Segue meu insta: @eletricista_rondonopolis';
-    const result = sanitizeChatMessage(text);
-    expect(result.hasSensitiveContact).toBe(true);
-    expect(result.sanitizedText).toContain('[🔒 REDE SOCIAL BLOQUEADA]');
-  });
-
-  it('detects and masks CPF Pix keys', () => {
-    const text = 'Faz o pix para 123.456.789-00';
-    const result = sanitizeChatMessage(text);
-    expect(result.hasSensitiveContact).toBe(true);
-    expect(result.sanitizedText).toContain('[🔒 PIX DIRETO BLOQUEADO]');
+    expect(result.sanitizedText).toContain(expectedPlaceholder);
   });
 
   it('allows normal conversation without false positives', () => {

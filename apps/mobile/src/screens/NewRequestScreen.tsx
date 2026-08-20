@@ -71,10 +71,11 @@ export const NewRequestScreen: React.FC<NewRequestScreenProps> = ({ onSuccess })
         <form onSubmit={handleSubmit} className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-4">
           {/* Categoria */}
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1.5">
+            <label htmlFor="req-category" className="block text-xs font-bold text-slate-700 mb-1.5">
               Categoria do Serviço
             </label>
             <select
+              id="req-category"
               value={categoryId}
               onChange={(e) => setCategoryId(e.target.value)}
               className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-medium text-slate-800 focus:outline-none focus:border-brand-500"
@@ -89,10 +90,11 @@ export const NewRequestScreen: React.FC<NewRequestScreenProps> = ({ onSuccess })
 
           {/* Título */}
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1.5">
+            <label htmlFor="req-title" className="block text-xs font-bold text-slate-700 mb-1.5">
               Título Curto do Problema
             </label>
             <input
+              id="req-title"
               type="text"
               placeholder="Ex: Troca de fiação do chuveiro / Pintar 1 quarto"
               value={title}
@@ -104,9 +106,9 @@ export const NewRequestScreen: React.FC<NewRequestScreenProps> = ({ onSuccess })
 
           {/* Urgência */}
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1.5">
+            <p className="block text-xs font-bold text-slate-700 mb-1.5">
               Qual a urgência?
-            </label>
+            </p>
             <div className="grid grid-cols-3 gap-2">
               {(Object.keys(URGENCY_LABELS) as RequestUrgency[]).map((key) => {
                 const isSelected = urgency === key;
@@ -131,10 +133,11 @@ export const NewRequestScreen: React.FC<NewRequestScreenProps> = ({ onSuccess })
 
           {/* Bairro */}
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1.5">
+            <label htmlFor="req-neighborhood" className="block text-xs font-bold text-slate-700 mb-1.5">
               Bairro onde será feito o serviço
             </label>
             <select
+              id="req-neighborhood"
               value={neighborhood}
               onChange={(e) => setNeighborhood(e.target.value)}
               className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 focus:outline-none focus:border-brand-500"
@@ -149,10 +152,11 @@ export const NewRequestScreen: React.FC<NewRequestScreenProps> = ({ onSuccess })
 
           {/* Descrição Detalhada */}
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1.5">
+            <label htmlFor="req-description" className="block text-xs font-bold text-slate-700 mb-1.5">
               Descrição Detalhada
             </label>
             <textarea
+              id="req-description"
               rows={3}
               placeholder="Explique o que aconteceu, se você já comprou os materiais ou se o prestador deve levar..."
               value={description}
@@ -164,7 +168,7 @@ export const NewRequestScreen: React.FC<NewRequestScreenProps> = ({ onSuccess })
 
           {/* Estimativa de Orçamento */}
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1.5">
+            <label htmlFor="req-budget" className="block text-xs font-bold text-slate-700 mb-1.5">
               Orçamento Previsto (Opcional - R$)
             </label>
             <div className="relative">
@@ -172,6 +176,7 @@ export const NewRequestScreen: React.FC<NewRequestScreenProps> = ({ onSuccess })
                 R$
               </span>
               <input
+                id="req-budget"
                 type="number"
                 placeholder="200"
                 value={budget}

@@ -34,7 +34,7 @@ export const OrdersScreen: React.FC = () => {
 
   // Modal de Abertura de Disputa / Reportar Problema
   const [selectedOrderForDispute, setSelectedOrderForDispute] = useState<Order | null>(null);
-  const [disputeReason, setDisputeReason] = useState<string>('Prestador não compareceu');
+  const [disputeReason, setDisputeReason] = useState<string>('Prestador não compareceu no endereço');
   const [disputeDetails, setDisputeDetails] = useState<string>('');
 
   const handleToggleTag = (tag: string) => {
@@ -176,6 +176,7 @@ export const OrdersScreen: React.FC = () => {
                 {/* Botão Reportar Problema / Disputa (Cliente) */}
                 {currentRole === 'client' && (order.status === 'payment_in_escrow' || order.status === 'completed_by_provider') && (
                   <button
+                    type="button"
                     onClick={() => setSelectedOrderForDispute(order)}
                     className="text-red-600 hover:text-red-700 text-xs font-semibold flex items-center gap-1 hover:underline p-1"
                   >
@@ -188,6 +189,7 @@ export const OrdersScreen: React.FC = () => {
                   {/* Ação do Prestador: Concluir serviço */}
                   {currentRole === 'provider' && order.status === 'payment_in_escrow' && (
                     <button
+                      type="button"
                       onClick={() => markOrderAsCompletedByProvider(order.id)}
                       className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl transition-all shadow-sm active:scale-95 flex items-center gap-1.5"
                     >
@@ -199,6 +201,7 @@ export const OrdersScreen: React.FC = () => {
                   {/* Ação do Cliente: Aprovar serviço e Liberar Pagamento */}
                   {currentRole === 'client' && (order.status === 'payment_in_escrow' || order.status === 'completed_by_provider') && (
                     <button
+                      type="button"
                       onClick={() => setSelectedOrderForReview(order)}
                       className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-all shadow-md shadow-emerald-500/20 active:scale-95 flex items-center gap-1.5"
                     >
@@ -227,6 +230,7 @@ export const OrdersScreen: React.FC = () => {
                 </p>
               </div>
               <button
+                type="button"
                 onClick={() => setSelectedOrderForReview(null)}
                 className="text-slate-400 hover:text-slate-600 p-1"
               >
@@ -243,6 +247,7 @@ export const OrdersScreen: React.FC = () => {
                 {[1, 2, 3, 4, 5].map((star) => (
                   <button
                     key={star}
+                    type="button"
                     onClick={() => setRating(star)}
                     className="p-1 text-amber-400 hover:scale-110 transition-transform"
                   >
@@ -267,6 +272,7 @@ export const OrdersScreen: React.FC = () => {
                   return (
                     <button
                       key={tag}
+                      type="button"
                       onClick={() => handleToggleTag(tag)}
                       className={`text-xs px-2.5 py-1 rounded-lg border font-medium transition-all ${
                         isSelected
@@ -284,10 +290,11 @@ export const OrdersScreen: React.FC = () => {
 
             {/* Comentário */}
             <div>
-              <span className="text-xs font-semibold text-slate-700 block mb-1">
+              <label htmlFor="review-comment" className="text-xs font-semibold text-slate-700 block mb-1">
                 Deixe um comentário para os outros moradores da cidade:
-              </span>
+              </label>
               <textarea
+                id="review-comment"
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
                 placeholder="Ex: O profissional chegou na hora, fez o trabalho perfeito e deixou tudo limpo..."
@@ -299,6 +306,7 @@ export const OrdersScreen: React.FC = () => {
             {/* Confirmação e Liberação */}
             <div className="pt-2">
               <button
+                type="button"
                 onClick={handleFinalizeAndRelease}
                 className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-3 px-4 rounded-xl shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 active:scale-95"
               >
@@ -329,6 +337,7 @@ export const OrdersScreen: React.FC = () => {
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => setSelectedOrderForDispute(null)}
                 className="text-slate-400 hover:text-slate-600 p-1"
               >
@@ -341,10 +350,11 @@ export const OrdersScreen: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
+              <label htmlFor="dispute-reason" className="block text-xs font-bold text-slate-700 mb-1">
                 Qual o motivo principal?
               </label>
               <select
+                id="dispute-reason"
                 value={disputeReason}
                 onChange={(e) => setDisputeReason(e.target.value)}
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 font-medium focus:outline-none focus:border-red-500"
@@ -357,10 +367,11 @@ export const OrdersScreen: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
+              <label htmlFor="dispute-details" className="block text-xs font-bold text-slate-700 mb-1">
                 Descreva detalhadamente o ocorrido:
               </label>
               <textarea
+                id="dispute-details"
                 value={disputeDetails}
                 onChange={(e) => setDisputeDetails(e.target.value)}
                 placeholder="Ex: O profissional agendou para as 14h na Vila Aurora mas não veio e não atendeu as mensagens..."
@@ -370,6 +381,7 @@ export const OrdersScreen: React.FC = () => {
             </div>
 
             <button
+              type="button"
               onClick={handleConfirmDispute}
               className="w-full bg-red-600 hover:bg-red-700 text-white font-bold text-xs py-3 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 active:scale-95"
             >

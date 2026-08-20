@@ -41,6 +41,7 @@ export const ReferralModal: React.FC<ReferralModalProps> = ({ onClose }) => {
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
             className="text-slate-400 hover:text-slate-600 p-1"
           >
@@ -63,14 +64,15 @@ export const ReferralModal: React.FC<ReferralModalProps> = ({ onClose }) => {
 
         {/* Caixa de Cupom */}
         <div className="space-y-1.5">
-          <label className="block text-xs font-bold text-slate-700">
+          <p className="text-xs font-bold text-slate-700">
             Seu Cupom Exclusivo de Indicação:
-          </label>
+          </p>
           <div className="flex items-center gap-2">
             <div className="flex-1 bg-slate-100 border-2 border-dashed border-slate-300 rounded-xl p-2.5 text-center font-mono font-extrabold text-slate-900 text-sm tracking-wider">
               {referralCode}
             </div>
             <button
+              type="button"
               onClick={handleCopy}
               className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs p-3 rounded-xl flex items-center gap-1.5 active:scale-95 transition-all shadow-sm"
             >
@@ -82,6 +84,7 @@ export const ReferralModal: React.FC<ReferralModalProps> = ({ onClose }) => {
 
         {/* Botão de Compartilhar no WhatsApp */}
         <button
+          type="button"
           onClick={handleWhatsAppShare}
           className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-3 rounded-xl shadow-md shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 active:scale-95"
         >

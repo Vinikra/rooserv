@@ -38,6 +38,7 @@ export const ProviderProfileModal: React.FC<ProviderProfileModalProps> = ({
         {/* Header do Modal com Capa e Botão Fechar */}
         <div className="relative bg-gradient-to-r from-brand-900 to-slate-900 p-5 text-white">
           <button
+            type="button"
             onClick={onClose}
             className="absolute top-4 right-4 bg-black/30 hover:bg-black/50 text-white p-1.5 rounded-full transition-colors"
           >
@@ -86,6 +87,7 @@ export const ProviderProfileModal: React.FC<ProviderProfileModalProps> = ({
         {/* Abas Internas */}
         <div className="flex border-b border-slate-200 px-4 bg-slate-50 text-xs font-semibold">
           <button
+            type="button"
             onClick={() => setActiveTab('sobre')}
             className={`py-3 px-3 border-b-2 transition-colors ${
               activeTab === 'sobre'
@@ -96,6 +98,7 @@ export const ProviderProfileModal: React.FC<ProviderProfileModalProps> = ({
             Sobre o Profissional
           </button>
           <button
+            type="button"
             onClick={() => setActiveTab('portfolio')}
             className={`py-3 px-3 border-b-2 transition-colors ${
               activeTab === 'portfolio'
@@ -106,6 +109,7 @@ export const ProviderProfileModal: React.FC<ProviderProfileModalProps> = ({
             Antes & Depois ({provider.portfolio?.length || 0})
           </button>
           <button
+            type="button"
             onClick={() => setActiveTab('avaliacoes')}
             className={`py-3 px-3 border-b-2 transition-colors ${
               activeTab === 'avaliacoes'
@@ -241,6 +245,7 @@ export const ProviderProfileModal: React.FC<ProviderProfileModalProps> = ({
         {/* Footer com Ações de Chat e Contratação */}
         <div className="p-4 bg-white border-t border-slate-200 flex items-center gap-2.5">
           <button
+            type="button"
             onClick={() => onOpenChat(provider)}
             className="p-3 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl transition-all font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95 border border-slate-200"
             title="Tirar dúvidas e pedir orçamento no Chat"
@@ -250,6 +255,7 @@ export const ProviderProfileModal: React.FC<ProviderProfileModalProps> = ({
           </button>
 
           <button
+            type="button"
             onClick={() => onStartCheckout(provider)}
             className="flex-1 bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs py-3 px-4 rounded-xl shadow-lg shadow-brand-500/20 transition-all flex items-center justify-center gap-2 active:scale-95"
           >

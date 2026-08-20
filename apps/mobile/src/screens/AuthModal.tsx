@@ -125,8 +125,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
       </div>
 
       <div>
-        <label className="block text-xs font-bold text-slate-700 mb-1">Nome Completo</label>
+        <label htmlFor="auth-name" className="block text-xs font-bold text-slate-700 mb-1">Nome Completo</label>
         <input
+          id="auth-name"
           type="text"
           placeholder="Mariana Alcantara"
           value={name}
@@ -137,8 +138,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
 
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="block text-xs font-bold text-slate-700 mb-1">WhatsApp</label>
+          <label htmlFor="auth-phone" className="block text-xs font-bold text-slate-700 mb-1">WhatsApp</label>
           <input
+            id="auth-phone"
             type="text"
             placeholder="(66) 99999-0000"
             value={phone}
@@ -147,8 +149,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
           />
         </div>
         <div>
-          <label className="block text-xs font-bold text-slate-700 mb-1">Seu Bairro</label>
+          <label htmlFor="auth-neighborhood" className="block text-xs font-bold text-slate-700 mb-1">Seu Bairro</label>
           <select
+            id="auth-neighborhood"
             value={neighborhood}
             onChange={(e) => setNeighborhood(e.target.value)}
             className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none focus:border-brand-500 font-medium"
@@ -179,7 +182,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1">
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-slate-400 hover:text-slate-600 p-1"
+          >
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -220,8 +227,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
             {authMode === 'signup' && renderSignupDetails()}
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">E-mail</label>
+              <label htmlFor="auth-email" className="block text-xs font-bold text-slate-700 mb-1">E-mail</label>
               <input
+                id="auth-email"
                 type="email"
                 required
                 placeholder="seu.email@exemplo.com"
@@ -232,8 +240,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Senha de Acesso</label>
+              <label htmlFor="auth-password" className="block text-xs font-bold text-slate-700 mb-1">Senha de Acesso</label>
               <input
+                id="auth-password"
                 type="password"
                 required
                 placeholder="••••••••"

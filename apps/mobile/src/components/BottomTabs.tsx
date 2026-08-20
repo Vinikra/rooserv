@@ -29,6 +29,7 @@ export const BottomTabs: React.FC<BottomTabsProps> = ({ activeTab, setActiveTab 
     return (
       <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white border-t border-slate-200 py-2 px-4 flex items-center justify-around z-30 shadow-lg">
         <button
+          type="button"
           onClick={() => setActiveTab('provider_dashboard')}
           className={`flex flex-col items-center gap-1 text-[11px] font-medium transition-colors ${
             activeTab === 'provider_dashboard' ? 'text-amber-600 font-bold' : 'text-slate-500 hover:text-slate-800'
@@ -39,6 +40,7 @@ export const BottomTabs: React.FC<BottomTabsProps> = ({ activeTab, setActiveTab 
         </button>
 
         <button
+          type="button"
           onClick={() => setActiveTab('provider_leads')}
           className={`flex flex-col items-center gap-1 text-[11px] font-medium relative transition-colors ${
             activeTab === 'provider_leads' ? 'text-amber-600 font-bold' : 'text-slate-500 hover:text-slate-800'
@@ -54,6 +56,7 @@ export const BottomTabs: React.FC<BottomTabsProps> = ({ activeTab, setActiveTab 
         </button>
 
         <button
+          type="button"
           onClick={() => setActiveTab('messages')}
           className={`flex flex-col items-center gap-1 text-[11px] font-medium relative transition-colors ${
             activeTab === 'messages' ? 'text-amber-600 font-bold' : 'text-slate-500 hover:text-slate-800'
@@ -67,6 +70,7 @@ export const BottomTabs: React.FC<BottomTabsProps> = ({ activeTab, setActiveTab 
         </button>
 
         <button
+          type="button"
           onClick={() => setActiveTab('orders')}
           className={`flex flex-col items-center gap-1 text-[11px] font-medium relative transition-colors ${
             activeTab === 'orders' ? 'text-amber-600 font-bold' : 'text-slate-500 hover:text-slate-800'
@@ -84,10 +88,10 @@ export const BottomTabs: React.FC<BottomTabsProps> = ({ activeTab, setActiveTab 
     );
   }
 
-  // Modo Cliente
   return (
     <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white border-t border-slate-200 py-2 px-4 flex items-center justify-between z-30 shadow-lg">
       <button
+        type="button"
         onClick={() => setActiveTab('explore')}
         className={`flex flex-col items-center gap-1 text-[11px] font-medium transition-colors ${
           activeTab === 'explore' ? 'text-brand-600 font-bold' : 'text-slate-500 hover:text-slate-800'
@@ -98,6 +102,7 @@ export const BottomTabs: React.FC<BottomTabsProps> = ({ activeTab, setActiveTab 
       </button>
 
       <button
+        type="button"
         onClick={() => setActiveTab('messages')}
         className={`flex flex-col items-center gap-1 text-[11px] font-medium relative transition-colors ${
           activeTab === 'messages' ? 'text-brand-600 font-bold' : 'text-slate-500 hover:text-slate-800'
@@ -111,6 +116,7 @@ export const BottomTabs: React.FC<BottomTabsProps> = ({ activeTab, setActiveTab 
       </button>
 
       <button
+        type="button"
         onClick={() => setActiveTab('new_request')}
         className="flex flex-col items-center gap-0.5 -mt-4"
       >
@@ -121,6 +127,7 @@ export const BottomTabs: React.FC<BottomTabsProps> = ({ activeTab, setActiveTab 
       </button>
 
       <button
+        type="button"
         onClick={() => setActiveTab('orders')}
         className={`flex flex-col items-center gap-1 text-[11px] font-medium relative transition-colors ${
           activeTab === 'orders' ? 'text-brand-600 font-bold' : 'text-slate-500 hover:text-slate-800'

@@ -61,6 +61,7 @@ export const ProviderDashboardScreen: React.FC<ProviderDashboardScreenProps> = (
         <div className="flex items-center gap-2">
           {onOpenOnboarding && (
             <button
+              type="button"
               onClick={onOpenOnboarding}
               className="bg-amber-100 hover:bg-amber-200 text-amber-900 text-[11px] font-bold px-2.5 py-1 rounded-lg border border-amber-300 transition-colors"
             >
@@ -108,6 +109,7 @@ export const ProviderDashboardScreen: React.FC<ProviderDashboardScreenProps> = (
 
         {/* Botão de Saque Instantâneo via Pix */}
         <button
+          type="button"
           onClick={handleRequestPayout}
           disabled={availableBalance <= 0}
           className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs py-3 rounded-xl transition-all shadow-md active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
@@ -178,6 +180,7 @@ export const ProviderDashboardScreen: React.FC<ProviderDashboardScreenProps> = (
                 </div>
 
                 <button
+                  type="button"
                   onClick={() => handleSendProposal(req.id)}
                   className={`font-bold text-xs px-3.5 py-1.5 rounded-xl transition-all flex items-center gap-1.5 active:scale-95 ${
                     isSent

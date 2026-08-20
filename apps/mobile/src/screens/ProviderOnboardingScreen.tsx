@@ -124,8 +124,9 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
         <p className="text-[11px] text-slate-500">Seus dados cadastrais em Rondonópolis</p>
       </div>
       <div>
-        <label className="block text-xs font-bold text-slate-700 mb-1">Nome Completo</label>
+        <label htmlFor="provider-fullname" className="block text-xs font-bold text-slate-700 mb-1">Nome Completo</label>
         <input
+          id="provider-fullname"
           type="text"
           placeholder="Ex: João Ferreira da Silva"
           value={fullName}
@@ -135,8 +136,9 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
       </div>
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="block text-xs font-bold text-slate-700 mb-1">WhatsApp (DDD 66)</label>
+          <label htmlFor="provider-phone" className="block text-xs font-bold text-slate-700 mb-1">WhatsApp (DDD 66)</label>
           <input
+            id="provider-phone"
             type="text"
             placeholder="(66) 99999-0000"
             value={phone}
@@ -145,8 +147,9 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
           />
         </div>
         <div>
-          <label className="block text-xs font-bold text-slate-700 mb-1">CPF</label>
+          <label htmlFor="provider-cpf" className="block text-xs font-bold text-slate-700 mb-1">CPF</label>
           <input
+            id="provider-cpf"
             type="text"
             placeholder="000.000.000-00"
             value={cpf}
@@ -156,8 +159,9 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
         </div>
       </div>
       <div>
-        <label className="block text-xs font-bold text-slate-700 mb-1">Bairro onde você reside</label>
+        <label htmlFor="provider-neighborhood" className="block text-xs font-bold text-slate-700 mb-1">Bairro onde você reside</label>
         <select
+          id="provider-neighborhood"
           value={baseNeighborhood}
           onChange={(e) => setBaseNeighborhood(e.target.value)}
           className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none focus:border-amber-500 font-medium"
@@ -168,6 +172,7 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
         </select>
       </div>
       <button
+        type="button"
         onClick={() => setStep(2)}
         disabled={!fullName.trim()}
         className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs py-3 rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 active:scale-95 disabled:opacity-50 mt-2"
@@ -185,7 +190,7 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
         <p className="text-[11px] text-slate-500">Defina o que você faz e onde atende em Rondonópolis</p>
       </div>
       <div>
-        <label className="block text-xs font-bold text-slate-700 mb-1.5">Suas Categorias de Serviço</label>
+        <p className="block text-xs font-bold text-slate-700 mb-1.5">Suas Categorias de Serviço</p>
         <div className="grid grid-cols-2 gap-1.5">
           {categories.map((cat) => {
             const isSelected = selectedCategoryIds.includes(cat.id);
@@ -209,8 +214,9 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
       </div>
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="block text-xs font-bold text-slate-700 mb-1">Anos de Experiência</label>
+          <label htmlFor="provider-experience" className="block text-xs font-bold text-slate-700 mb-1">Anos de Experiência</label>
           <input
+            id="provider-experience"
             type="number"
             value={experienceYears}
             onChange={(e) => setExperienceYears(Number(e.target.value))}
@@ -218,8 +224,9 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
           />
         </div>
         <div>
-          <label className="block text-xs font-bold text-slate-700 mb-1">Preço Base / Hora (R$)</label>
+          <label htmlFor="provider-rate" className="block text-xs font-bold text-slate-700 mb-1">Preço Base / Hora (R$)</label>
           <input
+            id="provider-rate"
             type="number"
             value={hourlyRate}
             onChange={(e) => setHourlyRate(e.target.value)}
@@ -228,8 +235,9 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
         </div>
       </div>
       <div>
-        <label className="block text-xs font-bold text-slate-700 mb-1">Apresentação Profissional (Bio)</label>
+        <label htmlFor="provider-bio" className="block text-xs font-bold text-slate-700 mb-1">Apresentação Profissional (Bio)</label>
         <textarea
+          id="provider-bio"
           rows={2}
           placeholder="Ex: Formado pelo SENAI, especialista em quadros de luz, ferramentas próprias..."
           value={bio}
@@ -238,6 +246,7 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
         />
       </div>
       <button
+        type="button"
         onClick={() => setStep(3)}
         className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs py-3 rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 active:scale-95 mt-2"
       >
@@ -254,9 +263,10 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
         <p className="text-[11px] text-slate-500">Documentos confidenciais protegidos por criptografia</p>
       </div>
       <div className="space-y-2">
-        <div
+        <button
+          type="button"
           onClick={() => setIdFrontUploaded(!idFrontUploaded)}
-          className={`p-3 rounded-xl border-2 border-dashed flex items-center justify-between cursor-pointer transition-all ${
+          className={`w-full text-left p-3 rounded-xl border-2 border-dashed flex items-center justify-between cursor-pointer transition-all ${
             idFrontUploaded ? 'bg-emerald-50 border-emerald-500 text-emerald-900' : 'bg-slate-50 border-slate-300 text-slate-600 hover:bg-slate-100'
           }`}
         >
@@ -267,10 +277,11 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
           <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-white border">
             {idFrontUploaded ? '✓ Anexado' : 'Clique p/ Anexar'}
           </span>
-        </div>
-        <div
+        </button>
+        <button
+          type="button"
           onClick={() => setIdBackUploaded(!idBackUploaded)}
-          className={`p-3 rounded-xl border-2 border-dashed flex items-center justify-between cursor-pointer transition-all ${
+          className={`w-full text-left p-3 rounded-xl border-2 border-dashed flex items-center justify-between cursor-pointer transition-all ${
             idBackUploaded ? 'bg-emerald-50 border-emerald-500 text-emerald-900' : 'bg-slate-50 border-slate-300 text-slate-600 hover:bg-slate-100'
           }`}
         >
@@ -281,10 +292,11 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
           <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-white border">
             {idBackUploaded ? '✓ Anexado' : 'Clique p/ Anexar'}
           </span>
-        </div>
-        <div
+        </button>
+        <button
+          type="button"
           onClick={() => setSelfieUploaded(!selfieUploaded)}
-          className={`p-3 rounded-xl border-2 border-dashed flex items-center justify-between cursor-pointer transition-all ${
+          className={`w-full text-left p-3 rounded-xl border-2 border-dashed flex items-center justify-between cursor-pointer transition-all ${
             selfieUploaded ? 'bg-emerald-50 border-emerald-500 text-emerald-900' : 'bg-slate-50 border-slate-300 text-slate-600 hover:bg-slate-100'
           }`}
         >
@@ -295,14 +307,15 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
           <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-white border">
             {selfieUploaded ? '✓ Anexado' : 'Clique p/ Anexar'}
           </span>
-        </div>
+        </button>
       </div>
       <div className="bg-amber-50/60 p-3 rounded-2xl border border-amber-200/80 space-y-2">
         <div className="flex items-center gap-1.5 text-xs font-bold text-amber-950">
           <DollarSign className="w-4 h-4 text-amber-600" />
-          <span>Chave Pix para Receber seus Pagamentos</span>
+          <label htmlFor="provider-pix">Chave Pix para Receber seus Pagamentos</label>
         </div>
         <input
+          id="provider-pix"
           type="text"
           placeholder="Digite sua chave Pix (CPF, Telefone ou E-mail)"
           value={pixKey}
@@ -311,6 +324,7 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
         />
       </div>
       <button
+        type="button"
         onClick={() => setStep(4)}
         className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs py-3 rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 active:scale-95 mt-2"
       >
@@ -327,8 +341,9 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
         <p className="text-[11px] text-slate-500">Fotos de serviços bem feitos atraem 4x mais contratações</p>
       </div>
       <div>
-        <label className="block text-xs font-bold text-slate-700 mb-1">Título do Trabalho Realizado</label>
+        <label htmlFor="portfolio-title" className="block text-xs font-bold text-slate-700 mb-1">Título do Trabalho Realizado</label>
         <input
+          id="portfolio-title"
           type="text"
           value={portfolioTitle}
           onChange={(e) => setPortfolioTitle(e.target.value)}
@@ -336,7 +351,7 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
         />
       </div>
       <div>
-        <label className="block text-xs font-bold text-slate-700 mb-1">Foto do Serviço Concluído</label>
+        <p className="block text-xs font-bold text-slate-700 mb-1">Foto do Serviço Concluído</p>
         <div className="relative rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
           <img src={portfolioAfterImage} alt="Portfólio" className="w-full h-36 object-cover" />
           <span className="absolute bottom-2 right-2 bg-black/60 text-white text-[10px] font-bold px-2 py-1 rounded-lg backdrop-blur-sm">
@@ -345,8 +360,9 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
         </div>
       </div>
       <div>
-        <label className="block text-xs font-bold text-slate-700 mb-1">Descrição Rápida</label>
+        <label htmlFor="portfolio-desc" className="block text-xs font-bold text-slate-700 mb-1">Descrição Rápida</label>
         <textarea
+          id="portfolio-desc"
           rows={2}
           value={portfolioDesc}
           onChange={(e) => setPortfolioDesc(e.target.value)}
@@ -354,6 +370,7 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
         />
       </div>
       <button
+        type="button"
         onClick={handleSubmitApplication}
         disabled={isSubmitting}
         className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs py-3.5 rounded-xl shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
@@ -374,6 +391,7 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
     <div className="pb-24 pt-2 px-4 space-y-4 max-w-md mx-auto min-h-full">
       <div className="flex items-center justify-between">
         <button
+          type="button"
           onClick={step > 1 ? () => setStep(step - 1) : onCancel}
           className="p-1.5 text-slate-500 hover:text-slate-900 rounded-lg transition-colors flex items-center gap-1 text-xs font-semibold"
         >

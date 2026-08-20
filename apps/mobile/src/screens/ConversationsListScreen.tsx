@@ -1,22 +1,6 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
-import { 
-  ShieldCheck, 
-  ChevronRight 
-} from 'lucide-react';
-
-interface ConversationItem {
-  id: string;
-  partnerId: string;
-  name: string;
-  avatarUrl: string;
-  role: 'client' | 'provider';
-  subtitle: string;
-  lastMessage: string;
-  time: string;
-  unreadCount: number;
-  hasPendingProposal?: boolean;
-}
+import { ShieldCheck, ChevronRight } from 'lucide-react';
 
 interface ConversationsListScreenProps {
   onSelectConversation: (user: {
@@ -31,41 +15,62 @@ interface ConversationsListScreenProps {
 export const ConversationsListScreen: React.FC<ConversationsListScreenProps> = ({
   onSelectConversation,
 }) => {
-  const { currentRole, providers } = useApp();
+  const { currentRole } = useApp();
 
-  const mockConversations: ConversationItem[] = [
+  const mockConversations = currentRole === 'provider' ? [
     {
-      id: 'conv-1',
-      partnerId: providers[0]?.id || 'p1',
-      name: currentRole === 'provider' ? 'Mariana Alcantara' : 'Carlos Eduardo (Eletricista)',
-      avatarUrl: currentRole === 'provider' 
-        ? 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150'
-        : 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=150',
-      role: currentRole === 'provider' ? 'client' : 'provider',
-      subtitle: currentRole === 'provider' ? 'Bairro Vila Aurora' : 'Eletricista SENAI • Centro',
-      lastMessage: 'Acabei de gerar a proposta oficial do serviço para você aprovar: R$ 220,00',
-      time: '14:25',
+      id: 'c1',
+      partnerId: 'user-client-1',
+      name: 'Mariana Souza (Jardim Atlântico)',
+      avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+      role: 'client' as const,
+      subtitle: 'Troca de Chuveiro e Disjuntor',
+      lastMessage: 'Perfeito! Qual horário você consegue vir hoje?',
+      time: '14:35',
       unreadCount: 1,
       hasPendingProposal: true,
     },
     {
-      id: 'conv-2',
-      partnerId: providers[1]?.id || 'p2',
-      name: currentRole === 'provider' ? 'Roberto Silva' : 'Ana Paula Santos (Faxinas)',
-      avatarUrl: currentRole === 'provider'
-        ? 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150'
-        : 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150',
-      role: currentRole === 'provider' ? 'client' : 'provider',
-      subtitle: currentRole === 'provider' ? 'Bairro Vila Operária' : 'Limpeza Detalhada • Sagrada Família',
-      lastMessage: 'Perfeito! Quinta-feira às 08:30 estarei aí.',
+      id: 'c2',
+      partnerId: 'user-client-2',
+      name: 'Carlos Mendes (Vila Aurora)',
+      avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
+      role: 'client' as const,
+      subtitle: 'Instalação de Tomada 220v Ar',
+      lastMessage: 'Obrigado pelo serviço, já liberei o pagamento!',
       time: 'Ontem',
       unreadCount: 0,
       hasPendingProposal: false,
+    }
+  ] : [
+    {
+      id: 'c1',
+      partnerId: 'prov-1',
+      name: 'Marcos Silva • Eletricista',
+      avatarUrl: 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=150',
+      role: 'provider' as const,
+      subtitle: 'Jardim Atlântico • Selo Verificado',
+      lastMessage: 'Acabei de gerar o orçamento formal com o seguro de 60 dias:',
+      time: '14:36',
+      unreadCount: 1,
+      hasPendingProposal: true,
     },
+    {
+      id: 'c3',
+      partnerId: 'prov-3',
+      name: 'Roberto Climatização',
+      avatarUrl: 'https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=150',
+      role: 'provider' as const,
+      subtitle: 'Vila Aurora • 4.8 Estrelas',
+      lastMessage: 'Combinado! Sexta-feira às 09h estou no local.',
+      time: '11:20',
+      unreadCount: 0,
+      hasPendingProposal: false,
+    }
   ];
 
   return (
-    <div className="pb-24 pt-2 px-4 space-y-4 max-w-md mx-auto">
+    <div className="p-4 space-y-4 pb-24">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -86,7 +91,8 @@ export const ConversationsListScreen: React.FC<ConversationsListScreenProps> = (
       {/* Lista de Conversas */}
       <div className="space-y-2.5">
         {mockConversations.map((conv) => (
-          <div
+          <button
+            type="button"
             key={conv.id}
             onClick={() =>
               onSelectConversation({
@@ -97,9 +103,9 @@ export const ConversationsListScreen: React.FC<ConversationsListScreenProps> = (
                 subtitle: conv.subtitle,
               })
             }
-            className="bg-white rounded-2xl p-3.5 border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer flex items-center gap-3 active:scale-[0.99]"
+            className="w-full text-left bg-white rounded-2xl p-3.5 border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer flex items-center gap-3 active:scale-[0.99]"
           >
-            <div className="relative">
+            <div className="relative shrink-0">
               <img
                 src={conv.avatarUrl}
                 alt={conv.name}
@@ -142,7 +148,7 @@ export const ConversationsListScreen: React.FC<ConversationsListScreenProps> = (
             </div>
 
             <ChevronRight className="w-4 h-4 text-slate-300 shrink-0" />
-          </div>
+          </button>
         ))}
       </div>
     </div>

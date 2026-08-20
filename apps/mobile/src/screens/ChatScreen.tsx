@@ -12,6 +12,7 @@ import {
   DollarSign, 
   ShieldAlert 
 } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 
 interface ChatScreenProps {
   recipientUser: {
@@ -22,24 +23,18 @@ interface ChatScreenProps {
     subtitle: string;
   };
   onBack: () => void;
-  onAcceptProposal?: (amount: number) => void;
+  onAcceptProposal: (amount: number) => void;
 }
 
-interface MockMessage {
+interface Message {
   id: string;
-  senderId: string;
-  senderName: string;
+  senderId: 'me' | 'other';
   text: string;
   time: string;
-  isProposal?: boolean;
   proposalData?: {
-    laborAmount: number;
-    materialsAmount: number;
     totalAmount: number;
-    warrantyDays: number;
-    estimatedDays: number;
     description: string;
-    isAccepted?: boolean;
+    isAccepted: boolean;
   };
 }
 
@@ -48,43 +43,34 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
   onBack,
   onAcceptProposal,
 }) => {
-  const { currentRole, currentUser } = useApp();
+  const { currentRole } = useApp();
   const [inputText, setInputText] = useState('');
-  const [messages, setMessages] = useState<MockMessage[]>([
+  const [messages, setMessages] = useState<Message[]>([
     {
       id: 'm1',
       senderId: 'other',
-      senderName: recipientUser.name,
-      text: 'Olá! Vi sua solicitação para o bairro Vila Aurora. Consegue me mandar mais detalhes do problema no chuveiro?',
-      time: '14:20',
+      text: 'Olá! Sou profissional parceiro do RooServ. Vi seu pedido de manutenção elétrica.',
+      time: '14:30',
     },
     {
       id: 'm2',
       senderId: 'me',
-      senderName: currentUser.fullName,
-      text: 'Olá! O disjuntor de 20A está desarmando após uns 10 minutos de banho. Acho que os fios são muito finos.',
-      time: '14:22',
+      text: 'Boa tarde! O disjuntor do chuveiro está desarmando direto quando coloco no quente. Quanto fica para revisar e trocar a fiação?',
+      time: '14:32',
     },
     {
       id: 'm3',
       senderId: 'other',
-      senderName: recipientUser.name,
-      text: 'Entendi perfeitamente! Provavelmente precisamos colocar fiação de 6mm e um disjuntor de 32A com proteção DR.',
-      time: '14:24',
+      text: 'Consigo ir aí no seu bairro hoje à tarde por volta das 16h30 para fazer o serviço completo.',
+      time: '14:35',
     },
     {
       id: 'm4',
       senderId: 'other',
-      senderName: recipientUser.name,
-      text: 'Acabei de gerar a proposta oficial do serviço para você aprovar:',
-      time: '14:25',
-      isProposal: true,
+      text: 'Acabei de gerar o orçamento formal com o seguro de 60 dias da plataforma:',
+      time: '14:36',
       proposalData: {
-        laborAmount: 180,
-        materialsAmount: 40,
-        totalAmount: 220,
-        warrantyDays: 60,
-        estimatedDays: 1,
+        totalAmount: 220.0,
         description: 'Troca do cabeamento para 6mm antichamas + instalação de disjuntor DIN bipolar e conector cerâmico para o chuveiro.',
         isAccepted: false,
       },
@@ -156,10 +142,9 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
       setTimeout(() => setSecurityAlert(null), 5000);
     }
 
-    const newMsg: MockMessage = {
+    const newMsg: Message = {
       id: `msg-${Date.now()}`,
       senderId: 'me',
-      senderName: currentUser.fullName,
       text: scanResult.sanitizedText,
       time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
     };
@@ -167,17 +152,12 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
     setMessages((prev) => [...prev, newMsg]);
     setInputText('');
 
-    // Dispara no WebSocket Realtime para o outro participante
-    const channelName = `rooserv_chat_${recipientUser.id}`;
-    const channel = supabase.channel(channelName);
+    // Transmite mensagem em tempo real para a outra ponta
+    const channel = supabase.channel(`rooserv_chat_${recipientUser.id}`);
     channel.send({
       type: 'broadcast',
       event: 'new_message',
-      payload: {
-        ...newMsg,
-        senderId: 'other',
-        senderName: currentUser.fullName,
-      },
+      payload: { ...newMsg, senderId: 'other' },
     });
   };
 
@@ -194,36 +174,29 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
       )
     );
 
-    // Notifica o prestador via Realtime
-    const channelName = `rooserv_chat_${recipientUser.id}`;
-    const channel = supabase.channel(channelName);
+    // Notifica em tempo real que a proposta foi aceita
+    const channel = supabase.channel(`rooserv_chat_${recipientUser.id}`);
     channel.send({
       type: 'broadcast',
       event: 'proposal_accepted',
-      payload: { msgId, amount },
+      payload: { msgId },
     });
 
-    if (onAcceptProposal) {
-      onAcceptProposal(amount);
-    }
+    onAcceptProposal(amount);
   };
 
   const handleSendCustomProposal = () => {
-    const val = Number(newProposalAmount) || 200;
-    const newMsg: MockMessage = {
-      id: `prop-${Date.now()}`,
+    const amount = Number.parseFloat(newProposalAmount) || 150;
+    const desc = newProposalDesc.trim() || 'Serviço sob medida acordado no chat.';
+
+    const newMsg: Message = {
+      id: `msg-${Date.now()}`,
       senderId: 'me',
-      senderName: currentUser.fullName,
-      text: 'Enviei uma proposta oficial de serviço:',
+      text: 'Enviei uma proposta formal para este serviço:',
       time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-      isProposal: true,
       proposalData: {
-        laborAmount: val,
-        materialsAmount: 0,
-        totalAmount: val,
-        warrantyDays: 30,
-        estimatedDays: 1,
-        description: newProposalDesc || 'Serviço de manutenção especializado com garantia RooServ.',
+        totalAmount: amount,
+        description: desc,
         isAccepted: false,
       },
     };
@@ -235,11 +208,11 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
 
   return (
     <div className="flex flex-col h-full bg-slate-100 relative">
-      
       {/* Top Header da Conversa */}
       <div className="bg-slate-900 text-white px-4 py-3 sticky top-0 z-30 shadow-md flex items-center justify-between">
         <div className="flex items-center gap-3">
           <button
+            type="button"
             onClick={onBack}
             className="p-1 text-slate-300 hover:text-white rounded-lg active:scale-95 transition-transform"
           >
@@ -260,10 +233,10 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
               {recipientUser.name}
             </h3>
             <p className="text-[10px] text-slate-400 flex items-center gap-1">
-              <span>{recipientUser.subtitle}</span> • 
+              <span>{`${recipientUser.subtitle} •`}</span>
               <span className="text-emerald-400 font-semibold flex items-center gap-0.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block" />
-                Realtime Ativo
+                <span>Realtime Ativo</span>
               </span>
             </p>
           </div>
@@ -272,6 +245,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
         {/* Ação de Criar Proposta (Visão Prestador) */}
         {currentRole === 'provider' && (
           <button
+            type="button"
             onClick={() => setIsSendingProposal(true)}
             className="bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-bold px-3 py-1.5 rounded-xl shadow-sm flex items-center gap-1 active:scale-95 transition-all"
           >
@@ -289,6 +263,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
             <span className="leading-tight text-[11px]">{securityAlert}</span>
           </div>
           <button
+            type="button"
             onClick={() => setSecurityAlert(null)}
             className="p-1 hover:bg-red-700 rounded-lg text-white"
           >
@@ -318,35 +293,41 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
               <div
                 className={`max-w-[85%] sm:max-w-[75%] rounded-2xl p-3 text-xs shadow-sm ${
                   isMe
-                    ? 'bg-brand-600 text-white rounded-tr-none'
-                    : 'bg-white text-slate-800 border border-slate-200/80 rounded-tl-none'
+                    ? 'bg-brand-600 text-white rounded-br-none'
+                    : 'bg-white text-slate-800 border border-slate-200/80 rounded-bl-none'
                 }`}
               >
-                <p className="leading-relaxed">{msg.text}</p>
+                <p className="leading-relaxed whitespace-pre-wrap">{msg.text}</p>
 
-                {/* Card de Proposta Oficial In-Chat */}
-                {msg.isProposal && msg.proposalData && (
-                  <div className="mt-2.5 bg-slate-900 text-white rounded-xl p-3.5 space-y-2.5 border border-slate-700 shadow-md">
-                    <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                      <div className="flex items-center gap-1.5 text-amber-400 font-bold text-[11px] uppercase tracking-wider">
+                {/* Cartão de Proposta / Orçamento Formal */}
+                {msg.proposalData && (
+                  <div
+                    className={`mt-2.5 p-3 rounded-xl border ${
+                      isMe
+                        ? 'bg-brand-700/80 border-brand-500 text-white'
+                        : 'bg-slate-900 text-white border-slate-800'
+                    } shadow-md space-y-2`}
+                  >
+                    <div className="flex items-center justify-between border-b border-white/10 pb-1.5">
+                      <span className="flex items-center gap-1 text-[11px] font-bold text-amber-400">
                         <Sparkles className="w-3.5 h-3.5" />
-                        <span>Orçamento RooServ</span>
-                      </div>
-                      <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-slate-300">
-                        {msg.proposalData.warrantyDays} dias de garantia
+                        Orçamento Formal com Garantia
+                      </span>
+                      <span className="text-[10px] bg-white/10 px-2 py-0.5 rounded-full text-slate-200">
+                        Custódia RooServ
                       </span>
                     </div>
 
-                    <p className="text-[11px] text-slate-300 leading-normal">
+                    <p className="text-[11px] text-slate-300 leading-snug">
                       {msg.proposalData.description}
                     </p>
 
-                    <div className="flex items-center justify-between pt-1 text-xs">
+                    <div className="flex items-center justify-between pt-1">
                       <div>
-                        <span className="text-[10px] text-slate-400 block">Valor Total:</span>
-                        <strong className="text-base font-extrabold text-emerald-400">
+                        <span className="text-[10px] text-slate-400 block">Total com Mão de Obra</span>
+                        <span className="text-sm font-black text-emerald-400">
                           {formatCurrencyBRL(msg.proposalData.totalAmount)}
-                        </strong>
+                        </span>
                       </div>
 
                       {msg.proposalData.isAccepted ? (
@@ -357,6 +338,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
                       ) : (
                         currentRole === 'client' && (
                           <button
+                            type="button"
                             onClick={() => handleAcceptProposalCard(msg.id, msg.proposalData!.totalAmount)}
                             className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-md transition-all active:scale-95 flex items-center gap-1"
                           >
@@ -392,6 +374,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
           'Vou revisar o orçamento!',
         ].map((quick) => (
           <button
+            type="button"
             key={quick}
             onClick={() => handleQuickReply(quick)}
             className="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium px-2.5 py-1 rounded-full whitespace-nowrap border border-slate-200 shrink-0 transition-colors"
@@ -413,6 +396,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
         />
 
         <button
+          type="button"
           onClick={() => handleSendMessage()}
           disabled={!inputText.trim()}
           className="bg-brand-600 hover:bg-brand-700 disabled:opacity-40 text-white p-2.5 rounded-xl transition-all shadow-sm active:scale-95 shrink-0"
@@ -423,8 +407,8 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
 
       {/* Modal de Criação de Proposta Rápida (Para o Prestador) */}
       {isSendingProposal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200">
-          <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-5 space-y-4 shadow-2xl">
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-4">
+          <div className="bg-white w-full max-w-sm rounded-3xl p-5 shadow-2xl space-y-4 animate-in fade-in duration-200">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
                 <div className="p-2 bg-amber-50 text-amber-600 rounded-lg">
@@ -440,6 +424,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => setIsSendingProposal(false)}
                 className="text-slate-400 hover:text-slate-600 p-1"
               >
@@ -448,7 +433,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
+              <label htmlFor="custom-proposal-amount" className="block text-xs font-bold text-slate-700 mb-1">
                 Valor Total do Serviço (R$)
               </label>
               <div className="relative">
@@ -456,6 +441,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
                   R$
                 </span>
                 <input
+                  id="custom-proposal-amount"
                   type="number"
                   value={newProposalAmount}
                   onChange={(e) => setNewProposalAmount(e.target.value)}
@@ -465,10 +451,11 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
+              <label htmlFor="custom-proposal-desc" className="block text-xs font-bold text-slate-700 mb-1">
                 O que está incluso no serviço?
               </label>
               <textarea
+                id="custom-proposal-desc"
                 rows={3}
                 placeholder="Ex: Troca de disjuntores, revisão de fiação e 30 dias de garantia..."
                 value={newProposalDesc}
@@ -478,6 +465,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
             </div>
 
             <button
+              type="button"
               onClick={handleSendCustomProposal}
               className="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs py-3 px-4 rounded-xl shadow-md active:scale-95 transition-all flex items-center justify-center gap-1.5"
             >
