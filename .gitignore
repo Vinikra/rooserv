@@ -36,3 +36,5 @@ Thumbs.db
 # Vercel & system
 .vercel
 .system_generated
+
+.vercel

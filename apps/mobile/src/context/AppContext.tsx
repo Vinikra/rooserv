@@ -184,6 +184,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     loadFromSupabase();
   }, []);
 
+  // Canal Global de Eventos em Tempo Real (WebSockets Supabase)
+  useEffect(() => {
+    const globalChannel = supabase.channel('rooserv_global_events', {
+      config: {
+        broadcast: { self: false },
+      },
+    });
+
+    globalChannel
+      .on('broadcast', { event: 'order_updated' }, (payload) => {
+        if (payload?.payload?.orderId) {
+          setOrders((prev) =>
+            prev.map((o) =>
+              o.id === payload.payload.orderId ? { ...o, ...payload.payload.changes } : o
+            )
+          );
+        }
+      })
+      .on('broadcast', { event: 'new_request' }, (payload) => {
+        if (payload?.payload) {
+          setRequests((prev) => [payload.payload, ...prev]);
+          if (typeof navigator !== 'undefined' && navigator.vibrate) {
+            navigator.vibrate([100, 50, 100]);
+          }
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(globalChannel);
+    };
+  }, []);
+
   // Criar uma nova solicitação de orçamento
   const createServiceRequest = (data: {
     categoryId: string;
@@ -211,6 +244,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setRequests((prev) => [newReq, ...prev]);
+
+    // Transmite a nova oportunidade para os prestadores via Realtime
+    const globalChannel = supabase.channel('rooserv_global_events');
+    globalChannel.send({
+      type: 'broadcast',
+      event: 'new_request',
+      payload: newReq,
+    });
+
     return newReq;
   };
 
@@ -255,6 +297,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           : o
       )
     );
+
+    // Transmite status concluído em tempo real para o morador
+    const globalChannel = supabase.channel('rooserv_global_events');
+    globalChannel.send({
+      type: 'broadcast',
+      event: 'order_updated',
+      payload: {
+        orderId,
+        changes: { status: 'completed_by_provider', completedAt: new Date().toISOString() },
+      },
+    });
   };
 
   // Cliente aprova o serviço, libera a custódia para o prestador e deixa avaliação

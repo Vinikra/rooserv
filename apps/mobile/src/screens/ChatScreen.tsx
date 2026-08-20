@@ -102,6 +102,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
   const [newProposalAmount, setNewProposalAmount] = useState('220');
   const [newProposalDesc, setNewProposalDesc] = useState('');
   const [securityAlert, setSecurityAlert] = useState<string | null>(null);
+  const [realtimeStatus, setRealtimeStatus] = useState<'connected' | 'connecting'>('connecting');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -111,6 +112,46 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Sincronização em Tempo Real com Supabase Realtime WebSockets
+  useEffect(() => {
+    const channelName = `rooserv_chat_${recipientUser.id}`;
+    const channel = supabase.channel(channelName, {
+      config: {
+        broadcast: { self: false },
+      },
+    });
+
+    channel
+      .on('broadcast', { event: 'new_message' }, (payload) => {
+        if (payload?.payload) {
+          setMessages((prev) => [...prev, payload.payload]);
+          if (typeof navigator !== 'undefined' && navigator.vibrate) {
+            navigator.vibrate(100);
+          }
+        }
+      })
+      .on('broadcast', { event: 'proposal_accepted' }, (payload) => {
+        if (payload?.payload?.msgId) {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === payload.payload.msgId && m.proposalData
+                ? { ...m, proposalData: { ...m.proposalData, isAccepted: true } }
+                : m
+            )
+          );
+        }
+      })
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          setRealtimeStatus('connected');
+        }
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [recipientUser.id]);
 
   const handleSendMessage = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -136,6 +177,19 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
 
     setMessages((prev) => [...prev, newMsg]);
     setInputText('');
+
+    // Dispara no WebSocket Realtime para o outro participante
+    const channelName = `rooserv_chat_${recipientUser.id}`;
+    const channel = supabase.channel(channelName);
+    channel.send({
+      type: 'broadcast',
+      event: 'new_message',
+      payload: {
+        ...newMsg,
+        senderId: 'other',
+        senderName: currentUser.fullName,
+      },
+    });
   };
 
   const handleQuickReply = (text: string) => {
@@ -150,6 +204,16 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
           : m
       )
     );
+
+    // Notifica o prestador via Realtime
+    const channelName = `rooserv_chat_${recipientUser.id}`;
+    const channel = supabase.channel(channelName);
+    channel.send({
+      type: 'broadcast',
+      event: 'proposal_accepted',
+      payload: { msgId, amount },
+    });
+
     if (onAcceptProposal) {
       onAcceptProposal(amount);
     }
@@ -206,8 +270,12 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
             <h3 className="text-xs font-bold text-white leading-tight">
               {recipientUser.name}
             </h3>
-            <p className="text-[10px] text-slate-400">
-              {recipientUser.subtitle} • <span className="text-emerald-400">Online</span>
+            <p className="text-[10px] text-slate-400 flex items-center gap-1">
+              <span>{recipientUser.subtitle}</span> • 
+              <span className="text-emerald-400 font-semibold flex items-center gap-0.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block" />
+                Realtime Ativo
+              </span>
             </p>
           </div>
         </div>
