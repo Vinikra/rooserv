@@ -891,7 +891,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     amount: number;
     paymentMethod: 'pix' | 'credit_card';
     installments: number;
-  }): Order => {
+  }): Promise<Order> => {
     const provider = providers.find((p) => p.id === params.providerId);
     const split = calculateServiceSplit(params.amount, 12.0);
     const client = currentUser || INITIAL_CLIENT;

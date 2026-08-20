@@ -13,7 +13,8 @@ import {
   Wallet, 
   FileText, 
   MessageSquare,
-  Camera
+  Camera,
+  PlusCircle
 } from 'lucide-react';
 import { CITY_CONFIG, UserRole, UserProfile } from '@servicos/shared';
 

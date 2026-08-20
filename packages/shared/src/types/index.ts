@@ -127,6 +127,9 @@ export interface Order {
   disputeDetails?: string;
   disputeOpenedAt?: string;
   disputeResolvedAt?: string;
+  serviceTitle?: string;
+  serviceDescription?: string;
+  photos?: string[];
   createdAt: string;
 }
 
