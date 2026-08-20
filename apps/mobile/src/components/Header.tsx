@@ -4,7 +4,6 @@ import {
   MapPin, 
   User, 
   Briefcase, 
-  SlidersHorizontal, 
   ShieldCheck, 
   LogIn, 
   LogOut, 
@@ -25,9 +24,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenAuth, onOpenNotifications 
     currentUser, 
     isAuthenticated, 
     isAdmin, 
-    logout, 
-    selectedNeighborhood, 
-    setSelectedNeighborhood 
+    logout 
   } = useApp();
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -58,9 +55,9 @@ export const Header: React.FC<HeaderProps> = ({ onOpenAuth, onOpenNotifications 
   };
 
   return (
-    <header className="bg-slate-900 text-white pt-3.5 pb-3 px-4 sticky top-0 z-40 shadow-md border-b border-slate-800">
+    <header className="bg-slate-900 text-white pt-3.5 pb-3.5 px-4 sticky top-0 z-40 shadow-md border-b border-slate-800">
       {/* Top Bar: Marca RooServ, Cidade e Menu do Usuário */}
-      <div className="flex items-center justify-between gap-2 mb-2.5">
+      <div className="flex items-center justify-between gap-2 max-w-lg mx-auto">
         {/* Logotipo e Cidade */}
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1 bg-gradient-to-r from-brand-600 to-indigo-600 px-3 py-1.5 rounded-xl shadow-sm">
@@ -220,7 +217,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenAuth, onOpenNotifications 
               )}
             </div>
           ) : (
-            /* Botão de Entrar para Visitantes com Área de Toque Confortável */
+            /* Botão de Entrar para Visitantes */
             <button
               type="button"
               onClick={onOpenAuth}
@@ -233,28 +230,6 @@ export const Header: React.FC<HeaderProps> = ({ onOpenAuth, onOpenNotifications 
           )}
         </div>
       </div>
-
-      {/* Seletor de Bairro da Cidade (Apenas na visão morador/cliente) */}
-      {currentRole === 'client' && (
-        <div className="flex items-center justify-between text-xs pt-2 border-t border-slate-800/80">
-          <div className="flex items-center gap-1.5 text-slate-300 font-semibold">
-            <SlidersHorizontal className="w-3.5 h-3.5 text-brand-400" />
-            <span>Bairro:</span>
-          </div>
-          <select
-            value={selectedNeighborhood}
-            onChange={(e) => setSelectedNeighborhood(e.target.value)}
-            className="bg-slate-800 text-brand-300 font-bold border border-slate-700 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:border-brand-500 cursor-pointer max-w-[210px] truncate"
-          >
-            <option value="Todos os Bairros">{`Todos os Bairros (${CITY_CONFIG.name})`}</option>
-            {CITY_CONFIG.defaultNeighborhoods.map((bairro) => (
-              <option key={bairro} value={bairro}>
-                {bairro}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
     </header>
   );
 };

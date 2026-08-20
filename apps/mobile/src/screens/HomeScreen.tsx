@@ -54,16 +54,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const { 
     categories, 
     providers, 
-    selectedNeighborhood, 
     selectedCategorySlug, 
     setSelectedCategorySlug 
   } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Filtragem limpa e otimizada
+  // Filtragem limpa por categoria e termo de busca (sem restrição de bairro para Rondonópolis)
   const filteredProviders = (providers || []).filter((p) => {
     if (p?.verificationStatus !== 'verified') return false;
-    if (selectedNeighborhood !== 'Todos os Bairros' && p.profile?.neighborhood !== selectedNeighborhood) return false;
     if (selectedCategorySlug && !(p.categories || []).some((c) => c?.slug === selectedCategorySlug)) return false;
     return matchesSearch(p, searchTerm.trim());
   });
@@ -197,18 +195,18 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       <div className="space-y-3 pt-2">
         <div className="flex items-center justify-between">
           <h3 className="text-xs sm:text-sm font-extrabold text-slate-800 uppercase tracking-wider">
-            Profissionais em Rondonópolis ({filteredProviders.length})
+            Profissionais Disponíveis ({filteredProviders.length})
           </h3>
-          <span className="text-xs text-slate-500 font-bold bg-slate-100 px-2.5 py-1 rounded-lg">
-            {selectedNeighborhood}
+          <span className="text-xs text-emerald-700 font-bold bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200/60">
+            Atende toda a cidade
           </span>
         </div>
 
         {filteredProviders.length === 0 ? (
           <div className="bg-white rounded-3xl p-8 text-center border border-slate-200 space-y-3">
-            <p className="text-base font-bold text-slate-800">Nenhum profissional encontrado nesta categoria</p>
+            <p className="text-base font-bold text-slate-800">Nenhum profissional encontrado para esta busca</p>
             <p className="text-xs text-slate-500">
-              Tente selecionar outro bairro ou limpar os filtros de busca.
+              Tente limpar os filtros ou buscar por outra categoria.
             </p>
             <button
               type="button"
@@ -255,7 +253,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                   </div>
 
                   <p className="text-xs text-slate-500 font-medium mb-1">
-                    Bairro: <strong className="text-slate-800">{provider.profile?.neighborhood || 'Centro'}</strong> • {provider.experienceYears || 3} anos de profissão
+                    Base: <strong className="text-slate-800">{provider.profile?.neighborhood || 'Centro'}</strong> • {provider.experienceYears || 3} anos de profissão
                   </p>
 
                   <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
@@ -292,7 +290,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               Você é prestador de serviços na cidade?
             </h4>
             <p className="text-xs text-amber-950 font-medium">
-              Cadastre-se para receber chamados na Vila Aurora, Centro, Sagrada Família e toda a região.
+              Cadastre-se para receber chamados em qualquer bairro de Rondonópolis.
             </p>
           </div>
 
