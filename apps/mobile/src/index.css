@@ -2,7 +2,27 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Estilos de custom scrollbar e mobile viewport simulator */
+/* Safe Area Insets para PWA e Dispositivos Móveis com Notch / Dynamic Island / Barra de Status */
+:root {
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+}
+
+.pt-safe {
+  padding-top: calc(env(safe-area-inset-top, 0px) + 12px);
+}
+
+.pb-safe {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
+}
+
+.top-safe {
+  top: calc(env(safe-area-inset-top, 0px) + 12px);
+}
+
+/* Estilos de custom scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;

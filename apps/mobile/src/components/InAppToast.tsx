@@ -64,7 +64,7 @@ export const InAppToast: React.FC<InAppToastProps> = ({
 
   return (
     <div
-      className={`fixed top-3 left-0 right-0 max-w-md mx-auto px-4 z-50 transition-all duration-300 transform pointer-events-auto ${
+      className={`fixed top-safe left-0 right-0 max-w-md mx-auto px-4 z-50 transition-all duration-300 transform pointer-events-auto ${
         isVisible ? 'translate-y-0 opacity-100' : '-translate-y-8 opacity-0 pointer-events-none'
       }`}
     >

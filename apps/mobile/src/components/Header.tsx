@@ -327,7 +327,7 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header className="bg-slate-900 text-white pt-3.5 pb-3.5 px-4 sm:px-6 lg:px-8 sticky top-0 z-40 shadow-md border-b border-slate-800">
+    <header className="bg-slate-900 text-white pt-safe pb-3.5 px-4 sm:px-6 lg:px-8 sticky top-0 z-40 shadow-md border-b border-slate-800 transition-all">
       <div className="flex items-center justify-between gap-4 max-w-7xl mx-auto w-full">
         {/* Logotipo e Cidade */}
         <div className="flex items-center gap-3 shrink-0">
