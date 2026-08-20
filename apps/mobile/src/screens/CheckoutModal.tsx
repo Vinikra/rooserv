@@ -1,6 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { ProviderProfile, CITY_CONFIG, generateMockPixQrCode, AsaasPixQrCodeResponse } from '@servicos/shared';
 import { useApp } from '../context/AppContext';
+import { 
+  ProviderProfile, 
+  CITY_CONFIG, 
+  generateMockPixQrCode, 
+  AsaasPixQrCodeResponse,
+  calculateInstallments, 
+  calculateCheckoutPricing,
+  formatCurrencyBRL 
+} from '@servicos/shared';
 import { 
   X, 
   ShieldCheck, 
@@ -9,20 +17,10 @@ import {
   Check, 
   Copy, 
   Lock, 
-  Sparkles, 
-  ArrowRight, 
   Clock, 
   CheckCircle2, 
-  RefreshCw,
-  Info,
-  TrendingDown
+  RefreshCw 
 } from 'lucide-react';
-import { 
-  calculateServiceSplit, 
-  calculateInstallments, 
-  calculateCheckoutPricing,
-  formatCurrencyBRL 
-} from '@servicos/shared';
 import { RooServPaymentService } from '../services/paymentService';
 
 interface CheckoutModalProps {
@@ -52,6 +50,24 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [cardExpiry, setCardExpiry] = useState('');
   const [cardCvv, setCardCvv] = useState('');
 
+  // Gera código Pix dinâmico com identificador do prestador e valor
+  useEffect(() => {
+    if (!provider) return;
+    const orderTempNumber = `SRV-ROO-${Math.floor(1000 + Math.random() * 9000)}`;
+    const generated = generateMockPixQrCode(orderTempNumber, serviceAmount);
+    setPixData(generated);
+    setTimeLeft(900);
+  }, [serviceAmount, provider]);
+
+  // Contador regressivo de 15 minutos
+  useEffect(() => {
+    if (timeLeft <= 0) return;
+    const interval = setInterval(() => {
+      setTimeLeft((prev) => prev - 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [timeLeft]);
+
   if (!provider) return null;
 
   // Cálculo da precificação com repasse de taxas de cartão ao pagador
@@ -62,23 +78,6 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   });
 
   const installmentOptions = calculateInstallments(serviceAmount, 12);
-
-  // Gera código Pix dinâmico com identificador do prestador e valor
-  useEffect(() => {
-    const orderTempNumber = `SRV-ROO-${Math.floor(1000 + Math.random() * 9000)}`;
-    const generated = generateMockPixQrCode(orderTempNumber, serviceAmount);
-    setPixData(generated);
-    setTimeLeft(900);
-  }, [serviceAmount]);
-
-  // Contador regressivo de 15 minutos
-  useEffect(() => {
-    if (timeLeft <= 0) return;
-    const interval = setInterval(() => {
-      setTimeLeft((prev) => prev - 1);
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [timeLeft]);
 
   const handleCopyPix = () => {
     if (pixData) {

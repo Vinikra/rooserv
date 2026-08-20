@@ -1,12 +1,8 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
 import { 
-  MessageSquare, 
   ShieldCheck, 
-  CheckCheck, 
-  ChevronRight, 
-  Sparkles, 
-  Clock 
+  ChevronRight 
 } from 'lucide-react';
 
 interface ConversationItem {

@@ -1,24 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
-import { ChatMessage, UserProfile, ProviderProfile, Proposal } from '@servicos/shared';
+import { formatCurrencyBRL, sanitizeChatMessage } from '@servicos/shared';
 import { 
   Send, 
   ShieldCheck, 
-  Clock, 
   CheckCheck, 
-  Paperclip, 
-  Image as ImageIcon, 
-  FileText, 
   CheckCircle, 
   X, 
   ArrowLeft, 
-  AlertTriangle, 
   Sparkles, 
   DollarSign, 
-  Lock, 
   ShieldAlert 
 } from 'lucide-react';
-import { formatCurrencyBRL, sanitizeChatMessage } from '@servicos/shared';
 
 interface ChatScreenProps {
   recipientUser: {
@@ -102,7 +95,6 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
   const [newProposalAmount, setNewProposalAmount] = useState('220');
   const [newProposalDesc, setNewProposalDesc] = useState('');
   const [securityAlert, setSecurityAlert] = useState<string | null>(null);
-  const [realtimeStatus, setRealtimeStatus] = useState<'connected' | 'connecting'>('connecting');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -117,36 +109,33 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
   useEffect(() => {
     const channelName = `rooserv_chat_${recipientUser.id}`;
     const channel = supabase.channel(channelName, {
-      config: {
-        broadcast: { self: false },
-      },
+      config: { broadcast: { self: false } },
     });
 
+    const handleNewMessage = (payload: any) => {
+      if (!payload?.payload) return;
+      setMessages((prev) => [...prev, payload.payload]);
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        navigator.vibrate(100);
+      }
+    };
+
+    const handleProposalAccepted = (payload: any) => {
+      const msgId = payload?.payload?.msgId;
+      if (!msgId) return;
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === msgId && m.proposalData
+            ? { ...m, proposalData: { ...m.proposalData, isAccepted: true } }
+            : m
+        )
+      );
+    };
+
     channel
-      .on('broadcast', { event: 'new_message' }, (payload) => {
-        if (payload?.payload) {
-          setMessages((prev) => [...prev, payload.payload]);
-          if (typeof navigator !== 'undefined' && navigator.vibrate) {
-            navigator.vibrate(100);
-          }
-        }
-      })
-      .on('broadcast', { event: 'proposal_accepted' }, (payload) => {
-        if (payload?.payload?.msgId) {
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === payload.payload.msgId && m.proposalData
-                ? { ...m, proposalData: { ...m.proposalData, isAccepted: true } }
-                : m
-            )
-          );
-        }
-      })
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          setRealtimeStatus('connected');
-        }
-      });
+      .on('broadcast', { event: 'new_message' }, handleNewMessage)
+      .on('broadcast', { event: 'proposal_accepted' }, handleProposalAccepted)
+      .subscribe();
 
     return () => {
       supabase.removeChannel(channel);

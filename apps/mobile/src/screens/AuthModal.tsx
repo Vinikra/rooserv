@@ -4,12 +4,8 @@ import { supabase } from '../lib/supabase';
 import { 
   X, 
   Lock, 
-  Mail, 
-  Phone, 
   User, 
-  ShieldCheck, 
   ArrowRight, 
-  Sparkles, 
   CheckCircle, 
   Briefcase 
 } from 'lucide-react';
@@ -34,6 +30,47 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
 
+  const performSignup = async () => {
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { full_name: name, phone, neighborhood, role: userRole },
+      },
+    });
+
+    if (error) {
+      console.log('Supabase auth notice:', error.message);
+    }
+
+    const newProfileId = `a1000000-0000-0000-0000-${Date.now().toString().slice(-12).padStart(12, '0')}`;
+    await supabase.from('profiles').insert([
+      {
+        id: newProfileId,
+        role: userRole,
+        full_name: name || 'Novo Usuário',
+        email,
+        phone: phone || '(66) 99999-0000',
+        neighborhood,
+        city: 'Rondonópolis',
+        state: 'MT',
+      },
+    ]);
+
+    setCurrentRole(userRole);
+  };
+
+  const performLogin = async () => {
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      console.log('Login local fallback');
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -41,69 +78,93 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
 
     try {
       if (authMode === 'signup') {
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: {
-              full_name: name,
-              phone,
-              neighborhood,
-              role: userRole,
-            },
-          },
-        });
-
-        if (error) {
-          console.log('Supabase auth notice:', error.message);
-        }
-
-        // Grava perfil
-        const newProfileId = `a1000000-0000-0000-0000-${Date.now().toString().slice(-12).padStart(12, '0')}`;
-        await supabase.from('profiles').insert([
-          {
-            id: newProfileId,
-            role: userRole,
-            full_name: name || 'Novo Usuário',
-            email,
-            phone: phone || '(66) 99999-0000',
-            neighborhood,
-            city: 'Rondonópolis',
-            state: 'MT',
-          },
-        ]);
-
-        setCurrentRole(userRole);
-        setIsSuccess(true);
+        await performSignup();
       } else {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-
-        if (error) {
-          console.log('Login local fallback');
-        }
-
-        setIsSuccess(true);
+        await performLogin();
       }
-
-      setTimeout(() => {
-        setIsSuccess(false);
-        setIsLoading(false);
-        onSuccess();
-      }, 1500);
+      setIsSuccess(true);
     } catch (err: any) {
-      setErrorMessage(err.message || 'Erro ao processar autenticação.');
-      setIsLoading(false);
+      setErrorMessage(err.message || 'Erro ao autenticar');
     }
+
+    setTimeout(() => {
+      setIsSuccess(false);
+      setIsLoading(false);
+      onSuccess();
+    }, 1500);
   };
+
+  const renderSignupDetails = () => (
+    <>
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={() => setUserRole('client')}
+          className={`p-2.5 rounded-xl border flex items-center gap-2 text-xs font-semibold transition-all ${
+            userRole === 'client'
+              ? 'bg-brand-50 border-brand-500 text-brand-900 ring-1 ring-brand-500'
+              : 'bg-white border-slate-200 text-slate-700'
+          }`}
+        >
+          <User className="w-4 h-4 text-brand-600" />
+          <span>Sou Morador</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setUserRole('provider')}
+          className={`p-2.5 rounded-xl border flex items-center gap-2 text-xs font-semibold transition-all ${
+            userRole === 'provider'
+              ? 'bg-amber-50 border-amber-500 text-amber-900 ring-1 ring-amber-500'
+              : 'bg-white border-slate-200 text-slate-700'
+          }`}
+        >
+          <Briefcase className="w-4 h-4 text-amber-600" />
+          <span>Sou Prestador</span>
+        </button>
+      </div>
+
+      <div>
+        <label className="block text-xs font-bold text-slate-700 mb-1">Nome Completo</label>
+        <input
+          type="text"
+          placeholder="Mariana Alcantara"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none focus:border-brand-500"
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="block text-xs font-bold text-slate-700 mb-1">WhatsApp</label>
+          <input
+            type="text"
+            placeholder="(66) 99999-0000"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none focus:border-brand-500"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-bold text-slate-700 mb-1">Seu Bairro</label>
+          <select
+            value={neighborhood}
+            onChange={(e) => setNeighborhood(e.target.value)}
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none focus:border-brand-500 font-medium"
+          >
+            {CITY_CONFIG.defaultNeighborhoods.map((b) => (
+              <option key={b} value={b}>{b}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+    </>
+  );
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200">
       <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl space-y-4">
-        
-        {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <div className="flex items-center gap-2">
             <div className="p-2 bg-brand-50 text-brand-600 rounded-xl">
@@ -118,10 +179,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
               </p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 p-1"
-          >
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -134,22 +192,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
             <h4 className="text-sm font-bold text-slate-900">
               {authMode === 'login' ? 'Bem-vindo de volta!' : 'Conta criada com sucesso!'}
             </h4>
-            <p className="text-xs text-slate-500">
-              Conectado aos serviços de Rondonópolis-MT
-            </p>
+            <p className="text-xs text-slate-500">Conectado aos serviços de Rondonópolis-MT</p>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-3.5">
-            
-            {/* Seletor Login vs Cadastro */}
             <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-semibold">
               <button
                 type="button"
                 onClick={() => setAuthMode('login')}
                 className={`flex-1 py-2 rounded-lg transition-all ${
-                  authMode === 'login'
-                    ? 'bg-white text-slate-900 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-800'
+                  authMode === 'login' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
                 Já tenho conta
@@ -158,102 +210,21 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
                 type="button"
                 onClick={() => setAuthMode('signup')}
                 className={`flex-1 py-2 rounded-lg transition-all ${
-                  authMode === 'signup'
-                    ? 'bg-white text-slate-900 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-800'
+                  authMode === 'signup' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
                 Criar nova conta
               </button>
             </div>
 
-            {authMode === 'signup' && (
-              <>
-                {/* Seletor de Tipo de Conta */}
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setUserRole('client')}
-                    className={`p-2.5 rounded-xl border flex items-center gap-2 text-xs font-semibold transition-all ${
-                      userRole === 'client'
-                        ? 'bg-brand-50 border-brand-500 text-brand-900 ring-1 ring-brand-500'
-                        : 'bg-white border-slate-200 text-slate-700'
-                    }`}
-                  >
-                    <User className="w-4 h-4 text-brand-600" />
-                    <span>Sou Morador</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setUserRole('provider')}
-                    className={`p-2.5 rounded-xl border flex items-center gap-2 text-xs font-semibold transition-all ${
-                      userRole === 'provider'
-                        ? 'bg-amber-50 border-amber-500 text-amber-900 ring-1 ring-amber-500'
-                        : 'bg-white border-slate-200 text-slate-700'
-                    }`}
-                  >
-                    <Briefcase className="w-4 h-4 text-amber-600" />
-                    <span>Sou Prestador</span>
-                  </button>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Nome Completo
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Seu nome"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none focus:border-brand-500"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                      WhatsApp (DDD 66)
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="(66) 99999-0000"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none focus:border-brand-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Bairro
-                    </label>
-                    <select
-                      value={neighborhood}
-                      onChange={(e) => setNeighborhood(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none focus:border-brand-500"
-                    >
-                      {CITY_CONFIG.defaultNeighborhoods.map((b) => (
-                        <option key={b} value={b}>
-                          {b}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              </>
-            )}
+            {authMode === 'signup' && renderSignupDetails()}
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                E-mail
-              </label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">E-mail</label>
               <input
                 type="email"
                 required
-                placeholder="seu@email.com"
+                placeholder="seu.email@exemplo.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none focus:border-brand-500"
@@ -261,13 +232,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Senha
-              </label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Senha de Acesso</label>
               <input
                 type="password"
                 required
-                placeholder="Mínimo 6 caracteres"
+                placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none focus:border-brand-500"
@@ -275,7 +244,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
             </div>
 
             {errorMessage && (
-              <div className="bg-red-50 text-red-700 text-xs p-2.5 rounded-xl border border-red-200">
+              <div className="p-2.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-600">
                 {errorMessage}
               </div>
             )}
@@ -283,13 +252,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs py-3 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 mt-2"
+              className="w-full bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs py-3.5 rounded-xl shadow-lg shadow-brand-500/20 transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 mt-4"
             >
               {isLoading ? (
-                <span>Conectando ao RooServ...</span>
+                <span>Processando...</span>
               ) : (
                 <>
-                  <span>{authMode === 'login' ? 'Entrar' : 'Cadastrar no RooServ'}</span>
+                  <span>{authMode === 'login' ? 'Entrar no RooServ' : 'Finalizar Cadastro'}</span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}

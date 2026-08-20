@@ -131,12 +131,12 @@ export function generateMockPixQrCode(orderNumber: string, amount: number): Asaa
   // Imagem mock SVG de um QR Code limpo estilizado
   const qrSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200"><rect width="200" height="200" fill="#ffffff"/><rect x="20" y="20" width="50" height="50" fill="#0f172a"/><rect x="30" y="30" width="30" height="30" fill="#ffffff"/><rect x="37" y="37" width="16" height="16" fill="#0f172a"/><rect x="130" y="20" width="50" height="50" fill="#0f172a"/><rect x="140" y="30" width="30" height="30" fill="#ffffff"/><rect x="147" y="37" width="16" height="16" fill="#0f172a"/><rect x="20" y="130" width="50" height="50" fill="#0f172a"/><rect x="30" y="140" width="30" height="30" fill="#ffffff"/><rect x="37" y="147" width="16" height="16" fill="#0f172a"/><rect x="85" y="25" width="20" height="20" fill="#2563eb"/><rect x="90" y="80" width="20" height="40" fill="#0f172a"/><rect x="130" y="90" width="40" height="20" fill="#0f172a"/><rect x="30" y="90" width="40" height="20" fill="#0f172a"/><rect x="80" y="140" width="40" height="20" fill="#0f172a"/><rect x="135" y="135" width="40" height="40" fill="#2563eb"/></svg>`;
 
-  const base64Image =
-    typeof (globalThis as any).btoa === 'function'
-      ? (globalThis as any).btoa(qrSvg)
-      : typeof (globalThis as any).Buffer !== 'undefined'
-      ? (globalThis as any).Buffer.from(qrSvg).toString('base64')
-      : '';
+  let base64Image = '';
+  if (typeof (globalThis as any).btoa === 'function') {
+    base64Image = (globalThis as any).btoa(qrSvg);
+  } else if (typeof (globalThis as any).Buffer !== 'undefined') {
+    base64Image = (globalThis as any).Buffer.from(qrSvg).toString('base64');
+  }
 
   const expiry = new Date();
   expiry.setMinutes(expiry.getMinutes() + 15);

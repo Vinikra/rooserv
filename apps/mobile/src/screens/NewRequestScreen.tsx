@@ -2,14 +2,9 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { CITY_CONFIG, URGENCY_LABELS, RequestUrgency } from '@servicos/shared';
 import { 
-  Sparkles, 
   Send, 
   Clock, 
-  MapPin, 
-  DollarSign, 
-  CheckCircle2, 
-  Zap, 
-  FileText 
+  CheckCircle2 
 } from 'lucide-react';
 
 interface NewRequestScreenProps {
@@ -127,7 +122,7 @@ export const NewRequestScreen: React.FC<NewRequestScreenProps> = ({ onSuccess })
                     }`}
                   >
                     {key === 'urgent_today' && <Clock className="w-3.5 h-3.5 text-red-500" />}
-                    <span>{key === 'urgent_today' ? 'Hoje / Urgente' : key === 'normal' ? '2 a 3 dias' : 'Sem pressa'}</span>
+                    <span>{URGENCY_LABELS[key] || 'Normal'}</span>
                   </button>
                 );
               })}

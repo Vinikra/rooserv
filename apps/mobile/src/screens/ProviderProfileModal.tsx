@@ -1,20 +1,15 @@
 import React, { useState } from 'react';
-import { ProviderProfile } from '@servicos/shared';
 import { useApp } from '../context/AppContext';
+import { ProviderProfile } from '@servicos/shared';
 import { 
   X, 
   Star, 
   ShieldCheck, 
-  Award, 
   CheckCircle, 
-  Clock, 
   MapPin, 
   ArrowRight, 
-  Sparkles, 
-  ThumbsUp, 
   MessageSquare 
 } from 'lucide-react';
-import { formatCurrencyBRL } from '@servicos/shared';
 
 interface ProviderProfileModalProps {
   provider: ProviderProfile | null;
@@ -214,8 +209,8 @@ export const ProviderProfileModal: React.FC<ProviderProfileModalProps> = ({
                         {rev.client?.fullName || 'Cliente da Cidade'}
                       </span>
                       <div className="flex items-center gap-0.5 text-amber-400">
-                        {Array.from({ length: rev.rating }).map((_, i) => (
-                          <Star key={i} className="w-3 h-3 fill-amber-400" />
+                        {[1, 2, 3, 4, 5].slice(0, rev.rating).map((starVal) => (
+                          <Star key={`rating-star-${rev.id}-${starVal}`} className="w-3 h-3 fill-amber-400" />
                         ))}
                       </div>
                     </div>

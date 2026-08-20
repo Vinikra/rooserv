@@ -2,19 +2,14 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { 
   Wallet, 
-  ArrowDownLeft, 
   ArrowUpRight, 
   ShieldCheck, 
   Clock, 
   Send, 
   CheckCircle, 
-  AlertCircle, 
-  Sparkles, 
-  MapPin, 
-  FileText, 
-  QrCode 
+  MapPin 
 } from 'lucide-react';
-import { formatCurrencyBRL, URGENCY_LABELS } from '@servicos/shared';
+import { formatCurrencyBRL } from '@servicos/shared';
 
 interface ProviderDashboardScreenProps {
   onOpenOnboarding?: () => void;
@@ -23,7 +18,7 @@ interface ProviderDashboardScreenProps {
 export const ProviderDashboardScreen: React.FC<ProviderDashboardScreenProps> = ({
   onOpenOnboarding,
 }) => {
-  const { requests, orders, hireProviderWithEscrow, providers } = useApp();
+  const { requests, orders, providers } = useApp();
 
   // Seleciona o prestador Carlos como exemplo
   const currentProvider = providers[0];

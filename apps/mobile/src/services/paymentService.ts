@@ -1,8 +1,6 @@
 import { 
   AsaasPixQrCodeResponse, 
-  generateMockPixQrCode, 
-  buildAsaasPixPaymentPayload, 
-  Order 
+  generateMockPixQrCode 
 } from '@servicos/shared';
 
 export interface PaymentProcessingState {

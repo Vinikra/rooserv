@@ -3,15 +3,10 @@ import { useApp } from '../context/AppContext';
 import { 
   Building2, 
   DollarSign, 
-  ShieldCheck, 
-  Users, 
   CheckCircle, 
   XCircle, 
   TrendingUp, 
   Clock, 
-  MapPin, 
-  ArrowUpRight, 
-  ShieldAlert, 
   RotateCcw, 
   Scale 
 } from 'lucide-react';

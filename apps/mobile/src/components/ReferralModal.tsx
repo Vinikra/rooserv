@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { X, Gift, Copy, Check, Share2, Sparkles, Users } from 'lucide-react';
-import { CITY_CONFIG } from '@servicos/shared';
+import { X, Gift, Copy, Check, Share2 } from 'lucide-react';
 
 interface ReferralModalProps {
   onClose: () => void;

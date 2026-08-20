@@ -2,7 +2,6 @@ import React from 'react';
 import { useApp } from '../context/AppContext';
 import { 
   MapPin, 
-  ShieldCheck, 
   User, 
   Briefcase, 
   SlidersHorizontal, 

@@ -3,7 +3,6 @@ import {
   Compass, 
   FileText, 
   PlusCircle, 
-  ShieldCheck, 
   Wallet, 
   Inbox, 
   MessageSquare 

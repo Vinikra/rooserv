@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { ProviderProfile } from '@servicos/shared';
 import { 
   Search, 
   Star, 
   ShieldCheck, 
-  Clock, 
   Zap, 
   Droplets, 
   Paintbrush, 
@@ -17,8 +17,6 @@ import {
   Gift, 
   FileText 
 } from 'lucide-react';
-import { formatCurrencyBRL } from '@servicos/shared';
-import { ProviderProfile } from '@servicos/shared';
 
 const ICON_MAP: Record<string, React.ReactNode> = {
   Zap: <Zap className="w-5 h-5 text-amber-500" />,
@@ -37,6 +35,15 @@ interface HomeScreenProps {
   onOpenTerms?: () => void;
 }
 
+function matchesSearch(provider: ProviderProfile, term: string): boolean {
+  if (!term) return true;
+  const lower = term.toLowerCase();
+  const nameMatch = (provider.profile?.fullName || '').toLowerCase().includes(lower);
+  const bioMatch = (provider.bio || '').toLowerCase().includes(lower);
+  const catMatch = (provider.categories || []).some((c) => (c?.name || '').toLowerCase().includes(lower));
+  return nameMatch || bioMatch || catMatch;
+}
+
 export const HomeScreen: React.FC<HomeScreenProps> = ({ 
   onSelectProvider, 
   onOpenNewRequest, 
@@ -53,32 +60,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Filtragem segura
+  // Filtragem limpa e otimizada
   const filteredProviders = (providers || []).filter((p) => {
-    if (!p) return false;
-    if (p.verificationStatus !== 'verified') return false;
-
-    // Filtro por Bairro
-    if (selectedNeighborhood !== 'Todos os Bairros' && p.profile?.neighborhood !== selectedNeighborhood) {
-      return false;
-    }
-
-    // Filtro por Categoria
-    if (selectedCategorySlug) {
-      const hasCategory = (p.categories || []).some((c) => c?.slug === selectedCategorySlug);
-      if (!hasCategory) return false;
-    }
-
-    // Filtro por Busca de Texto
-    if (searchTerm.trim() !== '') {
-      const term = searchTerm.toLowerCase();
-      const nameMatch = (p.profile?.fullName || '').toLowerCase().includes(term);
-      const bioMatch = (p.bio || '').toLowerCase().includes(term);
-      const catMatch = (p.categories || []).some((c) => (c?.name || '').toLowerCase().includes(term));
-      if (!nameMatch && !bioMatch && !catMatch) return false;
-    }
-
-    return true;
+    if (!p || p.verificationStatus !== 'verified') return false;
+    if (selectedNeighborhood !== 'Todos os Bairros' && p.profile?.neighborhood !== selectedNeighborhood) return false;
+    if (selectedCategorySlug && !(p.categories || []).some((c) => c?.slug === selectedCategorySlug)) return false;
+    return matchesSearch(p, searchTerm.trim());
   });
 
   return (

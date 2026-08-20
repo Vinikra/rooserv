@@ -1,20 +1,21 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Order, ORDER_STATUS_LABELS, SUGGESTED_REVIEW_TAGS } from '@servicos/shared';
+import { 
+  Order, 
+  ORDER_STATUS_LABELS, 
+  SUGGESTED_REVIEW_TAGS,
+  formatCurrencyBRL 
+} from '@servicos/shared';
 import { 
   ShieldCheck, 
   Clock, 
   CheckCircle, 
   Star, 
   X, 
-  MessageSquare, 
-  AlertCircle, 
-  ArrowUpRight, 
   AlertTriangle, 
   ShieldAlert, 
   RotateCcw 
 } from 'lucide-react';
-import { formatCurrencyBRL } from '@servicos/shared';
 
 export const OrdersScreen: React.FC = () => {
   const { 

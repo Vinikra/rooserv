@@ -5,8 +5,6 @@ import {
   Sparkles, 
   MessageSquare, 
   DollarSign, 
-  CheckCircle, 
-  Clock, 
   ChevronRight, 
   ShieldCheck 
 } from 'lucide-react';

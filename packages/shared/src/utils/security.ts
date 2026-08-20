@@ -10,18 +10,17 @@ export interface ContactDetectionResult {
   warningMessage?: string;
 }
 
-// 1. Regex para Telefones Brasileiros (inclusive DDD 66 de MT e formatos disfarçados)
-const PHONE_REGEX = /(\+?55\s?)?(\(?0?[1-9]{2}\)?\s?)?(\s?9\s?\d{4}[-\s]?\d{4}|\s?\d{4}[-\s]?\d{4})/gi;
-const SPACED_DIGITS_REGEX = /\b(\d[\s.-]?){8,11}\b/g;
-const WRITTEN_NUMBERS_REGEX = /\b(nove|oito|sete|seis|cinco|quatro|três|tres|dois|um|zero)[\s,.-]+(nove|oito|sete|seis|cinco|quatro|três|tres|dois|um|zero)/gi;
+// 1. Expressões Regulares de Detecção
+const PHONE_REGEX = /\b(?:\+?55\s*)?(?:\(?\d{2}\)?\s*)?9?\d{4}[-\s]?\d{4}\b/gi;
+const DIGIT_SEQUENCE_REGEX = /\b\d{8,11}\b/g;
 
 // 2. Regex para E-mails
-const EMAIL_REGEX = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,7}\b/gi;
+const EMAIL_REGEX = /\b[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,7}\b/gi;
 
 // 3. Regex para Redes Sociais / WhatsApp / Instagram
-const SOCIAL_MEDIA_REGEX = /(@[A-Za-z0-9_.-]{3,}|instagram\.com\/[A-Za-z0-9_.-]+|insta:|whats:|whatsapp|face:|tiktok)/gi;
+const SOCIAL_MEDIA_REGEX = /(?:@[a-z0-9_.-]{3,}|instagram\.com\/|insta:|whats|face:|tiktok)/gi;
 
-// 4. Regex para Chaves Pix (CPF com pontos ou sem pontos)
+// 4. Regex para Chaves Pix (CPF com ou sem pontuação)
 const CPF_PIX_REGEX = /\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/g;
 
 /**
@@ -31,63 +30,41 @@ export function sanitizeChatMessage(text: string): ContactDetectionResult {
   let sanitized = text;
   const detectedTypes: ('phone' | 'email' | 'pix' | 'social_media')[] = [];
 
-  // Checar telefone
-  if (PHONE_REGEX.test(sanitized) || SPACED_DIGITS_REGEX.test(sanitized) || WRITTEN_NUMBERS_REGEX.test(sanitized)) {
+  // Checar telefone e sequências numéricas longas
+  if (PHONE_REGEX.test(sanitized) || DIGIT_SEQUENCE_REGEX.test(sanitized)) {
     detectedTypes.push('phone');
-    sanitized = sanitized.replace(
-      PHONE_REGEX,
-      ' [🔒 TELEFONE BLOQUEADO PELO ROOSERV] '
-    );
-    sanitized = sanitized.replace(
-      SPACED_DIGITS_REGEX,
-      ' [🔒 NÚMERO BLOQUEADO] '
-    );
-    sanitized = sanitized.replace(
-      WRITTEN_NUMBERS_REGEX,
-      ' [🔒 CONTATO BLOQUEADO] '
-    );
+    sanitized = sanitized
+      .replace(PHONE_REGEX, ' [🔒 TELEFONE BLOQUEADO PELO ROOSERV] ')
+      .replace(DIGIT_SEQUENCE_REGEX, ' [🔒 NÚMERO BLOQUEADO] ');
   }
 
   // Checar e-mail
   if (EMAIL_REGEX.test(sanitized)) {
     detectedTypes.push('email');
-    sanitized = sanitized.replace(
-      EMAIL_REGEX,
-      ' [🔒 E-MAIL BLOQUEADO PELO ROOSERV] '
-    );
+    sanitized = sanitized.replace(EMAIL_REGEX, ' [🔒 E-MAIL BLOQUEADO PELO ROOSERV] ');
   }
 
   // Checar redes sociais
   if (SOCIAL_MEDIA_REGEX.test(sanitized)) {
     detectedTypes.push('social_media');
-    sanitized = sanitized.replace(
-      SOCIAL_MEDIA_REGEX,
-      ' [🔒 REDE SOCIAL BLOQUEADA] '
-    );
+    sanitized = sanitized.replace(SOCIAL_MEDIA_REGEX, ' [🔒 REDE SOCIAL BLOQUEADA] ');
   }
 
-  // Checar CPF / Pix
+  // Checar Chave Pix direta
   if (CPF_PIX_REGEX.test(sanitized)) {
     detectedTypes.push('pix');
-    sanitized = sanitized.replace(
-      CPF_PIX_REGEX,
-      ' [🔒 CHAVE PIX/CPF BLOQUEADA] '
-    );
+    sanitized = sanitized.replace(CPF_PIX_REGEX, ' [🔒 PIX DIRETO BLOQUEADO] ');
   }
 
   const hasSensitiveContact = detectedTypes.length > 0;
-  let warningMessage: string | undefined;
-
-  if (hasSensitiveContact) {
-    warningMessage =
-      'Aviso de Segurança RooServ: O compartilhamento de contatos externos (telefone, Pix ou redes sociais) é bloqueado para garantir a proteção contra fraudes, seguro de serviço e garantia de pagamento.';
-  }
 
   return {
     hasSensitiveContact,
     detectedTypes,
-    sanitizedText: sanitized.replace(/\s+/g, ' ').trim(),
+    sanitizedText: sanitized,
     originalText: text,
-    warningMessage,
+    warningMessage: hasSensitiveContact
+      ? 'Aviso de Segurança RooServ: Para garantir o seguro de 60 dias e a custódia do seu pagamento, propostas e negociações devem ser feitas exclusivamente dentro da plataforma.'
+      : undefined,
   };
 }
