@@ -95,28 +95,28 @@ interface AppContextType {
     neighborhood: string;
     budget?: number;
     photos?: string[];
-  }) => ServiceRequest;
+  }) => Promise<ServiceRequest>;
 
   hireProviderWithEscrow: (params: {
     providerId: string;
     amount: number;
     paymentMethod: 'pix' | 'credit_card';
     installments: number;
-  }) => Order;
+  }) => Promise<Order>;
 
-  markOrderAsCompletedByProvider: (orderId: string, proofPhotos?: string[]) => void;
+  markOrderAsCompletedByProvider: (orderId: string, proofPhotos?: string[]) => Promise<void>;
 
   confirmAndReleaseEscrow: (params: {
     orderId: string;
     rating: number;
     comment: string;
     tags: string[];
-  }) => void;
+  }) => Promise<void>;
 
   verifyProviderByAdmin: (providerId: string, status: VerificationStatus) => void;
   requestProviderPayout: (providerId: string, amount: number) => boolean;
-  openDispute: (orderId: string, reason: string, details: string) => void;
-  resolveDisputeByAdmin: (orderId: string, decision: 'refund_client' | 'release_provider') => void;
+  openDispute: (orderId: string, reason: string, details: string) => Promise<void>;
+  resolveDisputeByAdmin: (orderId: string, decision: 'refund_client' | 'release_provider') => Promise<void>;
   getAdminStats: () => {
     totalVolumeTransacted: number;
     platformRevenue: number;
@@ -340,13 +340,106 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (!provError && dbProviders && dbProviders.length > 0) {
           setProviders(dbProviders.map(mapDbProvider));
         }
+
+        // Carrega pedidos do Supabase
+        const userId = currentUser?.id;
+        if (userId) {
+          const { data: dbOrders } = await supabase
+            .from('orders')
+            .select('*')
+            .or(`client_id.eq.${userId},provider_id.eq.${userId}`)
+            .order('created_at', { ascending: false })
+            .limit(100);
+
+          if (dbOrders && dbOrders.length > 0) {
+            const mappedOrders: Order[] = dbOrders.map((o: any) => ({
+              id: o.id,
+              orderNumber: o.order_number || `SRV-${o.id.slice(0, 8)}`,
+              clientId: o.client_id,
+              providerId: o.provider_id,
+              proposalId: o.proposal_id,
+              requestId: o.request_id,
+              totalAmount: Number(o.total_amount) || 0,
+              platformFeePercent: Number(o.platform_fee_percent) || 12,
+              platformFeeAmount: Number(o.platform_fee_amount) || 0,
+              providerPayoutAmount: Number(o.provider_payout_amount) || 0,
+              status: o.status || 'payment_in_escrow',
+              paymentMethod: o.payment_method,
+              installmentsCount: o.installments_count || 1,
+              paidAt: o.paid_at,
+              completedAt: o.completed_at,
+              fundsReleasedAt: o.funds_released_at,
+              createdAt: o.created_at,
+            }));
+            setOrders((prev) => {
+              const existingIds = new Set(prev.map((p) => p.id));
+              const newOrders = mappedOrders.filter((o) => !existingIds.has(o.id));
+              return newOrders.length > 0 ? [...newOrders, ...prev] : prev;
+            });
+          }
+
+          // Carrega reviews do Supabase
+          const { data: dbReviews } = await supabase
+            .from('reviews')
+            .select('*')
+            .or(`client_id.eq.${userId},provider_id.eq.${userId}`)
+            .order('created_at', { ascending: false })
+            .limit(100);
+
+          if (dbReviews && dbReviews.length > 0) {
+            const mappedReviews: Review[] = dbReviews.map((r: any) => ({
+              id: r.id,
+              orderId: r.order_id,
+              clientId: r.client_id,
+              providerId: r.provider_id,
+              rating: Number(r.rating) || 5,
+              comment: r.comment || '',
+              tags: r.tags || [],
+              photos: r.photos || [],
+              createdAt: r.created_at,
+            }));
+            setReviews((prev) => {
+              const existingIds = new Set(prev.map((p) => p.id));
+              const newReviews = mappedReviews.filter((r) => !existingIds.has(r.id));
+              return newReviews.length > 0 ? [...newReviews, ...prev] : prev;
+            });
+          }
+
+          // Carrega solicitações de serviço do Supabase
+          const { data: dbRequests } = await supabase
+            .from('service_requests')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(50);
+
+          if (dbRequests && dbRequests.length > 0) {
+            const mappedRequests: ServiceRequest[] = dbRequests.map((r: any) => ({
+              id: r.id,
+              clientId: r.client_id,
+              categoryId: r.category_id,
+              title: r.title,
+              description: r.description,
+              urgency: r.urgency || 'normal',
+              addressNeighborhood: r.address_neighborhood || 'Centro',
+              budgetEstimate: r.budget_estimate ? Number(r.budget_estimate) : undefined,
+              photos: r.photos || [],
+              status: r.status || 'open',
+              createdAt: r.created_at,
+            }));
+            setRequests((prev) => {
+              const existingIds = new Set(prev.map((p) => p.id));
+              const newReqs = mappedRequests.filter((r) => !existingIds.has(r.id));
+              return newReqs.length > 0 ? [...newReqs, ...prev] : prev;
+            });
+          }
+        }
       } catch {
         // Fallback resiliente caso Supabase esteja desconectado
       }
     }
 
     loadFromSupabase();
-  }, []);
+  }, [currentUser?.id]);
 
   // WebSockets Realtime Globais para Sincronização Instantânea
   useEffect(() => {
@@ -716,7 +809,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  const createServiceRequest = (data: {
+  const createServiceRequest = async (data: {
     categoryId: string;
     title: string;
     description: string;
@@ -746,6 +839,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setRequests((prev) => [newReq, ...prev]);
 
+    // Persiste no Supabase
+    try {
+      await supabase.from('service_requests').upsert([{
+        id: newReq.id,
+        client_id: newReq.clientId,
+        category_id: newReq.categoryId,
+        title: newReq.title,
+        description: newReq.description,
+        urgency: newReq.urgency,
+        address_neighborhood: newReq.addressNeighborhood,
+        budget_estimate: newReq.budgetEstimate,
+        status: 'open',
+      }]);
+    } catch {
+      // Fallback resiliente
+    }
+
     // Dispara Notificação In-App (Estilo Uber)
     sendInAppNotification({
       title: '🔔 Pedido de Orçamento Publicado!',
@@ -764,7 +874,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return newReq;
   };
 
-  const hireProviderWithEscrow = (params: {
+  const hireProviderWithEscrow = async (params: {
     providerId: string;
     amount: number;
     paymentMethod: 'pix' | 'credit_card';
@@ -798,6 +908,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setOrders((prev) => [newOrder, ...prev]);
 
+    // Persiste no Supabase
+    try {
+      await supabase.from('orders').upsert([{
+        id: newOrder.id,
+        order_number: newOrder.orderNumber,
+        client_id: newOrder.clientId,
+        provider_id: newOrder.providerId,
+        total_amount: newOrder.totalAmount,
+        platform_fee_percent: newOrder.platformFeePercent,
+        platform_fee_amount: newOrder.platformFeeAmount,
+        provider_payout_amount: newOrder.providerPayoutAmount,
+        status: newOrder.status,
+        payment_method: newOrder.paymentMethod,
+        installments_count: newOrder.installmentsCount,
+        paid_at: newOrder.paidAt,
+      }]);
+    } catch {
+      // Fallback resiliente
+    }
+
     // Dispara Notificação In-App em Tempo Real
     sendInAppNotification({
       title: '🔒 Pagamento em Custódia Segura!',
@@ -816,7 +946,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return newOrder;
   };
 
-  const markOrderAsCompletedByProvider = (orderId: string, proofPhotos?: string[]) => {
+  const markOrderAsCompletedByProvider = async (orderId: string, proofPhotos?: string[]) => {
     setOrders((prev) =>
       prev.map((o) =>
         o.id === orderId
@@ -829,6 +959,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           : o
       )
     );
+
+    // Persiste status no Supabase
+    try {
+      await supabase.from('orders').update({
+        status: 'completed_by_provider',
+        completed_at: new Date().toISOString(),
+      }).eq('id', orderId);
+    } catch {
+      // Fallback
+    }
 
     sendInAppNotification({
       title: '🛠️ Serviço Marcado como Concluído!',
@@ -845,7 +985,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  const confirmAndReleaseEscrow = (params: {
+  const confirmAndReleaseEscrow = async (params: {
     orderId: string;
     rating: number;
     comment: string;
@@ -882,6 +1022,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setReviews((prev) => [newReview, ...prev]);
 
+    // Persiste review e status do pedido no Supabase
+    try {
+      await supabase.from('orders').update({
+        status: 'approved_by_client',
+        funds_released_at: new Date().toISOString(),
+      }).eq('id', params.orderId);
+
+      await supabase.from('reviews').upsert([{
+        id: newReview.id,
+        order_id: newReview.orderId,
+        client_id: newReview.clientId,
+        provider_id: newReview.providerId,
+        rating: newReview.rating,
+        comment: newReview.comment,
+        tags: newReview.tags,
+        photos: newReview.photos,
+      }]);
+    } catch {
+      // Fallback
+    }
+
     sendInAppNotification({
       title: '💰 Pagamento Liberado com Sucesso!',
       message: `Transferência de R$ ${targetOrder.providerPayoutAmount.toFixed(2)} liberada diretamente para a carteira do profissional.`,
@@ -911,7 +1072,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return true;
   };
 
-  const openDispute = (orderId: string, reason: string, details: string) => {
+  const openDispute = async (orderId: string, reason: string, details: string) => {
     setOrders((prev) =>
       prev.map((o) =>
         o.id === orderId
@@ -925,6 +1086,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           : o
       )
     );
+
+    // Persiste no Supabase
+    try {
+      await supabase.from('orders').update({
+        status: 'disputed',
+        dispute_reason: reason,
+        dispute_details: details,
+        dispute_opened_at: new Date().toISOString(),
+      }).eq('id', orderId);
+    } catch {
+      // Fallback
+    }
 
     sendInAppNotification({
       title: '⚠️ Disputa Aberta na Plataforma',
@@ -949,7 +1122,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  const resolveDisputeByAdmin = (
+  const resolveDisputeByAdmin = async (
     orderId: string,
     decision: 'refund_client' | 'release_provider'
   ) => {
@@ -965,6 +1138,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           : o
       )
     );
+
+    // Persiste no Supabase
+    try {
+      await supabase.from('orders').update({
+        status: decision === 'refund_client' ? 'refunded' : 'approved_by_client',
+        dispute_resolved_at: new Date().toISOString(),
+        funds_released_at: decision === 'release_provider' ? new Date().toISOString() : null,
+      }).eq('id', orderId);
+    } catch {
+      // Fallback
+    }
 
     sendInAppNotification({
       title: '⚖️ Disputa Concluída pela Gestão',

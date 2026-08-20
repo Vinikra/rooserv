@@ -191,17 +191,48 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
   onBack,
   onAcceptProposal,
 }) => {
-  const { currentRole } = useApp();
+  const { currentRole, currentUser } = useApp();
   const [inputText, setInputText] = useState('');
-  const [messages, setMessages] = useState<Message[]>(() => {
-    try {
-      const saved = sessionStorage.getItem(`rooserv_chat_${recipientUser.id}`);
-      if (saved) return JSON.parse(saved);
-    } catch {
-      // Ignora
-    }
-    return [];
-  });
+  const [messages, setMessages] = useState<Message[]>([]);
+
+  useEffect(() => {
+    const loadMessages = async () => {
+      if (!currentUser?.id || !recipientUser.id) return;
+      try {
+        const { data, error } = await supabase
+          .from('messages')
+          .select('*')
+          .or(`and(sender_id.eq.${currentUser.id},recipient_id.eq.${recipientUser.id}),and(sender_id.eq.${recipientUser.id},recipient_id.eq.${currentUser.id})`)
+          .order('created_at', { ascending: true });
+
+        if (data && !error) {
+          const loadedMsgs = data.map((dbMsg: any) => {
+            try {
+              const parsed = JSON.parse(dbMsg.content);
+              // override senderId based on who is loading it
+              parsed.senderId = dbMsg.sender_id === currentUser.id ? 'me' : 'other';
+              return parsed;
+            } catch {
+              return {
+                id: dbMsg.id,
+                senderId: dbMsg.sender_id === currentUser.id ? 'me' : 'other',
+                text: dbMsg.content,
+                time: new Date(dbMsg.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+              };
+            }
+          });
+          setMessages(loadedMsgs);
+        }
+      } catch (err) {
+        // Fallback to sessionStorage if network fails
+        try {
+          const saved = sessionStorage.getItem(`rooserv_chat_${recipientUser.id}`);
+          if (saved) setMessages(JSON.parse(saved));
+        } catch {}
+      }
+    };
+    loadMessages();
+  }, [currentUser?.id, recipientUser.id]);
 
   const [isSendingProposal, setIsSendingProposal] = useState(false);
   const [newProposalAmount, setNewProposalAmount] = useState('80');
@@ -247,7 +278,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
     if (!mediaRecorderRef.current) return;
     clearInterval(recordingTimerRef.current);
 
-    mediaRecorderRef.current.onstop = () => {
+    mediaRecorderRef.current.onstop = async () => {
       const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
       const audioUrl = URL.createObjectURL(audioBlob);
       const mins = Math.floor(recordingSeconds / 60);
@@ -265,12 +296,14 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
 
       setMessages((prev) => [...prev, audioMessage]);
 
+      await persistMessageToSupabase(audioMessage);
+
       const channelName = `rooserv_chat_${recipientUser.id}`;
       const channel = supabase.channel(channelName);
       channel.send({
         type: 'broadcast',
         event: 'new_message',
-        payload: { ...audioMessage, senderId: 'other' },
+        payload: audioMessage,
       });
     };
 
@@ -367,7 +400,21 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
     };
   }, [recipientUser.id]);
 
-  const handleSendMessage = (e?: React.FormEvent) => {
+  const persistMessageToSupabase = async (msg: Message) => {
+    if (!currentUser?.id || !recipientUser.id) return;
+    try {
+      await supabase.from('messages').insert([{
+        sender_id: currentUser.id,
+        recipient_id: recipientUser.id,
+        content: JSON.stringify(msg),
+        is_read: false
+      }]);
+    } catch {
+      // Ignora erro silenciosamente
+    }
+  };
+
+  const handleSendMessage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!inputText.trim()) return;
 
@@ -389,6 +436,8 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
     setMessages((prev) => [...prev, newMsg]);
     setInputText('');
 
+    await persistMessageToSupabase(newMsg);
+
     const channelName = `rooserv_chat_${recipientUser.id}`;
     const channel = supabase.channel(channelName);
     channel.send({
@@ -402,7 +451,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
     setInputText(text);
   };
 
-  const handleAcceptFormalProposal = (msgId: string, amount: number) => {
+  const handleAcceptFormalProposal = async (msgId: string, amount: number) => {
     setMessages((prev) =>
       prev.map((m) =>
         m.id === msgId && m.proposalData
@@ -410,6 +459,17 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
           : m
       )
     );
+
+    // Atualiza a mensagem no banco
+    try {
+      const msgToUpdate = messages.find(m => m.id === msgId);
+      if (msgToUpdate && msgToUpdate.proposalData) {
+        const updatedMsg = { ...msgToUpdate, proposalData: { ...msgToUpdate.proposalData, isAccepted: true } };
+        await supabase.from('messages')
+          .update({ content: JSON.stringify(updatedMsg) })
+          .like('content', `%${msgId}%`);
+      }
+    } catch {}
 
     const channelName = `rooserv_chat_${recipientUser.id}`;
     const channel = supabase.channel(channelName);
@@ -422,7 +482,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
     onAcceptProposal(amount);
   };
 
-  const handleSendCustomProposal = () => {
+  const handleSendCustomProposal = async () => {
     const amount = Number.parseFloat(newProposalAmount) || 150;
     const desc = newProposalDesc.trim() || 'Serviço sob medida acordado no chat.';
 
@@ -441,6 +501,16 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
     setMessages((prev) => [...prev, newMsg]);
     setIsSendingProposal(false);
     setNewProposalDesc('');
+
+    await persistMessageToSupabase(newMsg);
+
+    const channelName = `rooserv_chat_${recipientUser.id}`;
+    const channel = supabase.channel(channelName);
+    channel.send({
+      type: 'broadcast',
+      event: 'new_message',
+      payload: newMsg,
+    });
   };
 
   return (
