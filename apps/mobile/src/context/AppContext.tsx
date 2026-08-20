@@ -141,17 +141,49 @@ function mapDbCategory(c: any): ServiceCategory {
   };
 }
 
+export function getOrCreateDeterministicUuid(emailOrId: string): string {
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(emailOrId)) {
+    return emailOrId;
+  }
+  const clean = emailOrId.trim().toLowerCase();
+  let hash1 = 5381;
+  let hash2 = 52711;
+  for (let i = 0; i < clean.length; i++) {
+    const char = clean.charCodeAt(i);
+    hash1 = (hash1 * 33) ^ char;
+    hash2 = (hash2 * 33) ^ char;
+  }
+  const p1 = Math.abs(hash1).toString(16).padStart(8, '0').slice(0, 8);
+  const p2 = Math.abs(hash2).toString(16).padStart(4, '0').slice(0, 4);
+  const p3 = '4' + Math.abs(hash1 ^ hash2).toString(16).padStart(3, '0').slice(0, 3);
+  const p4 = '8' + Math.abs(hash2).toString(16).padStart(3, '0').slice(0, 3);
+  const p5 = (Math.abs(hash1) + Math.abs(hash2)).toString(16).padStart(12, '0').slice(0, 12);
+  return `${p1}-${p2}-${p3}-${p4}-${p5}`;
+}
+
+function getSavedAvatar(emailOrId?: string): string | null {
+  if (!emailOrId) return null;
+  try {
+    const clean = emailOrId.trim().toLowerCase();
+    return localStorage.getItem(`rooserv_avatar_${clean}`) || null;
+  } catch {
+    return null;
+  }
+}
+
 function mapDbProfile(prof: any, profileId: string): UserProfile {
+  const email = prof?.email || '';
+  const localAvatar = getSavedAvatar(email) || getSavedAvatar(prof?.id) || getSavedAvatar(profileId);
   return {
     id: prof?.id || profileId,
     role: prof?.role || 'provider',
     fullName: prof?.full_name || 'Profissional',
-    email: prof?.email || '',
+    email,
     phone: prof?.phone || '(66) 99888-0000',
     neighborhood: prof?.neighborhood || 'Centro',
     city: prof?.city || 'Rondonópolis',
     state: prof?.state || 'MT',
-    avatarUrl: prof?.avatar_url || 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=150',
+    avatarUrl: localAvatar || prof?.avatar_url || 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=150',
     isActive: prof?.is_active ?? true,
     createdAt: prof?.created_at || '2026-01-01T00:00:00Z',
   };
@@ -577,8 +609,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
     }
 
+    // Restaura avatar customizado salvo localmente se existir
+    const localAvatar = getSavedAvatar(cleanEmail) || getSavedAvatar(foundUser.id);
+    if (localAvatar) {
+      foundUser.avatarUrl = localAvatar;
+    }
+
     // Salva perfil de forma persistente
     localStorage.setItem(`rooserv_profile_${cleanEmail}`, JSON.stringify(foundUser));
+    if (foundUser.avatarUrl) {
+      localStorage.setItem(`rooserv_avatar_${cleanEmail}`, foundUser.avatarUrl);
+      localStorage.setItem(`rooserv_avatar_${foundUser.id}`, foundUser.avatarUrl);
+    }
     setCurrentUser(foundUser);
     setCurrentRole(foundUser.role);
 
@@ -795,6 +837,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updatedUser));
     if (updatedUser.email) {
       localStorage.setItem(`rooserv_profile_${updatedUser.email.toLowerCase()}`, JSON.stringify(updatedUser));
+    }
+    if (updatedUser.avatarUrl) {
+      if (updatedUser.email) {
+        localStorage.setItem(`rooserv_avatar_${updatedUser.email.toLowerCase()}`, updatedUser.avatarUrl);
+      }
+      if (updatedUser.id) {
+        localStorage.setItem(`rooserv_avatar_${updatedUser.id}`, updatedUser.avatarUrl);
+      }
     }
 
     setProviders((prev) =>

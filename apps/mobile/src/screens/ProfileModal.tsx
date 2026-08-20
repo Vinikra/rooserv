@@ -49,7 +49,15 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
   const [fullName, setFullName] = useState(currentUser?.fullName || '');
   const [phone, setPhone] = useState(currentUser?.phone || '');
   const [neighborhood, setNeighborhood] = useState(currentUser?.neighborhood || CITY_CONFIG.defaultNeighborhoods[0]);
-  const [avatarUrl, setAvatarUrl] = useState(currentUser?.avatarUrl || PRESET_AVATARS[0]);
+  const [avatarUrl, setAvatarUrl] = useState(() => {
+    try {
+      const fromEmail = currentUser?.email ? localStorage.getItem(`rooserv_avatar_${currentUser.email.toLowerCase()}`) : null;
+      const fromId = currentUser?.id ? localStorage.getItem(`rooserv_avatar_${currentUser.id}`) : null;
+      return fromEmail || fromId || currentUser?.avatarUrl || PRESET_AVATARS[0];
+    } catch {
+      return currentUser?.avatarUrl || PRESET_AVATARS[0];
+    }
+  });
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
 
   const [bio, setBio] = useState(
@@ -78,6 +86,12 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
       const url = await RooServStorageService.uploadImage(file, 'avatars');
       if (url) {
         setAvatarUrl(url);
+        if (currentUser?.email) {
+          localStorage.setItem(`rooserv_avatar_${currentUser.email.toLowerCase()}`, url);
+        }
+        if (currentUser?.id) {
+          localStorage.setItem(`rooserv_avatar_${currentUser.id}`, url);
+        }
       }
       setIsUploadingAvatar(false);
     }
@@ -86,6 +100,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
+
+    if (currentUser?.email) {
+      localStorage.setItem(`rooserv_avatar_${currentUser.email.toLowerCase()}`, avatarUrl);
+    }
+    if (currentUser?.id) {
+      localStorage.setItem(`rooserv_avatar_${currentUser.id}`, avatarUrl);
+    }
 
     await updateUserProfile({
       fullName,
