@@ -7,7 +7,8 @@ import {
   Clock, 
   Send, 
   CheckCircle, 
-  MapPin 
+  MapPin,
+  Inbox
 } from 'lucide-react';
 import { formatCurrencyBRL } from '@servicos/shared';
 

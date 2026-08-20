@@ -2,5 +2,5 @@ projectKey=RooServ
 serverUrl=http://localhost:9000
 serverVersion=26.8.0.126808
 dashboardUrl=http://localhost:9000/dashboard?id=RooServ
-ceTaskId=f980b208-6851-4e43-a688-ff80814ae0a8
-ceTaskUrl=http://localhost:9000/api/ce/task?id=f980b208-6851-4e43-a688-ff80814ae0a8
+ceTaskId=2964ac17-42d3-4e17-994d-33224c8c7c2f
+ceTaskUrl=http://localhost:9000/api/ce/task?id=2964ac17-42d3-4e17-994d-33224c8c7c2f
