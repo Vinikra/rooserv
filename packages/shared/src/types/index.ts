@@ -161,3 +161,21 @@ export interface ProviderWallet {
   balanceInEscrow: number;
   totalEarnedLifetime: number;
 }
+
+export interface SignupData {
+  role: UserRole;
+  fullName: string;
+  email: string;
+  password?: string;
+  phone: string;
+  neighborhood: string;
+  documentCpf?: string;
+  avatarUrl?: string;
+}
+
+export interface AuthResult {
+  success: boolean;
+  user?: UserProfile;
+  error?: string;
+}
+

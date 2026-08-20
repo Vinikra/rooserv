@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { 
   Building2, 
@@ -8,12 +8,110 @@ import {
   TrendingUp, 
   Clock, 
   RotateCcw, 
-  Scale 
+  Scale,
+  ShieldCheck,
+  KeyRound,
+  ArrowRight
 } from 'lucide-react';
 import { formatCurrencyBRL, CITY_CONFIG } from '@servicos/shared';
 
 export const AdminScreen: React.FC = () => {
-  const { providers, orders, verifyProviderByAdmin, resolveDisputeByAdmin, getAdminStats } = useApp();
+  const { 
+    providers, 
+    orders, 
+    verifyProviderByAdmin, 
+    resolveDisputeByAdmin, 
+    getAdminStats,
+    isAdmin,
+    loginAsAdmin,
+    setCurrentRole
+  } = useApp();
+
+  const [adminPin, setAdminPin] = useState('');
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [isVerifying, setIsVerifying] = useState(false);
+
+  const handleAdminUnlock = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsVerifying(true);
+    setAuthError(null);
+
+    const res = await loginAsAdmin(adminPin);
+    setIsVerifying(false);
+
+    if (!res.success) {
+      setAuthError(res.error || 'Chave administrativa incorreta.');
+    }
+  };
+
+  // Se o usuário não for administrador, exibe barreira de segurança
+  if (!isAdmin) {
+    return (
+      <div className="pb-24 pt-6 px-4 max-w-md mx-auto space-y-6 animate-in fade-in">
+        <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xl text-center space-y-4">
+          <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto shadow-inner border border-emerald-100">
+            <KeyRound className="w-8 h-8" />
+          </div>
+
+          <div>
+            <h3 className="text-base font-extrabold text-slate-900">
+              Painel de Gestão RooServ
+            </h3>
+            <p className="text-xs text-slate-500 mt-1">
+              Esta área é restrita aos proprietários e administradores da plataforma em Rondonópolis.
+            </p>
+          </div>
+
+          <form onSubmit={handleAdminUnlock} className="space-y-3 pt-2 text-left">
+            <div>
+              <label htmlFor="admin-pin-input" className="block text-xs font-bold text-slate-700 mb-1">
+                Chave Master ou Senha de Gestão
+              </label>
+              <input
+                id="admin-pin-input"
+                type="password"
+                required
+                placeholder="Insira a chave master"
+                value={adminPin}
+                onChange={(e) => setAdminPin(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+
+            {authError && (
+              <div className="p-2.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-600 font-medium">
+                {authError}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={isVerifying}
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-3.5 rounded-xl shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
+            >
+              {isVerifying ? (
+                <span>Validando...</span>
+              ) : (
+                <>
+                  <span>Desbloquear Painel</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setCurrentRole('client')}
+              className="w-full text-center text-xs text-slate-500 hover:text-slate-800 font-medium py-1"
+            >
+              Voltar para o aplicativo
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   const stats = getAdminStats();
 
   const pendingProviders = providers.filter(
@@ -32,7 +130,7 @@ export const AdminScreen: React.FC = () => {
             <span>Painel do Dono da Plataforma</span>
           </div>
           <h2 className="text-base font-bold text-slate-900">
-            {CITY_CONFIG.name} ({CITY_CONFIG.estimatedPopulation.toLocaleString('pt-BR')} hab)
+            {`${CITY_CONFIG.name} (${CITY_CONFIG.estimatedPopulation.toLocaleString('pt-BR')} hab)`}
           </h2>
         </div>
 
@@ -68,134 +166,125 @@ export const AdminScreen: React.FC = () => {
           <h3 className="text-lg font-extrabold text-slate-900">
             {formatCurrencyBRL(stats.totalVolumeTransacted)}
           </h3>
-          <span className="text-[10px] text-slate-400 block">Movimentado na cidade</span>
+          <span className="text-[10px] text-slate-400 block">Serviços contratados</span>
         </div>
 
-        {/* Dinheiro Seguro em Custódia */}
+        {/* Dinheiro Retido em Custódia Segura */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-1 col-span-2 sm:col-span-1">
           <div className="flex items-center justify-between text-xs text-slate-500 font-medium">
-            <span>Retido em Custódia</span>
-            <div className="p-1.5 bg-blue-50 text-blue-600 rounded-lg">
+            <span>Em Custódia Segura</span>
+            <div className="p-1.5 bg-amber-50 text-amber-600 rounded-lg">
               <Clock className="w-4 h-4" />
             </div>
           </div>
-          <h3 className="text-lg font-extrabold text-blue-600">
+          <h3 className="text-lg font-extrabold text-amber-600">
             {formatCurrencyBRL(stats.inEscrowAmount)}
           </h3>
-          <span className="text-[10px] text-slate-400 block">Serviços sendo executados</span>
+          <span className="text-[10px] text-slate-400 block">Aguardando aprovação do morador</span>
         </div>
       </div>
 
-      {/* Mesa de Mediação e Disputas (Arbitragem do Dono do App) */}
-      {disputedOrders.length > 0 && (
-        <div className="bg-red-50/70 rounded-2xl p-4 border border-red-200 shadow-sm space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Scale className="w-5 h-5 text-red-600" />
-              <div>
-                <h3 className="text-xs font-bold text-red-950 uppercase tracking-wider">
-                  Mesa de Mediação & Disputas ({disputedOrders.length})
-                </h3>
-                <p className="text-[11px] text-red-800">
-                  Valores em custódia aguardando sua decisão de arbitragem
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            {disputedOrders.map((order) => (
-              <div
-                key={order.id}
-                className="bg-white rounded-xl p-3.5 border border-red-200 shadow-xs space-y-2.5"
-              >
-                <div className="flex items-start justify-between">
-                  <div>
-                    <span className="text-[10px] font-bold text-red-600 bg-red-100 px-2 py-0.5 rounded">
-                      Disputa Aberta • Pedido {order.orderNumber}
-                    </span>
-                    <h4 className="text-xs font-bold text-slate-900 mt-1">
-                      Valor Retido: {formatCurrencyBRL(order.totalAmount)}
-                    </h4>
-                  </div>
-                  <span className="text-[10px] text-slate-500">
-                    Cliente: {order.client?.fullName || 'Mariana'}
-                  </span>
-                </div>
-
-                <div className="bg-slate-50 p-2.5 rounded-lg border text-xs space-y-1">
-                  <p className="text-red-950 font-semibold">
-                    Motivo: <span>{order.disputeReason}</span>
-                  </p>
-                  {order.disputeDetails && (
-                    <p className="text-slate-600 italic">
-                      "{order.disputeDetails}"
-                    </p>
-                  )}
-                </div>
-
-                {/* Ações de Arbitragem */}
-                <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => resolveDisputeByAdmin(order.id, 'refund_client')}
-                    className="bg-white hover:bg-slate-50 text-red-600 border border-red-300 font-bold text-xs px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 active:scale-95 shadow-xs"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                    <span>Reembolsar Morador</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => resolveDisputeByAdmin(order.id, 'release_provider')}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-1 shadow-sm active:scale-95"
-                  >
-                    <CheckCircle className="w-3.5 h-3.5" />
-                    <span>Liberar p/ Prestador</span>
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Fila de Verificação de Documentos (KYC) */}
+      {/* Disputas & Mediações em Aberto */}
       <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
         <div className="flex items-center justify-between">
-          <div>
+          <div className="flex items-center gap-1.5">
+            <Scale className="w-4 h-4 text-brand-600" />
             <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-              Fila de Verificação de Documentos ({pendingProviders.length})
+              Arbitragem de Disputas ({disputedOrders.length})
             </h3>
-            <p className="text-[11px] text-slate-500">
-              Apenas prestadores aprovados aparecem nas buscas dos moradores.
-            </p>
           </div>
+          <span className="text-[10px] text-slate-400">Você tem poder de decisão final</span>
+        </div>
+
+        {disputedOrders.length === 0 ? (
+          <div className="text-center py-6 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-xs text-slate-500 flex flex-col items-center gap-1">
+            <CheckCircle className="w-5 h-5 text-emerald-500" />
+            <span>Nenhuma disputa pendente em Rondonópolis!</span>
+          </div>
+        ) : (
+          disputedOrders.map((ord) => (
+            <div
+              key={ord.id}
+              className="bg-red-50/60 border border-red-200 rounded-xl p-3.5 space-y-2.5"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-bold text-slate-900">
+                    Pedido #{ord.orderNumber} • {formatCurrencyBRL(ord.totalAmount)}
+                  </h4>
+                  <span className="text-[11px] text-slate-500">
+                    Cliente: {ord.client?.fullName} • Prestador: {ord.provider?.profile?.fullName}
+                  </span>
+                </div>
+                <span className="text-[10px] font-bold bg-red-100 text-red-700 px-2 py-0.5 rounded">
+                  Disputa Ativa
+                </span>
+              </div>
+
+              <div className="bg-white p-2.5 rounded-lg border border-red-100 text-xs space-y-1">
+                <span className="font-bold text-red-900 block">Motivo: {ord.disputeReason}</span>
+                <p className="text-slate-600 text-[11px]">{ord.disputeDetails}</p>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => resolveDisputeByAdmin(ord.id, 'refund_client')}
+                  className="bg-white hover:bg-red-50 text-red-600 border border-red-200 font-bold text-xs px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 active:scale-95"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Estornar para Morador</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => resolveDisputeByAdmin(ord.id, 'release_provider')}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 shadow-sm active:scale-95"
+                >
+                  <CheckCircle className="w-3.5 h-3.5" />
+                  <span>Liberar para Prestador</span>
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Fila de Verificação de Prestadores (KYC) */}
+      <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <ShieldCheck className="w-4 h-4 text-emerald-600" />
+            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+              Aprovação de Prestadores ({pendingProviders.length})
+            </h3>
+          </div>
+          <span className="text-[10px] text-slate-400">Verificação de Documentos e Selo</span>
         </div>
 
         {pendingProviders.length === 0 ? (
-          <div className="bg-slate-50 rounded-xl p-4 text-center text-xs text-slate-500">
-            ✓ Nenhum prestador aguardando aprovação no momento.
+          <div className="text-center py-6 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-xs text-slate-500">
+            Todos os prestadores cadastrados estão revisados.
           </div>
         ) : (
           pendingProviders.map((provider) => (
             <div
               key={provider.id}
-              className="bg-slate-50 rounded-xl p-3.5 border border-slate-200/80 space-y-2.5"
+              className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-3"
             >
-              <div className="flex items-start justify-between">
+              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
                   <img
                     src={provider.profile?.avatarUrl}
                     alt={provider.profile?.fullName}
-                    className="w-10 h-10 rounded-full object-cover border border-slate-200"
+                    className="w-10 h-10 rounded-full object-cover border border-slate-300"
                   />
                   <div>
-                    <h4 className="text-xs font-bold text-slate-900">
+                    <h4 className="text-xs font-bold text-slate-900 leading-tight">
                       {provider.profile?.fullName}
                     </h4>
-                    <span className="text-[11px] text-slate-500 block">
-                      {provider.profile?.neighborhood} • {provider.categories[0]?.name}
+                    <span className="text-[11px] text-slate-500">
+                      {provider.profile?.neighborhood} • {provider.experienceYears} anos de experiência
                     </span>
                   </div>
                 </div>
@@ -247,7 +336,7 @@ export const AdminScreen: React.FC = () => {
             >
               <span className="font-medium text-slate-700">{bairro}</span>
               <span className="text-[11px] font-bold text-brand-600 bg-brand-50 px-2 py-0.5 rounded-md">
-                {12 - idx * 2} serviços
+                {`${12 - idx * 2} serviços`}
               </span>
             </div>
           ))}

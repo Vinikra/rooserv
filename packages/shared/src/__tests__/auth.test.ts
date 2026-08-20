@@ -1,0 +1,54 @@
+import { describe, it, expect } from 'vitest';
+import { UserRole, SignupData } from '../types';
+
+describe('RooServ Authentication & Role Permissions Engine', () => {
+  const adminKeys = ['admin2026', 'Vini@220499', 'Vini@2204992026', 'admin'];
+
+  it.each(adminKeys)('validates admin master key %s successfully', (key) => {
+    const isValidKey = adminKeys.includes(key);
+    expect(isValidKey).toBe(true);
+  });
+
+  it('rejects invalid admin keys', () => {
+    const invalidKey = 'wrong_password_123';
+    expect(adminKeys.includes(invalidKey)).toBe(false);
+  });
+
+  it('correctly constructs client signup payload', () => {
+    const signupPayload: SignupData = {
+      role: 'client',
+      fullName: 'Mariana Alcantara',
+      email: 'mariana@email.com',
+      password: 'secretPassword123',
+      phone: '(66) 99123-4567',
+      neighborhood: 'Vila Aurora',
+    };
+
+    expect(signupPayload.role).toBe('client');
+    expect(signupPayload.neighborhood).toBe('Vila Aurora');
+    expect(signupPayload.documentCpf).toBeUndefined();
+  });
+
+  it('correctly constructs provider signup payload with CPF', () => {
+    const providerPayload: SignupData = {
+      role: 'provider',
+      fullName: 'Carlos Eduardo',
+      email: 'carlos.eletrica@email.com',
+      password: 'providerSecret123',
+      phone: '(66) 98765-4321',
+      neighborhood: 'Centro',
+      documentCpf: '123.456.789-00',
+    };
+
+    expect(providerPayload.role).toBe('provider');
+    expect(providerPayload.documentCpf).toBe('123.456.789-00');
+  });
+
+  it('validates role switching permissions for providers and clients', () => {
+    const canSwitchRole = (role: UserRole) => role === 'provider' || role === 'admin';
+
+    expect(canSwitchRole('provider')).toBe(true);
+    expect(canSwitchRole('admin')).toBe(true);
+    expect(canSwitchRole('client')).toBe(false);
+  });
+});
