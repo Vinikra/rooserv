@@ -179,3 +179,17 @@ export interface AuthResult {
   error?: string;
 }
 
+export type InAppNotificationType = 'order' | 'message' | 'payment' | 'system' | 'proposal';
+
+export interface InAppNotification {
+  id: string;
+  title: string;
+  message: string;
+  type: InAppNotificationType;
+  time: string;
+  isRead: boolean;
+  actionTab?: string;
+  metadata?: Record<string, any>;
+  createdAt?: string;
+}
+

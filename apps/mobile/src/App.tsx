@@ -17,10 +17,11 @@ import { NotificationModal } from './components/NotificationModal';
 import { PWAInstallBanner } from './components/PWAInstallBanner';
 import { TermsModal } from './components/TermsModal';
 import { ReferralModal } from './components/ReferralModal';
+import { InAppToast } from './components/InAppToast';
 import { ProviderProfile } from '@servicos/shared';
 
 export const App: React.FC = () => {
-  const { currentRole } = useApp();
+  const { currentRole, activeToast, dismissActiveToast } = useApp();
 
   const [activeTab, setActiveTab] = useState<string>('explore');
   const [selectedProvider, setSelectedProvider] = useState<ProviderProfile | null>(null);
@@ -115,6 +116,16 @@ export const App: React.FC = () => {
     <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-start sm:py-6">
       <div className="w-full sm:max-w-md bg-slate-100 min-h-screen sm:min-h-[850px] sm:max-h-[900px] sm:rounded-[36px] flex flex-col overflow-hidden shadow-2xl relative border sm:border-slate-800">
         <PWAInstallBanner />
+
+        {/* Uber-style Real-time In-App Notification Banner */}
+        <InAppToast
+          notification={activeToast}
+          onClose={dismissActiveToast}
+          onNavigate={(tab) => {
+            setActiveTab(tab);
+            dismissActiveToast();
+          }}
+        />
 
         {!activeChatPartner && !isOnboardingOpen && (
           <Header

@@ -1,23 +1,18 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { 
   Bell, 
   X, 
-  CheckCircle, 
+  CheckCircle2, 
   MessageSquare, 
   DollarSign, 
   ShieldCheck, 
-  ChevronRight 
+  ChevronRight,
+  Sparkles,
+  CheckCheck,
+  Trash2
 } from 'lucide-react';
-
-interface NotificationItem {
-  id: string;
-  title: string;
-  message: string;
-  time: string;
-  type: 'order' | 'message' | 'payment' | 'system';
-  isRead: boolean;
-  actionTab?: string;
-}
+import { useApp } from '../context/AppContext';
+import { InAppNotificationType } from '@servicos/shared';
 
 interface NotificationModalProps {
   isOpen: boolean;
@@ -30,57 +25,27 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
   onClose,
   onSelectNotification,
 }) => {
-  const [notifications] = useState<NotificationItem[]>([
-    {
-      id: 'notif-1',
-      title: 'Custódia Ativa no Serviço',
-      message: 'Seu pagamento de R$ 150,00 foi retido com segurança. O prestador foi notificado para iniciar.',
-      time: 'Há 5 min',
-      type: 'payment',
-      isRead: false,
-      actionTab: 'orders',
-    },
-    {
-      id: 'notif-2',
-      title: 'Nova Mensagem do Prestador',
-      message: 'Marcos Silva: "Chego por volta das 14h no Jardim Atlântico com o material."',
-      time: 'Há 25 min',
-      type: 'message',
-      isRead: false,
-      actionTab: 'messages',
-    },
-    {
-      id: 'notif-3',
-      title: 'Novo Orçamento Disponível',
-      message: 'Um profissional enviou proposta para sua solicitação de "Troca de Chuveiro 220v".',
-      time: 'Há 2 horas',
-      type: 'order',
-      isRead: true,
-      actionTab: 'orders',
-    },
-    {
-      id: 'notif-4',
-      title: 'Garantia RooServ Ativa',
-      message: 'Seu serviço possui cobertura de 60 dias pela Garantia de Conclusão da plataforma.',
-      time: 'Ontem',
-      type: 'system',
-      isRead: true,
-    },
-  ]);
+  const { 
+    notifications, 
+    markAllNotificationsAsRead, 
+    clearNotifications 
+  } = useApp();
 
   if (!isOpen) return null;
 
-  const getIcon = (type: NotificationItem['type']) => {
+  const getIcon = (type: InAppNotificationType) => {
     switch (type) {
       case 'payment':
-        return <DollarSign className="w-4 h-4 text-emerald-600" />;
+        return <DollarSign className="w-5 h-5 text-emerald-600" />;
       case 'message':
-        return <MessageSquare className="w-4 h-4 text-brand-600" />;
+        return <MessageSquare className="w-5 h-5 text-brand-600" />;
       case 'order':
-        return <CheckCircle className="w-4 h-4 text-indigo-600" />;
+        return <CheckCircle2 className="w-5 h-5 text-indigo-600" />;
+      case 'proposal':
+        return <Sparkles className="w-5 h-5 text-amber-600" />;
       case 'system':
       default:
-        return <ShieldCheck className="w-4 h-4 text-amber-600" />;
+        return <ShieldCheck className="w-5 h-5 text-brand-600" />;
     }
   };
 
@@ -93,72 +58,107 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200">
-      <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl space-y-4">
+      <div className="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4 max-h-[92vh] flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-          <div className="flex items-center gap-2">
-            <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
-              <Bell className="w-5 h-5" />
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-2xl">
+              <Bell className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="text-sm font-extrabold text-slate-900">
-                Notificações em Tempo Real
+              <h3 className="text-base sm:text-lg font-black text-slate-900 leading-tight">
+                Notificações no App
               </h3>
-              <p className="text-[11px] text-slate-500">
-                Avisos de orçamentos, mensagens e pagamentos em Roo
+              <p className="text-xs text-slate-500 font-medium">
+                Avisos em tempo real de chamados, propostas e pagamentos
               </p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 p-1"
+            className="text-slate-400 hover:text-slate-600 p-2 rounded-full"
           >
-            <X className="w-5 h-5" />
+            <X className="w-6 h-6" />
           </button>
         </div>
 
-        {/* Lista de Notificações */}
-        <div className="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1">
-          {notifications.map((item) => (
+        {/* Ações Rápidas: Marcar lidas & Limpar */}
+        {notifications.length > 0 && (
+          <div className="flex items-center justify-between text-xs font-bold pt-1 px-1">
             <button
               type="button"
-              key={item.id}
-              onClick={() => handleNotificationClick(item.actionTab)}
-              className={`w-full text-left p-3.5 rounded-2xl border transition-all flex items-start gap-3 active:scale-[0.99] ${
-                item.isRead
-                  ? 'bg-slate-50 border-slate-200'
-                  : 'bg-indigo-50/40 border-indigo-200 shadow-sm'
-              }`}
+              onClick={markAllNotificationsAsRead}
+              className="text-brand-600 hover:text-brand-700 flex items-center gap-1.5 p-1.5 rounded-lg hover:bg-brand-50 transition-colors"
             >
-              <div className="p-2 bg-white rounded-xl shadow-xs shrink-0 border border-slate-100">
-                {getIcon(item.type)}
-              </div>
+              <CheckCheck className="w-4 h-4" />
+              <span>Marcar todas como lidas</span>
+            </button>
 
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-1">
-                  <h4 className="text-xs font-bold text-slate-900 truncate">
-                    {item.title}
-                  </h4>
-                  <span className="text-[10px] text-slate-400 shrink-0 font-medium">
-                    {item.time}
-                  </span>
+            <button
+              type="button"
+              onClick={clearNotifications}
+              className="text-slate-400 hover:text-red-500 flex items-center gap-1 p-1.5 rounded-lg transition-colors"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Limpar</span>
+            </button>
+          </div>
+        )}
+
+        {/* Lista de Notificações */}
+        <div className="space-y-3 overflow-y-auto flex-1 pr-1">
+          {notifications.length === 0 ? (
+            <div className="text-center py-12 space-y-2">
+              <div className="w-14 h-14 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mx-auto">
+                <Bell className="w-7 h-7" />
+              </div>
+              <p className="text-sm font-bold text-slate-700">Nenhuma notificação recente</p>
+              <p className="text-xs text-slate-500">
+                Você receberá alertas aqui quando houver novidades sobre seus serviços.
+              </p>
+            </div>
+          ) : (
+            notifications.map((item) => (
+              <button
+                type="button"
+                key={item.id}
+                onClick={() => handleNotificationClick(item.actionTab)}
+                className={`w-full text-left p-4 rounded-2xl border transition-all flex items-start gap-3.5 active:scale-[0.99] cursor-pointer ${
+                  item.isRead
+                    ? 'bg-slate-50/70 border-slate-200'
+                    : 'bg-indigo-50/50 border-indigo-200 shadow-sm ring-1 ring-indigo-200'
+                }`}
+              >
+                <div className="p-2.5 bg-white rounded-2xl shadow-xs shrink-0 border border-slate-100 mt-0.5">
+                  {getIcon(item.type)}
                 </div>
 
-                <p className="text-xs text-slate-600 leading-normal mt-0.5">
-                  {item.message}
-                </p>
-              </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-1">
+                    <h4 className="text-sm font-extrabold text-slate-900 truncate">
+                      {item.title}
+                    </h4>
+                    <span className="text-xs text-slate-400 shrink-0 font-medium">
+                      {item.time}
+                    </span>
+                  </div>
 
-              <ChevronRight className="w-4 h-4 text-slate-300 shrink-0 mt-1" />
-            </button>
-          ))}
+                  <p className="text-xs sm:text-sm text-slate-600 leading-relaxed mt-1 font-medium">
+                    {item.message}
+                  </p>
+                </div>
+
+                <ChevronRight className="w-5 h-5 text-slate-300 shrink-0 mt-1.5" />
+              </button>
+            ))
+          )}
         </div>
 
         <button
           type="button"
           onClick={onClose}
-          className="w-full bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs py-2.5 rounded-xl transition-colors"
+          className="w-full bg-slate-100 hover:bg-slate-200 text-slate-900 font-extrabold text-sm py-3.5 rounded-2xl transition-colors mt-2"
         >
           Fechar
         </button>

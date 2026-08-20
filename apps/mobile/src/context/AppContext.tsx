@@ -10,6 +10,8 @@ import {
   VerificationStatus,
   SignupData,
   AuthResult,
+  InAppNotification,
+  InAppNotificationType,
   calculateServiceSplit,
 } from '@servicos/shared';
 import {
@@ -21,6 +23,7 @@ import {
   INITIAL_REQUESTS,
 } from '../data/mockData';
 import { supabase } from '../lib/supabase';
+import { inAppSound } from '../utils/notificationSound';
 
 const AUTH_STORAGE_KEY = 'rooserv_authenticated_user';
 
@@ -57,6 +60,22 @@ interface AppContextType {
   setSelectedNeighborhood: (bairro: string) => void;
   selectedCategorySlug: string | null;
   setSelectedCategorySlug: (slug: string | null) => void;
+
+  // Notificações In-App em Tempo Real (Estilo Uber)
+  notifications: InAppNotification[];
+  activeToast: InAppNotification | null;
+  unreadNotificationsCount: number;
+  sendInAppNotification: (notif: {
+    title: string;
+    message: string;
+    type: InAppNotificationType;
+    actionTab?: string;
+    metadata?: Record<string, any>;
+    playSound?: boolean;
+  }) => void;
+  dismissActiveToast: () => void;
+  markAllNotificationsAsRead: () => void;
+  clearNotifications: () => void;
 
   createServiceRequest: (data: {
     categoryId: string;
@@ -120,10 +139,10 @@ function mapDbProfile(prof: any, profileId: string): UserProfile {
     phone: prof?.phone || '(66) 99888-0000',
     neighborhood: prof?.neighborhood || 'Centro',
     city: prof?.city || 'Rondonópolis',
-    state: 'MT',
-    avatarUrl: prof?.avatar_url || 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=200',
+    state: prof?.state || 'MT',
+    avatarUrl: prof?.avatar_url || 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=150',
     isActive: prof?.is_active ?? true,
-    createdAt: new Date().toISOString(),
+    createdAt: prof?.created_at || '2026-01-01T00:00:00Z',
   };
 }
 
@@ -203,6 +222,85 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [selectedNeighborhood, setSelectedNeighborhood] = useState<string>('Todos os Bairros');
   const [selectedCategorySlug, setSelectedCategorySlug] = useState<string | null>(null);
 
+  // Sistema de Notificações In-App em Tempo Real (Estilo Uber)
+  const [notifications, setNotifications] = useState<InAppNotification[]>([
+    {
+      id: 'notif-1',
+      title: 'Custódia Ativa no Serviço',
+      message: 'Seu pagamento de R$ 150,00 foi retido com segurança. O prestador foi notificado para iniciar.',
+      time: 'Há 5 min',
+      type: 'payment',
+      isRead: false,
+      actionTab: 'orders',
+      createdAt: new Date().toISOString(),
+    },
+    {
+      id: 'notif-2',
+      title: 'Nova Mensagem do Prestador',
+      message: 'Carlos Elétrica: "Consigo ir aí hoje às 16h30 para fazer o serviço completo."',
+      time: 'Há 20 min',
+      type: 'message',
+      isRead: false,
+      actionTab: 'messages',
+      createdAt: new Date().toISOString(),
+    },
+    {
+      id: 'notif-3',
+      title: 'Garantia RooServ Ativa',
+      message: 'Todos os seus serviços contratados possuem cobertura da plataforma contra calotes.',
+      time: 'Hoje',
+      type: 'system',
+      isRead: true,
+      createdAt: new Date().toISOString(),
+    },
+  ]);
+
+  const [activeToast, setActiveToast] = useState<InAppNotification | null>(null);
+
+  const unreadNotificationsCount = useMemo(() => {
+    return notifications.filter((n) => !n.isRead).length;
+  }, [notifications]);
+
+  const sendInAppNotification = (notif: {
+    title: string;
+    message: string;
+    type: InAppNotificationType;
+    actionTab?: string;
+    metadata?: Record<string, any>;
+    playSound?: boolean;
+  }) => {
+    const newNotif: InAppNotification = {
+      id: `notif-${Date.now()}`,
+      title: notif.title,
+      message: notif.message,
+      type: notif.type,
+      time: 'Agora',
+      isRead: false,
+      actionTab: notif.actionTab,
+      metadata: notif.metadata,
+      createdAt: new Date().toISOString(),
+    };
+
+    setNotifications((prev) => [newNotif, ...prev]);
+    setActiveToast(newNotif);
+
+    if (notif.playSound !== false) {
+      inAppSound.playChime(notif.type);
+    }
+  };
+
+  const dismissActiveToast = () => {
+    setActiveToast(null);
+  };
+
+  const markAllNotificationsAsRead = () => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+  };
+
+  const clearNotifications = () => {
+    setNotifications([]);
+  };
+
   const isAuthenticated = Boolean(currentUser);
   const isAdmin = currentUser?.role === 'admin' || currentRole === 'admin';
 
@@ -219,52 +317,80 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     async function loadFromSupabase() {
       try {
-        const { data: dbCategories } = await supabase.from('service_categories').select('*').order('sort_order');
-        if (dbCategories && dbCategories.length > 0) {
+        const { data: dbCategories, error: catError } = await supabase
+          .from('categories')
+          .select('*')
+          .order('name');
+
+        if (!catError && dbCategories && dbCategories.length > 0) {
           setCategories(dbCategories.map(mapDbCategory));
         }
 
-        const { data: dbProviders } = await supabase
+        const { data: dbProviders, error: provError } = await supabase
           .from('provider_profiles')
           .select(`
-            id, profile_id, verification_status, bio, experience_years,
-            hourly_rate_estimate, pix_key_type, pix_key, average_rating,
-            total_reviews, total_completed_orders, is_available,
-            profiles ( id, full_name, email, phone, neighborhood, city, state, avatar_url, is_active )
+            id,
+            profile_id,
+            verification_status,
+            bio,
+            experience_years,
+            hourly_rate_estimate,
+            pix_key_type,
+            pix_key,
+            average_rating,
+            total_reviews,
+            total_completed_orders,
+            is_available,
+            profiles (
+              id,
+              role,
+              full_name,
+              email,
+              phone,
+              neighborhood,
+              city,
+              state,
+              avatar_url,
+              is_active,
+              created_at
+            )
           `);
 
-        if (dbProviders && dbProviders.length > 0) {
+        if (!provError && dbProviders && dbProviders.length > 0) {
           setProviders(dbProviders.map(mapDbProvider));
         }
       } catch {
-        console.log('Usando dataset local resiliente RooServ.');
+        // Fallback resiliente caso Supabase esteja desconectado
       }
     }
+
     loadFromSupabase();
   }, []);
 
-  // Canal Global de Eventos em Tempo Real (WebSockets Supabase)
+  // WebSockets Realtime Globais para Sincronização Instantânea
   useEffect(() => {
     const globalChannel = supabase.channel('rooserv_global_events', {
       config: { broadcast: { self: false } },
     });
 
     globalChannel
-      .on('broadcast', { event: 'order_updated' }, (payload) => {
-        if (payload?.payload?.orderId) {
-          setOrders((prev) =>
-            prev.map((o) =>
-              o.id === payload.payload.orderId ? { ...o, ...payload.payload.changes } : o
-            )
-          );
-        }
-      })
       .on('broadcast', { event: 'new_request' }, (payload) => {
         if (payload?.payload) {
           setRequests((prev) => [payload.payload, ...prev]);
-          if (typeof navigator !== 'undefined' && navigator.vibrate) {
-            navigator.vibrate([100, 50, 100]);
-          }
+          sendInAppNotification({
+            title: '🔔 Nova Oportunidade na Cidade!',
+            message: `Cliente publicou: "${payload.payload.title}" no bairro ${payload.payload.addressNeighborhood}.`,
+            type: 'order',
+            actionTab: 'provider_leads',
+          });
+        }
+      })
+      .on('broadcast', { event: 'order_updated' }, (payload) => {
+        const { orderId, changes } = payload?.payload || {};
+        if (orderId && changes) {
+          setOrders((prev) =>
+            prev.map((o) => (o.id === orderId ? { ...o, ...changes } : o))
+          );
         }
       })
       .subscribe();
@@ -283,6 +409,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (pass === 'admin2026' || pass === 'Vini@220499' || pass === 'admin' || pass === 'Vini@2204992026') {
         setCurrentUser(ADMIN_PROFILE);
         setCurrentRole('admin');
+        sendInAppNotification({
+          title: '🛡️ Modo Gestor Autenticado',
+          message: 'Painel de administração master liberado com métricas financeiras e KYC.',
+          type: 'system',
+        });
         return { success: true, user: ADMIN_PROFILE };
       }
       return { success: false, error: 'Senha de administrador incorreta.' };
@@ -296,7 +427,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
 
       if (!error && data?.user) {
-        // Busca perfil no banco
         const { data: dbProfile } = await supabase
           .from('profiles')
           .select('*')
@@ -319,6 +449,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           };
           setCurrentUser(user);
           setCurrentRole(user.role);
+          sendInAppNotification({
+            title: `👋 Bem-vindo(a), ${user.fullName.split(' ')[0]}!`,
+            message: 'Você está conectado à plataforma RooServ Rondonópolis.',
+            type: 'system',
+          });
           return { success: true, user };
         }
       }
@@ -330,6 +465,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (cleanEmail === 'mariana@email.com') {
       setCurrentUser(INITIAL_CLIENT);
       setCurrentRole('client');
+      sendInAppNotification({
+        title: '👋 Bem-vinda, Mariana!',
+        message: 'Você está conectada como Moradora em Rondonópolis.',
+        type: 'system',
+      });
       return { success: true, user: INITIAL_CLIENT };
     }
 
@@ -337,6 +477,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const providerUser = INITIAL_PROVIDERS[0].profile || INITIAL_CLIENT;
       setCurrentUser(providerUser);
       setCurrentRole('provider');
+      sendInAppNotification({
+        title: '⚡ Painel do Profissional Conectado',
+        message: 'Você está pronto para receber pedidos e chamados na cidade.',
+        type: 'system',
+      });
       return { success: true, user: providerUser };
     }
 
@@ -356,47 +501,58 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     setCurrentUser(fallbackUser);
     setCurrentRole('client');
+    sendInAppNotification({
+      title: '👋 Conta Conectada',
+      message: 'Bem-vindo(a) ao RooServ!',
+      type: 'system',
+    });
     return { success: true, user: fallbackUser };
   };
 
-  // Método de Cadastro (Signup)
+  // Método de Cadastro Completo
   const signup = async (data: SignupData): Promise<AuthResult> => {
     const cleanEmail = data.email.trim().toLowerCase();
-    const newUserId = `usr-${Date.now()}`;
+
+    let authUserId = `usr-${Date.now()}`;
+    try {
+      if (data.password) {
+        const { data: authData, error } = await supabase.auth.signUp({
+          email: cleanEmail,
+          password: data.password,
+          options: {
+            data: {
+              full_name: data.fullName,
+              role: data.role,
+              neighborhood: data.neighborhood,
+            },
+          },
+        });
+        if (!error && authData?.user) {
+          authUserId = authData.user.id;
+        }
+      }
+    } catch {
+      // Fallback
+    }
 
     const newUser: UserProfile = {
-      id: newUserId,
+      id: authUserId,
       role: data.role,
-      fullName: data.fullName.trim(),
+      fullName: data.fullName,
       email: cleanEmail,
-      phone: data.phone.trim(),
-      neighborhood: data.neighborhood,
+      phone: data.phone,
+      neighborhood: data.neighborhood || 'Centro',
       city: 'Rondonópolis',
       state: 'MT',
-      documentCpf: data.documentCpf,
       avatarUrl: data.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
       isActive: true,
       createdAt: new Date().toISOString(),
     };
 
-    // Tenta gravar no Supabase
     try {
-      await supabase.auth.signUp({
-        email: cleanEmail,
-        password: data.password || '123456',
-        options: {
-          data: {
-            full_name: newUser.fullName,
-            phone: newUser.phone,
-            neighborhood: newUser.neighborhood,
-            role: newUser.role,
-          },
-        },
-      });
-
-      await supabase.from('profiles').insert([
+      await supabase.from('profiles').upsert([
         {
-          id: newUserId,
+          id: newUser.id,
           role: newUser.role,
           full_name: newUser.fullName,
           email: newUser.email,
@@ -413,6 +569,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setCurrentUser(newUser);
     setCurrentRole(newUser.role);
+    sendInAppNotification({
+      title: '🎉 Conta Criada com Sucesso!',
+      message: 'Bem-vindo ao RooServ! Contrate ou anuncie serviços com 100% de garantia.',
+      type: 'system',
+    });
     return { success: true, user: newUser };
   };
 
@@ -422,6 +583,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (key === 'admin2026' || key === 'Vini@220499' || key === 'Vini@2204992026' || key === 'admin') {
       setCurrentUser(ADMIN_PROFILE);
       setCurrentRole('admin');
+      sendInAppNotification({
+        title: '🛡️ Gestão RooServ',
+        message: 'Acesso liberado às métricas e conciliação financeira.',
+        type: 'system',
+      });
       return { success: true, user: ADMIN_PROFILE };
     }
     return { success: false, error: 'Chave ou senha administrativa incorreta.' };
@@ -468,6 +634,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setRequests((prev) => [newReq, ...prev]);
 
+    // Dispara Notificação In-App (Estilo Uber)
+    sendInAppNotification({
+      title: '🔔 Pedido de Orçamento Publicado!',
+      message: `Seu pedido "${data.title}" foi enviado aos profissionais verificados da cidade.`,
+      type: 'order',
+      actionTab: 'orders',
+    });
+
     const globalChannel = supabase.channel('rooserv_global_events');
     globalChannel.send({
       type: 'broadcast',
@@ -512,6 +686,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setOrders((prev) => [newOrder, ...prev]);
 
+    // Dispara Notificação In-App em Tempo Real
+    sendInAppNotification({
+      title: '🔒 Pagamento em Custódia Segura!',
+      message: `R$ ${split.totalAmount.toFixed(2)} retidos com proteção RooServ. O prestador ${provider?.profile?.fullName || ''} foi avisado no app para iniciar o serviço!`,
+      type: 'payment',
+      actionTab: 'orders',
+    });
+
     const globalChannel = supabase.channel('rooserv_global_events');
     globalChannel.send({
       type: 'broadcast',
@@ -530,6 +712,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           : o
       )
     );
+
+    sendInAppNotification({
+      title: '🛠️ Serviço Marcado como Concluído!',
+      message: 'O prestador finalizou o serviço. Inspecione e clique em Aprovar para liberar o pagamento.',
+      type: 'order',
+      actionTab: 'orders',
+    });
 
     const globalChannel = supabase.channel('rooserv_global_events');
     globalChannel.send({
@@ -576,6 +765,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setReviews((prev) => [newReview, ...prev]);
 
+    sendInAppNotification({
+      title: '💰 Pagamento Liberado com Sucesso!',
+      message: `Transferência de R$ ${targetOrder.providerPayoutAmount.toFixed(2)} liberada diretamente para a carteira do profissional.`,
+      type: 'payment',
+      actionTab: 'orders',
+    });
+
     const globalChannel = supabase.channel('rooserv_global_events');
     globalChannel.send({
       type: 'broadcast',
@@ -613,6 +809,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       )
     );
 
+    sendInAppNotification({
+      title: '⚠️ Disputa Aberta na Plataforma',
+      message: 'O valor permanecerá retido sob custódia enquanto nossa moderação analisa o caso.',
+      type: 'system',
+      actionTab: 'orders',
+    });
+
     const globalChannel = supabase.channel('rooserv_global_events');
     globalChannel.send({
       type: 'broadcast',
@@ -623,24 +826,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           status: 'disputed',
           disputeReason: reason,
           disputeDetails: details,
+          disputeOpenedAt: new Date().toISOString(),
         },
       },
     });
   };
 
-  const resolveDisputeByAdmin = (orderId: string, decision: 'refund_client' | 'release_provider') => {
-    const finalStatus: OrderStatus = decision === 'refund_client' ? 'refunded' : 'approved_by_client';
-
+  const resolveDisputeByAdmin = (
+    orderId: string,
+    decision: 'refund_client' | 'release_provider'
+  ) => {
     setOrders((prev) =>
-      prev.map((o) =>
-        o.id === orderId
-          ? {
-              ...o,
-              status: finalStatus,
-              disputeResolvedAt: new Date().toISOString(),
-            }
-          : o
-      )
+      prev.map((o) => {
+        if (o.id !== orderId) return o;
+        if (decision === 'refund_client') {
+          return {
+            ...o,
+            status: 'refunded',
+            disputeResolvedAt: new Date().toISOString(),
+          };
+        }
+        return {
+          ...o,
+          status: 'approved_by_client',
+          fundsReleasedAt: new Date().toISOString(),
+          disputeResolvedAt: new Date().toISOString(),
+        };
+      })
     );
 
     const globalChannel = supabase.channel('rooserv_global_events');
@@ -649,65 +861,66 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       event: 'order_updated',
       payload: {
         orderId,
-        changes: { status: finalStatus, disputeResolvedAt: new Date().toISOString() },
+        changes: {
+          status: decision === 'refund_client' ? 'refunded' : 'approved_by_client',
+          disputeResolvedAt: new Date().toISOString(),
+        },
       },
     });
   };
 
   const getAdminStats = () => computeAdminStats(orders, providers);
 
-  const contextValue = useMemo(
-    () => ({
-      currentRole,
-      setCurrentRole,
-      currentUser,
-      isAuthenticated,
-      isAdmin,
-      login,
-      signup,
-      loginAsAdmin,
-      logout,
-      categories,
-      providers,
-      orders,
-      reviews,
-      requests,
-      selectedNeighborhood,
-      setSelectedNeighborhood,
-      selectedCategorySlug,
-      setSelectedCategorySlug,
-      createServiceRequest,
-      hireProviderWithEscrow,
-      markOrderAsCompletedByProvider,
-      confirmAndReleaseEscrow,
-      verifyProviderByAdmin,
-      requestProviderPayout,
-      openDispute,
-      resolveDisputeByAdmin,
-      getAdminStats,
-    }),
-    [
-      currentRole,
-      currentUser,
-      isAuthenticated,
-      isAdmin,
-      categories,
-      providers,
-      orders,
-      reviews,
-      requests,
-      selectedNeighborhood,
-      selectedCategorySlug,
-    ]
-  );
+  return (
+    <AppContext.Provider
+      value={{
+        currentRole,
+        setCurrentRole,
+        currentUser,
+        isAuthenticated,
+        isAdmin,
+        login,
+        signup,
+        loginAsAdmin,
+        logout,
+        categories,
+        providers,
+        orders,
+        reviews,
+        requests,
+        selectedNeighborhood,
+        setSelectedNeighborhood,
+        selectedCategorySlug,
+        setSelectedCategorySlug,
 
-  return <AppContext.Provider value={contextValue}>{children}</AppContext.Provider>;
+        notifications,
+        activeToast,
+        unreadNotificationsCount,
+        sendInAppNotification,
+        dismissActiveToast,
+        markAllNotificationsAsRead,
+        clearNotifications,
+
+        createServiceRequest,
+        hireProviderWithEscrow,
+        markOrderAsCompletedByProvider,
+        confirmAndReleaseEscrow,
+        verifyProviderByAdmin,
+        requestProviderPayout,
+        openDispute,
+        resolveDisputeByAdmin,
+        getAdminStats,
+      }}
+    >
+      {children}
+    </AppContext.Provider>
+  );
 };
 
-export const useApp = (): AppContextType => {
+export const useApp = () => {
   const context = useContext(AppContext);
   if (!context) {
-    throw new Error('useApp deve ser utilizado dentro de um AppProvider');
+    throw new Error('useApp must be used within an AppProvider');
   }
   return context;
 };
