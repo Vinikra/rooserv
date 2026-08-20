@@ -268,6 +268,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (notif.playSound !== false) {
       inAppSound.playChime(notif.type);
     }
+
+    // Dispara Notificação Nativa do Navegador / Sistema Operacional se permitido
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+      try {
+        new Notification(notif.title, {
+          body: notif.message,
+          icon: '/icon-192.png',
+        });
+      } catch {
+        // Fallback silencioso
+      }
+    }
   };
 
   const dismissActiveToast = () => {

@@ -6,8 +6,10 @@ import {
   Clock, 
   CheckCircle2,
   Camera,
-  X
+  X,
+  Loader2
 } from 'lucide-react';
+import { RooServStorageService } from '../services/storageService';
 
 interface NewRequestScreenProps {
   onSuccess: () => void;
@@ -26,18 +28,18 @@ export const NewRequestScreen: React.FC<NewRequestScreenProps> = ({ onSuccess })
   );
   const [budget, setBudget] = useState<string>('150');
   const [photos, setPhotos] = useState<string[]>([]);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && photos.length < 3) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (typeof reader.result === 'string') {
-          setPhotos((prev) => [...prev, reader.result as string]);
-        }
-      };
-      reader.readAsDataURL(file);
+      setIsUploadingPhoto(true);
+      const url = await RooServStorageService.uploadImage(file, 'requests');
+      if (url) {
+        setPhotos((prev) => [...prev, url]);
+      }
+      setIsUploadingPhoto(false);
     }
   };
 
@@ -233,11 +235,21 @@ export const NewRequestScreen: React.FC<NewRequestScreenProps> = ({ onSuccess })
               {photos.length < 3 && (
                 <button
                   type="button"
+                  disabled={isUploadingPhoto}
                   onClick={() => fileInputRef.current?.click()}
-                  className="aspect-square rounded-2xl border-2 border-dashed border-slate-300 hover:border-brand-500 bg-slate-50 hover:bg-brand-50/50 flex flex-col items-center justify-center gap-1.5 text-slate-500 hover:text-brand-600 transition-all cursor-pointer p-2 text-center"
+                  className="aspect-square rounded-2xl border-2 border-dashed border-slate-300 hover:border-brand-500 bg-slate-50 hover:bg-brand-50/50 flex flex-col items-center justify-center gap-1.5 text-slate-500 hover:text-brand-600 transition-all cursor-pointer p-2 text-center disabled:opacity-50"
                 >
-                  <Camera className="w-6 h-6 text-slate-400 group-hover:text-brand-500" />
-                  <span className="text-[11px] font-bold leading-tight">Adicionar Foto</span>
+                  {isUploadingPhoto ? (
+                    <>
+                      <Loader2 className="w-6 h-6 text-brand-600 animate-spin" />
+                      <span className="text-[11px] font-bold leading-tight text-brand-700">Enviando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Camera className="w-6 h-6 text-slate-400 group-hover:text-brand-500" />
+                      <span className="text-[11px] font-bold leading-tight">Adicionar Foto</span>
+                    </>
+                  )}
                 </button>
               )}
             </div>

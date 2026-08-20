@@ -12,8 +12,10 @@ import {
   DollarSign, 
   Wallet, 
   Sparkles,
-  BookOpen
+  BookOpen,
+  Loader2
 } from 'lucide-react';
+import { RooServStorageService } from '../services/storageService';
 
 interface ProfileModalProps {
   onClose: () => void;
@@ -34,55 +36,48 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
 
   const savedProviderData = (() => {
     try {
-      if (currentUser?.id) {
-        const item = localStorage.getItem(`rooserv_provider_data_${currentUser.id}`);
-        if (item) return JSON.parse(item);
-      }
-    } catch {
-      // Ignora
-    }
+      const raw = localStorage.getItem(`rooserv_provider_data_${currentUser?.id}`);
+      if (raw) return JSON.parse(raw);
+    } catch {}
     return null;
   })();
 
-  const providerData = providers.find((p) => p.profileId === currentUser?.id);
+  const currentProvider = providers.find((p) => p.profileId === currentUser?.id);
 
-  // Estados do formulário
   const [fullName, setFullName] = useState(currentUser?.fullName || '');
   const [phone, setPhone] = useState(currentUser?.phone || '');
   const [neighborhood, setNeighborhood] = useState(currentUser?.neighborhood || CITY_CONFIG.defaultNeighborhoods[0]);
   const [avatarUrl, setAvatarUrl] = useState(currentUser?.avatarUrl || PRESET_AVATARS[0]);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
 
-  // Estados do prestador com fallback persistente em localStorage
   const [bio, setBio] = useState(
-    savedProviderData?.bio || providerData?.bio || 'Professor de Matemática & Reforço Escolar especializado em Rondonópolis.'
+    savedProviderData?.bio ?? currentProvider?.bio ?? 'Professor de Matemática & Reforço Escolar especializado em Rondonópolis.'
   );
   const [hourlyRate, setHourlyRate] = useState(
-    String(savedProviderData?.hourlyRateEstimate ?? providerData?.hourlyRateEstimate ?? 80)
+    String(savedProviderData?.hourlyRateEstimate ?? currentProvider?.hourlyRateEstimate ?? 80)
   );
   const [experienceYears, setExperienceYears] = useState(
-    savedProviderData?.experienceYears ?? providerData?.experienceYears ?? 5
+    savedProviderData?.experienceYears ?? currentProvider?.experienceYears ?? 5
   );
   const [pixKeyType, setPixKeyType] = useState(
-    savedProviderData?.pixKeyType || providerData?.pixKeyType || 'phone'
+    savedProviderData?.pixKeyType ?? currentProvider?.pixKeyType ?? 'phone'
   );
   const [pixKey, setPixKey] = useState(
-    savedProviderData?.pixKey || providerData?.pixKey || currentUser?.phone || ''
+    savedProviderData?.pixKey ?? currentProvider?.pixKey ?? currentUser?.phone ?? ''
   );
 
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
-  // Manipulador de upload de foto
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (typeof reader.result === 'string') {
-          setAvatarUrl(reader.result);
-        }
-      };
-      reader.readAsDataURL(file);
+      setIsUploadingAvatar(true);
+      const url = await RooServStorageService.uploadImage(file, 'avatars');
+      if (url) {
+        setAvatarUrl(url);
+      }
+      setIsUploadingAvatar(false);
     }
   };
 
@@ -187,11 +182,21 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
             <div>
               <button
                 type="button"
+                disabled={isUploadingAvatar}
                 onClick={() => fileInputRef.current?.click()}
-                className="text-xs font-bold text-brand-700 bg-brand-50 hover:bg-brand-100 px-4 py-2 rounded-xl border border-brand-200 inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+                className="text-xs font-bold text-brand-700 bg-brand-50 hover:bg-brand-100 px-4 py-2 rounded-xl border border-brand-200 inline-flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
               >
-                <Upload className="w-3.5 h-3.5" />
-                <span>Carregar Foto da Galeria / Câmera</span>
+                {isUploadingAvatar ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Enviando foto...</span>
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Carregar Foto da Galeria / Câmera</span>
+                  </>
+                )}
               </button>
             </div>
 
