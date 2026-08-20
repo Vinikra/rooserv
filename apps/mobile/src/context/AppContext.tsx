@@ -871,47 +871,62 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const getAdminStats = () => computeAdminStats(orders, providers);
 
+  const contextValue = useMemo(() => ({
+    currentRole,
+    setCurrentRole,
+    currentUser,
+    isAuthenticated,
+    isAdmin,
+    login,
+    signup,
+    loginAsAdmin,
+    logout,
+    categories,
+    providers,
+    orders,
+    reviews,
+    requests,
+    selectedNeighborhood,
+    setSelectedNeighborhood,
+    selectedCategorySlug,
+    setSelectedCategorySlug,
+
+    notifications,
+    activeToast,
+    unreadNotificationsCount,
+    sendInAppNotification,
+    dismissActiveToast,
+    markAllNotificationsAsRead,
+    clearNotifications,
+
+    createServiceRequest,
+    hireProviderWithEscrow,
+    markOrderAsCompletedByProvider,
+    confirmAndReleaseEscrow,
+    verifyProviderByAdmin,
+    requestProviderPayout,
+    openDispute,
+    resolveDisputeByAdmin,
+    getAdminStats,
+  }), [
+    currentRole,
+    currentUser,
+    isAuthenticated,
+    isAdmin,
+    categories,
+    providers,
+    orders,
+    reviews,
+    requests,
+    selectedNeighborhood,
+    selectedCategorySlug,
+    notifications,
+    activeToast,
+    unreadNotificationsCount,
+  ]);
+
   return (
-    <AppContext.Provider
-      value={{
-        currentRole,
-        setCurrentRole,
-        currentUser,
-        isAuthenticated,
-        isAdmin,
-        login,
-        signup,
-        loginAsAdmin,
-        logout,
-        categories,
-        providers,
-        orders,
-        reviews,
-        requests,
-        selectedNeighborhood,
-        setSelectedNeighborhood,
-        selectedCategorySlug,
-        setSelectedCategorySlug,
-
-        notifications,
-        activeToast,
-        unreadNotificationsCount,
-        sendInAppNotification,
-        dismissActiveToast,
-        markAllNotificationsAsRead,
-        clearNotifications,
-
-        createServiceRequest,
-        hireProviderWithEscrow,
-        markOrderAsCompletedByProvider,
-        confirmAndReleaseEscrow,
-        verifyProviderByAdmin,
-        requestProviderPayout,
-        openDispute,
-        resolveDisputeByAdmin,
-        getAdminStats,
-      }}
-    >
+    <AppContext.Provider value={contextValue}>
       {children}
     </AppContext.Provider>
   );

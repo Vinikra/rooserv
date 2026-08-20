@@ -64,156 +64,165 @@ export const OrdersScreen: React.FC = () => {
   };
 
   return (
-    <div className="pb-28 pt-2 px-4 space-y-4 max-w-lg mx-auto">
-      <div className="flex items-center justify-between">
-        <h2 className="text-base sm:text-lg font-black text-slate-900 leading-tight">
-          {currentRole === 'provider' ? 'Serviços em Andamento' : 'Meus Pedidos & Contratos'}
-        </h2>
-        <span className="text-xs text-slate-500 font-bold bg-slate-100 px-3 py-1 rounded-xl">
+    <div className="pb-24 pt-4 px-4 sm:px-6 lg:px-8 space-y-6 max-w-7xl mx-auto w-full">
+      <div className="flex items-center justify-between border-b border-slate-200/80 pb-4">
+        <div>
+          <h2 className="text-lg sm:text-2xl font-black text-slate-900 leading-tight">
+            {currentRole === 'provider' ? 'Serviços em Andamento' : 'Meus Pedidos & Contratos'}
+          </h2>
+          <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+            Acompanhe o status do serviço e a custódia do pagamento em tempo real
+          </p>
+        </div>
+        <span className="text-xs sm:text-sm text-slate-700 font-bold bg-slate-200/70 px-3.5 py-1.5 rounded-xl">
           {`${orders.length} pedidos`}
         </span>
       </div>
 
       {orders.length === 0 ? (
-        <div className="bg-white rounded-3xl p-8 text-center border border-slate-200 shadow-sm space-y-2">
-          <p className="text-base font-extrabold text-slate-800">Nenhum serviço em andamento</p>
-          <p className="text-xs text-slate-500">
+        <div className="bg-white rounded-3xl p-12 text-center border border-slate-200 shadow-sm space-y-2">
+          <p className="text-base sm:text-lg font-extrabold text-slate-800">Nenhum serviço em andamento</p>
+          <p className="text-xs sm:text-sm text-slate-500">
             Contrate um profissional ou faça um pedido de orçamento para acompanhar por aqui.
           </p>
         </div>
       ) : (
-        orders.map((order) => {
-          const statusInfo = ORDER_STATUS_LABELS[order.status];
-          const isEscrowLocked = order.status === 'payment_in_escrow';
-          const isReadyForApproval = order.status === 'completed_by_provider';
-          const isFinished = order.status === 'approved_by_client';
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          {orders.map((order) => {
+            const statusInfo = ORDER_STATUS_LABELS[order.status];
+            const isEscrowLocked = order.status === 'payment_in_escrow';
+            const isReadyForApproval = order.status === 'completed_by_provider';
+            const isFinished = order.status === 'approved_by_client';
 
-          return (
-            <div
-              key={order.id}
-              className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-200 shadow-sm space-y-3.5"
-            >
-              {/* Header do Pedido */}
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <div>
-                  <span className="text-xs font-black text-slate-400 uppercase tracking-wider block">
-                    {order.orderNumber}
-                  </span>
-                  <h4 className="text-sm sm:text-base font-extrabold text-slate-900">
-                    {currentRole === 'provider' 
-                      ? `Cliente: ${order.client?.fullName}` 
-                      : `Profissional: ${order.provider?.profile?.fullName}`}
-                  </h4>
-                </div>
+            return (
+              <div
+                key={order.id}
+                className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-sm space-y-4 flex flex-col justify-between"
+              >
+                <div className="space-y-3.5">
+                  {/* Header do Pedido */}
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <div>
+                      <span className="text-xs font-black text-slate-400 uppercase tracking-wider block">
+                        {order.orderNumber}
+                      </span>
+                      <h4 className="text-sm sm:text-base font-extrabold text-slate-900">
+                        {currentRole === 'provider' 
+                          ? `Cliente: ${order.client?.fullName}` 
+                          : `Profissional: ${order.provider?.profile?.fullName}`}
+                      </h4>
+                    </div>
 
-                <div 
-                  className="px-3 py-1.5 rounded-full text-xs font-black flex items-center gap-2 shrink-0"
-                  style={{
-                    backgroundColor: `${statusInfo.color}15`,
-                    color: statusInfo.color,
-                  }}
-                >
-                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: statusInfo.color }} />
-                  <span>{statusInfo.label}</span>
-                </div>
-              </div>
-
-              {/* Detalhes Financeiros e Custódia */}
-              <div className="bg-slate-50 rounded-2xl p-3.5 sm:p-4 border border-slate-200/80 space-y-2.5 text-xs sm:text-sm">
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-600 font-semibold">Valor do Contrato:</span>
-                  <strong className="text-base sm:text-lg font-black text-slate-900">{formatCurrencyBRL(order.totalAmount)}</strong>
-                </div>
-
-                {isEscrowLocked && (
-                  <div className="flex items-center gap-2.5 bg-blue-50 text-blue-950 p-3 rounded-xl border border-blue-200/80 text-xs font-medium">
-                    <ShieldCheck className="w-5 h-5 text-blue-600 shrink-0" />
-                    <span>
-                      <strong>Custódia Segura RooServ:</strong> O dinheiro está protegido pela plataforma. O profissional trabalha com a certeza de pagamento garantido.
-                    </span>
-                  </div>
-                )}
-
-                {order.status === 'disputed' && (
-                  <div className="flex items-center gap-2.5 bg-red-50 text-red-950 p-3 rounded-xl border border-red-200/80 text-xs font-medium">
-                    <ShieldAlert className="w-5 h-5 text-red-600 shrink-0" />
-                    <span>
-                      {`Disputa em Mediação: Motivo "${order.disputeReason}". A gestão RooServ está intermediando o caso.`}
-                    </span>
-                  </div>
-                )}
-
-                {order.status === 'refunded' && (
-                  <div className="flex items-center gap-2.5 bg-slate-100 text-slate-900 p-3 rounded-xl border border-slate-200 text-xs font-medium">
-                    <RotateCcw className="w-5 h-5 text-slate-600 shrink-0" />
-                    <span>
-                      {`Valor Reembolsado: ${formatCurrencyBRL(order.totalAmount)} devolvidos ao morador.`}
-                    </span>
-                  </div>
-                )}
-
-                {isReadyForApproval && order.status !== 'disputed' && (
-                  <div className="flex items-center gap-2.5 bg-purple-50 text-purple-950 p-3 rounded-xl border border-purple-200 text-xs font-medium">
-                    <Clock className="w-5 h-5 text-purple-600 shrink-0" />
-                    <span>
-                      O prestador concluiu o trabalho! Revise a execução e clique em <strong>Aprovar e Liberar</strong> para transferir o valor.
-                    </span>
-                  </div>
-                )}
-
-                {isFinished && (
-                  <div className="flex items-center gap-2.5 bg-emerald-50 text-emerald-950 p-3 rounded-xl border border-emerald-200 text-xs font-medium">
-                    <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0" />
-                    <span>
-                      {`Serviço finalizado com sucesso e repasse de ${formatCurrencyBRL(order.providerPayoutAmount)} liberado ao profissional.`}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {/* Botões de Ação com Altura de Toque Ampla */}
-              <div className="flex items-center justify-between pt-1">
-                {/* Botão Reportar Problema / Disputa (Cliente) */}
-                {currentRole === 'client' && (order.status === 'payment_in_escrow' || order.status === 'completed_by_provider') && (
-                  <button
-                    type="button"
-                    onClick={() => setSelectedOrderForDispute(order)}
-                    className="text-red-600 hover:text-red-700 text-xs font-bold flex items-center gap-1.5 p-2 rounded-lg"
-                  >
-                    <AlertTriangle className="w-4 h-4" />
-                    <span>Reportar Problema</span>
-                  </button>
-                )}
-
-                <div className="flex items-center gap-2 ml-auto">
-                  {/* Ação do Prestador: Concluir serviço */}
-                  {currentRole === 'provider' && order.status === 'payment_in_escrow' && (
-                    <button
-                      type="button"
-                      onClick={() => markOrderAsCompletedByProvider(order.id)}
-                      className="bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs sm:text-sm px-4 py-3 rounded-xl transition-all shadow-md active:scale-95 flex items-center gap-2"
+                    <div 
+                      className="px-3 py-1.5 rounded-full text-xs font-black flex items-center gap-2 shrink-0"
+                      style={{
+                        backgroundColor: `${statusInfo.color}15`,
+                        color: statusInfo.color,
+                      }}
                     >
-                      <CheckCircle className="w-4 h-4" />
-                      <span>Marcar como Concluído</span>
-                    </button>
-                  )}
+                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: statusInfo.color }} />
+                      <span>{statusInfo.label}</span>
+                    </div>
+                  </div>
 
-                  {/* Ação do Cliente: Aprovar serviço e Liberar Pagamento */}
+                  {/* Detalhes Financeiros e Custódia */}
+                  <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/80 space-y-2.5 text-xs sm:text-sm">
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-600 font-semibold">Valor do Contrato:</span>
+                      <strong className="text-base sm:text-lg font-black text-slate-900">{formatCurrencyBRL(order.totalAmount)}</strong>
+                    </div>
+
+                    {isEscrowLocked && (
+                      <div className="flex items-center gap-2.5 bg-blue-50 text-blue-950 p-3 rounded-xl border border-blue-200/80 text-xs font-medium">
+                        <ShieldCheck className="w-5 h-5 text-blue-600 shrink-0" />
+                        <span>
+                          <strong>Custódia Segura RooServ:</strong> O dinheiro está protegido pela plataforma. O profissional trabalha com a certeza de pagamento garantido.
+                        </span>
+                      </div>
+                    )}
+
+                    {order.status === 'disputed' && (
+                      <div className="flex items-center gap-2.5 bg-red-50 text-red-950 p-3 rounded-xl border border-red-200/80 text-xs font-medium">
+                        <ShieldAlert className="w-5 h-5 text-red-600 shrink-0" />
+                        <span>
+                          {`Disputa em Mediação: Motivo "${order.disputeReason}". A gestão RooServ está intermediando o caso.`}
+                        </span>
+                      </div>
+                    )}
+
+                    {order.status === 'refunded' && (
+                      <div className="flex items-center gap-2.5 bg-slate-100 text-slate-900 p-3 rounded-xl border border-slate-200 text-xs font-medium">
+                        <RotateCcw className="w-5 h-5 text-slate-600 shrink-0" />
+                        <span>
+                          {`Valor Reembolsado: ${formatCurrencyBRL(order.totalAmount)} devolvidos ao morador.`}
+                        </span>
+                      </div>
+                    )}
+
+                    {isReadyForApproval && order.status !== 'disputed' && (
+                      <div className="flex items-center gap-2.5 bg-purple-50 text-purple-950 p-3 rounded-xl border border-purple-200 text-xs font-medium">
+                        <Clock className="w-5 h-5 text-purple-600 shrink-0" />
+                        <span>
+                          O prestador concluiu o trabalho! Revise a execução e clique em <strong>Aprovar e Liberar</strong> para transferir o valor.
+                        </span>
+                      </div>
+                    )}
+
+                    {isFinished && (
+                      <div className="flex items-center gap-2.5 bg-emerald-50 text-emerald-950 p-3 rounded-xl border border-emerald-200 text-xs font-medium">
+                        <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0" />
+                        <span>
+                          {`Serviço finalizado com sucesso e repasse de ${formatCurrencyBRL(order.providerPayoutAmount)} liberado ao profissional.`}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Botões de Ação */}
+                <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                  {/* Botão Reportar Problema / Disputa (Cliente) */}
                   {currentRole === 'client' && (order.status === 'payment_in_escrow' || order.status === 'completed_by_provider') && (
                     <button
                       type="button"
-                      onClick={() => setSelectedOrderForReview(order)}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs sm:text-sm px-5 py-3 rounded-xl transition-all shadow-lg shadow-emerald-500/25 active:scale-95 flex items-center gap-2"
+                      onClick={() => setSelectedOrderForDispute(order)}
+                      className="text-red-600 hover:text-red-700 text-xs sm:text-sm font-bold flex items-center gap-1.5 p-2 rounded-lg cursor-pointer"
                     >
-                      <ShieldCheck className="w-5 h-5" />
-                      <span>Aprovar e Liberar</span>
+                      <AlertTriangle className="w-4 h-4" />
+                      <span>Reportar Problema</span>
                     </button>
                   )}
+
+                  <div className="flex items-center gap-2 ml-auto">
+                    {/* Ação do Prestador: Concluir serviço */}
+                    {currentRole === 'provider' && order.status === 'payment_in_escrow' && (
+                      <button
+                        type="button"
+                        onClick={() => markOrderAsCompletedByProvider(order.id)}
+                        className="bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs sm:text-sm px-5 py-3 rounded-xl transition-all shadow-md active:scale-95 flex items-center gap-2 cursor-pointer"
+                      >
+                        <CheckCircle className="w-4 h-4" />
+                        <span>Marcar como Concluído</span>
+                      </button>
+                    )}
+
+                    {/* Ação do Cliente: Aprovar serviço e Liberar Pagamento */}
+                    {currentRole === 'client' && (order.status === 'payment_in_escrow' || order.status === 'completed_by_provider') && (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedOrderForReview(order)}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs sm:text-sm px-6 py-3.5 rounded-xl transition-all shadow-lg shadow-emerald-500/25 active:scale-95 flex items-center gap-2 cursor-pointer"
+                      >
+                        <ShieldCheck className="w-5 h-5" />
+                        <span>Aprovar e Liberar</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          );
-        })
+            );
+          })}
+        </div>
       )}
 
       {/* Modal de Avaliação e Liberação de Custódia */}
@@ -232,7 +241,7 @@ export const OrdersScreen: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setSelectedOrderForReview(null)}
-                className="text-slate-400 hover:text-slate-600 p-2"
+                className="text-slate-400 hover:text-slate-600 p-2 cursor-pointer"
               >
                 <X className="w-6 h-6" />
               </button>
@@ -249,7 +258,7 @@ export const OrdersScreen: React.FC = () => {
                     key={star}
                     type="button"
                     onClick={() => setRating(star)}
-                    className="p-1.5 text-amber-400 hover:scale-125 transition-transform active:scale-95"
+                    className="p-1.5 text-amber-400 hover:scale-125 transition-transform active:scale-95 cursor-pointer"
                   >
                     <Star
                       className={`w-9 h-9 ${
@@ -274,7 +283,7 @@ export const OrdersScreen: React.FC = () => {
                       key={tag}
                       type="button"
                       onClick={() => handleToggleTag(tag)}
-                      className={`text-xs sm:text-sm px-3.5 py-2 rounded-xl border font-bold transition-all active:scale-95 ${
+                      className={`text-xs sm:text-sm px-3.5 py-2 rounded-xl border font-bold transition-all active:scale-95 cursor-pointer ${
                         isSelected
                           ? 'bg-brand-50 border-brand-500 text-brand-800 shadow-sm ring-1 ring-brand-500'
                           : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
@@ -307,7 +316,7 @@ export const OrdersScreen: React.FC = () => {
               <button
                 type="button"
                 onClick={handleFinalizeAndRelease}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm sm:text-base py-4 px-5 rounded-2xl shadow-lg shadow-emerald-500/25 transition-all flex items-center justify-center gap-2 active:scale-95"
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm sm:text-base py-4 px-5 rounded-2xl shadow-lg shadow-emerald-500/25 transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
               >
                 <CheckCircle className="w-5 h-5" />
                 <span>{`Confirmar e Liberar ${formatCurrencyBRL(selectedOrderForReview.providerPayoutAmount)}`}</span>
@@ -338,7 +347,7 @@ export const OrdersScreen: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setSelectedOrderForDispute(null)}
-                className="text-slate-400 hover:text-slate-600 p-2"
+                className="text-slate-400 hover:text-slate-600 p-2 cursor-pointer"
               >
                 <X className="w-6 h-6" />
               </button>
@@ -386,7 +395,7 @@ export const OrdersScreen: React.FC = () => {
             <button
               type="button"
               onClick={handleConfirmDispute}
-              className="w-full bg-red-600 hover:bg-red-700 text-white font-black text-sm sm:text-base py-4 px-5 rounded-2xl shadow-lg shadow-red-500/25 transition-all flex items-center justify-center gap-2 active:scale-95 mt-2"
+              className="w-full bg-red-600 hover:bg-red-700 text-white font-black text-sm sm:text-base py-4 px-5 rounded-2xl shadow-lg shadow-red-500/25 transition-all flex items-center justify-center gap-2 active:scale-95 mt-2 cursor-pointer"
             >
               <ShieldAlert className="w-5 h-5" />
               <span>Abrir Disputa com a Moderação RooServ</span>

@@ -13,7 +13,7 @@ class NotificationSoundService {
           this.audioCtx = new AudioCtxClass();
         }
       }
-      if (this.audioCtx && this.audioCtx.state === 'suspended') {
+      if (this.audioCtx?.state === 'suspended') {
         this.audioCtx.resume();
       }
       return this.audioCtx;
@@ -25,7 +25,7 @@ class NotificationSoundService {
   // Toca o chime característico de notificação in-app (Dois tons harmônicos)
   public playChime(type: 'order' | 'message' | 'payment' | 'system' | 'proposal' = 'system') {
     // 1. Feedback Háptico (Vibração no celular)
-    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
       try {
         if (type === 'payment' || type === 'order') {
           navigator.vibrate([100, 50, 150]);
@@ -56,7 +56,7 @@ class NotificationSoundService {
         freq2 = 987.77; // B5
       } else if (type === 'message') {
         freq1 = 440.00; // A4
-        freq2 = 880.00; // A5
+        freq2 = 659.25; // E5
       }
 
       // Primeiro Tom

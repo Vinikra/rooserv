@@ -113,85 +113,89 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-start sm:py-6">
-      <div className="w-full sm:max-w-md bg-slate-100 min-h-screen sm:min-h-[850px] sm:max-h-[900px] sm:rounded-[36px] flex flex-col overflow-hidden shadow-2xl relative border sm:border-slate-800">
-        <PWAInstallBanner />
+    <div className="min-h-screen bg-slate-100/70 flex flex-col text-slate-900">
+      <PWAInstallBanner />
 
-        {/* Uber-style Real-time In-App Notification Banner */}
-        <InAppToast
-          notification={activeToast}
-          onClose={dismissActiveToast}
-          onNavigate={(tab) => {
-            setActiveTab(tab);
-            dismissActiveToast();
+      {/* Real-time In-App Notification Toast */}
+      <InAppToast
+        notification={activeToast}
+        onClose={dismissActiveToast}
+        onNavigate={(tab) => {
+          setActiveTab(tab);
+          dismissActiveToast();
+        }}
+      />
+
+      {/* Header com Navegação Integrada (Desktop + Mobile) */}
+      {!activeChatPartner && !isOnboardingOpen && (
+        <Header
+          onOpenAuth={() => setIsAuthOpen(true)}
+          onOpenNotifications={() => setIsNotificationsOpen(true)}
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+        />
+      )}
+
+      {/* Container Principal Fluido e Responsivo */}
+      <main className="flex-1 w-full flex flex-col">
+        {renderMainContent()}
+      </main>
+
+      {/* Barra Inferior exclusiva para Dispositivos Móveis (Oculta no Desktop) */}
+      {!activeChatPartner && !isOnboardingOpen && (
+        <BottomTabs activeTab={activeTab} setActiveTab={setActiveTab} />
+      )}
+
+      {/* Modais Globais com Backdrop e Centralização Responsiva */}
+      {selectedProvider && (
+        <ProviderProfileModal
+          provider={selectedProvider}
+          onClose={() => setSelectedProvider(null)}
+          onStartCheckout={handleStartCheckout}
+          onOpenChat={(p) => {
+            setSelectedProvider(null);
+            setActiveChatPartner({
+              id: p.id,
+              name: p.profile?.fullName || 'Profissional',
+              avatarUrl: p.profile?.avatarUrl,
+              role: 'provider',
+              subtitle: `${p.categories[0]?.name || 'Serviços'} • ${p.profile?.neighborhood || 'Roo'}`,
+            });
           }}
         />
+      )}
 
-        {!activeChatPartner && !isOnboardingOpen && (
-          <Header
-            onOpenAuth={() => setIsAuthOpen(true)}
-            onOpenNotifications={() => setIsNotificationsOpen(true)}
-          />
-        )}
+      {checkoutProvider && (
+        <CheckoutModal
+          provider={checkoutProvider}
+          onClose={() => setCheckoutProvider(null)}
+          onSuccess={() => {
+            setCheckoutProvider(null);
+            setActiveTab('orders');
+          }}
+        />
+      )}
 
-        <main className="flex-1 overflow-y-auto flex flex-col">
-          {renderMainContent()}
-        </main>
+      {isAuthOpen && (
+        <AuthModal
+          onClose={() => setIsAuthOpen(false)}
+          onSuccess={() => setIsAuthOpen(false)}
+        />
+      )}
 
-        {!activeChatPartner && !isOnboardingOpen && (
-          <BottomTabs activeTab={activeTab} setActiveTab={setActiveTab} />
-        )}
+      {isNotificationsOpen && (
+        <NotificationModal
+          isOpen={isNotificationsOpen}
+          onClose={() => setIsNotificationsOpen(false)}
+          onSelectNotification={(tab) => {
+            setActiveTab(tab);
+            setIsNotificationsOpen(false);
+          }}
+        />
+      )}
 
-        {selectedProvider && (
-          <ProviderProfileModal
-            provider={selectedProvider}
-            onClose={() => setSelectedProvider(null)}
-            onStartCheckout={handleStartCheckout}
-            onOpenChat={(p) => {
-              setSelectedProvider(null);
-              setActiveChatPartner({
-                id: p.id,
-                name: p.profile?.fullName || 'Profissional',
-                avatarUrl: p.profile?.avatarUrl,
-                role: 'provider',
-                subtitle: `${p.categories[0]?.name || 'Serviços'} • ${p.profile?.neighborhood || 'Roo'}`,
-              });
-            }}
-          />
-        )}
-
-        {checkoutProvider && (
-          <CheckoutModal
-            provider={checkoutProvider}
-            onClose={() => setCheckoutProvider(null)}
-            onSuccess={() => {
-              setCheckoutProvider(null);
-              setActiveTab('orders');
-            }}
-          />
-        )}
-
-        {isAuthOpen && (
-          <AuthModal
-            onClose={() => setIsAuthOpen(false)}
-            onSuccess={() => setIsAuthOpen(false)}
-          />
-        )}
-
-        {isNotificationsOpen && (
-          <NotificationModal
-            isOpen={isNotificationsOpen}
-            onClose={() => setIsNotificationsOpen(false)}
-            onSelectNotification={(tab) => {
-              setActiveTab(tab);
-              setIsNotificationsOpen(false);
-            }}
-          />
-        )}
-
-        {isTermsOpen && <TermsModal onClose={() => setIsTermsOpen(false)} />}
-        {isReferralOpen && <ReferralModal onClose={() => setIsReferralOpen(false)} />}
-      </div>
+      {isTermsOpen && <TermsModal onClose={() => setIsTermsOpen(false)} />}
+      {isReferralOpen && <ReferralModal onClose={() => setIsReferralOpen(false)} />}
     </div>
   );
 };

@@ -388,12 +388,12 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
   );
 
   return (
-    <div className="pb-24 pt-2 px-4 space-y-4 max-w-md mx-auto min-h-full">
-      <div className="flex items-center justify-between">
+    <div className="pb-24 pt-4 px-4 sm:px-6 lg:px-8 space-y-6 max-w-2xl mx-auto w-full min-h-full">
+      <div className="flex items-center justify-between border-b border-slate-200/80 pb-3">
         <button
           type="button"
           onClick={step > 1 ? () => setStep(step - 1) : onCancel}
-          className="p-1.5 text-slate-500 hover:text-slate-900 rounded-lg transition-colors flex items-center gap-1 text-xs font-semibold"
+          className="p-2 text-slate-500 hover:text-slate-900 rounded-xl transition-colors flex items-center gap-1.5 text-xs sm:text-sm font-bold cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>{step > 1 ? 'Voltar' : 'Cancelar'}</span>

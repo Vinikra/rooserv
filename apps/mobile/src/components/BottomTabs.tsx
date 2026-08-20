@@ -27,7 +27,7 @@ export const BottomTabs: React.FC<BottomTabsProps> = ({ activeTab, setActiveTab 
 
   if (currentRole === 'provider') {
     return (
-      <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white border-t border-slate-200/90 py-2.5 px-3 flex items-center justify-around z-30 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white border-t border-slate-200/90 py-2.5 px-3 flex items-center justify-around z-30 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">
         <button
           type="button"
           onClick={() => setActiveTab('provider_dashboard')}
@@ -89,7 +89,7 @@ export const BottomTabs: React.FC<BottomTabsProps> = ({ activeTab, setActiveTab 
   }
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white border-t border-slate-200/90 py-2.5 px-3 flex items-center justify-around z-30 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white border-t border-slate-200/90 py-2.5 px-3 flex items-center justify-around z-30 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">
       <button
         type="button"
         onClick={() => setActiveTab('explore')}
