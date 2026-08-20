@@ -64,21 +64,21 @@ export const OrdersScreen: React.FC = () => {
   };
 
   return (
-    <div className="pb-24 pt-2 px-4 space-y-4">
+    <div className="pb-28 pt-2 px-4 space-y-4 max-w-lg mx-auto">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+        <h2 className="text-base sm:text-lg font-black text-slate-900 leading-tight">
           {currentRole === 'provider' ? 'Serviços em Andamento' : 'Meus Pedidos & Contratos'}
         </h2>
-        <span className="text-xs text-slate-500 font-medium">
-          {orders.length} pedidos
+        <span className="text-xs text-slate-500 font-bold bg-slate-100 px-3 py-1 rounded-xl">
+          {`${orders.length} pedidos`}
         </span>
       </div>
 
       {orders.length === 0 ? (
-        <div className="bg-white rounded-2xl p-8 text-center border border-slate-200 shadow-sm">
-          <p className="text-sm font-semibold text-slate-700 mb-1">Nenhum serviço em andamento</p>
+        <div className="bg-white rounded-3xl p-8 text-center border border-slate-200 shadow-sm space-y-2">
+          <p className="text-base font-extrabold text-slate-800">Nenhum serviço em andamento</p>
           <p className="text-xs text-slate-500">
-            Contrate um profissional ou faça um pedido para acompanhar por aqui.
+            Contrate um profissional ou faça um pedido de orçamento para acompanhar por aqui.
           </p>
         </div>
       ) : (
@@ -91,15 +91,15 @@ export const OrdersScreen: React.FC = () => {
           return (
             <div
               key={order.id}
-              className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3.5"
+              className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-200 shadow-sm space-y-3.5"
             >
               {/* Header do Pedido */}
-              <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  <span className="text-xs font-black text-slate-400 uppercase tracking-wider block">
                     {order.orderNumber}
                   </span>
-                  <h4 className="text-xs font-bold text-slate-900">
+                  <h4 className="text-sm sm:text-base font-extrabold text-slate-900">
                     {currentRole === 'provider' 
                       ? `Cliente: ${order.client?.fullName}` 
                       : `Profissional: ${order.provider?.profile?.fullName}`}
@@ -107,81 +107,81 @@ export const OrdersScreen: React.FC = () => {
                 </div>
 
                 <div 
-                  className="px-2.5 py-1 rounded-full text-[11px] font-bold flex items-center gap-1.5"
+                  className="px-3 py-1.5 rounded-full text-xs font-black flex items-center gap-2 shrink-0"
                   style={{
                     backgroundColor: `${statusInfo.color}15`,
                     color: statusInfo.color,
                   }}
                 >
-                  <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: statusInfo.color }} />
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: statusInfo.color }} />
                   <span>{statusInfo.label}</span>
                 </div>
               </div>
 
               {/* Detalhes Financeiros e Custódia */}
-              <div className="bg-slate-50 rounded-xl p-3 border border-slate-200/80 space-y-2 text-xs">
+              <div className="bg-slate-50 rounded-2xl p-3.5 sm:p-4 border border-slate-200/80 space-y-2.5 text-xs sm:text-sm">
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-600 font-medium">Valor do Contrato:</span>
-                  <strong className="text-sm text-slate-900">{formatCurrencyBRL(order.totalAmount)}</strong>
+                  <span className="text-slate-600 font-semibold">Valor do Contrato:</span>
+                  <strong className="text-base sm:text-lg font-black text-slate-900">{formatCurrencyBRL(order.totalAmount)}</strong>
                 </div>
 
                 {isEscrowLocked && (
-                  <div className="flex items-center gap-2 bg-blue-50 text-blue-900 p-2 rounded-lg border border-blue-200/60 text-[11px]">
-                    <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0" />
+                  <div className="flex items-center gap-2.5 bg-blue-50 text-blue-950 p-3 rounded-xl border border-blue-200/80 text-xs font-medium">
+                    <ShieldCheck className="w-5 h-5 text-blue-600 shrink-0" />
                     <span>
-                      <strong>Custódia Ativa:</strong> O valor está retido com segurança. O prestador executará o serviço sabendo que o dinheiro já está garantido.
+                      <strong>Custódia Segura RooServ:</strong> O dinheiro está protegido pela plataforma. O profissional trabalha com a certeza de pagamento garantido.
                     </span>
                   </div>
                 )}
 
                 {order.status === 'disputed' && (
-                  <div className="flex items-center gap-2 bg-red-50 text-red-900 p-2 rounded-lg border border-red-200/80 text-[11px]">
-                    <ShieldAlert className="w-4 h-4 text-red-600 shrink-0" />
+                  <div className="flex items-center gap-2.5 bg-red-50 text-red-950 p-3 rounded-xl border border-red-200/80 text-xs font-medium">
+                    <ShieldAlert className="w-5 h-5 text-red-600 shrink-0" />
                     <span>
-                      <strong>Disputa em Mediação:</strong> Motivo: "{order.disputeReason}". A equipe RooServ está analisando para liberação ou reembolso.
+                      {`Disputa em Mediação: Motivo "${order.disputeReason}". A gestão RooServ está intermediando o caso.`}
                     </span>
                   </div>
                 )}
 
                 {order.status === 'refunded' && (
-                  <div className="flex items-center gap-2 bg-slate-100 text-slate-800 p-2 rounded-lg border border-slate-200 text-[11px]">
-                    <RotateCcw className="w-4 h-4 text-slate-600 shrink-0" />
+                  <div className="flex items-center gap-2.5 bg-slate-100 text-slate-900 p-3 rounded-xl border border-slate-200 text-xs font-medium">
+                    <RotateCcw className="w-5 h-5 text-slate-600 shrink-0" />
                     <span>
-                      <strong>Valor Reembolsado:</strong> {formatCurrencyBRL(order.totalAmount)} devolvidos ao contratante.
+                      {`Valor Reembolsado: ${formatCurrencyBRL(order.totalAmount)} devolvidos ao morador.`}
                     </span>
                   </div>
                 )}
 
                 {isReadyForApproval && order.status !== 'disputed' && (
-                  <div className="flex items-center gap-2 bg-purple-50 text-purple-900 p-2 rounded-lg border border-purple-200/60 text-[11px]">
-                    <Clock className="w-4 h-4 text-purple-600 shrink-0" />
+                  <div className="flex items-center gap-2.5 bg-purple-50 text-purple-950 p-3 rounded-xl border border-purple-200 text-xs font-medium">
+                    <Clock className="w-5 h-5 text-purple-600 shrink-0" />
                     <span>
-                      O prestador concluiu o trabalho! Revise e clique em <strong>Aprovar e Liberar</strong> para liberar o repasse.
+                      O prestador concluiu o trabalho! Revise a execução e clique em <strong>Aprovar e Liberar</strong> para transferir o valor.
                     </span>
                   </div>
                 )}
 
                 {isFinished && (
-                  <div className="flex items-center gap-2 bg-emerald-50 text-emerald-900 p-2 rounded-lg border border-emerald-200/60 text-[11px]">
-                    <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <div className="flex items-center gap-2.5 bg-emerald-50 text-emerald-950 p-3 rounded-xl border border-emerald-200 text-xs font-medium">
+                    <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0" />
                     <span>
-                      Serviço concluído e repasse de <strong>{formatCurrencyBRL(order.providerPayoutAmount)}</strong> creditado na carteira do profissional.
+                      {`Serviço finalizado com sucesso e repasse de ${formatCurrencyBRL(order.providerPayoutAmount)} liberado ao profissional.`}
                     </span>
                   </div>
                 )}
               </div>
 
-              {/* Botões de Ação */}
+              {/* Botões de Ação com Altura de Toque Ampla */}
               <div className="flex items-center justify-between pt-1">
                 {/* Botão Reportar Problema / Disputa (Cliente) */}
                 {currentRole === 'client' && (order.status === 'payment_in_escrow' || order.status === 'completed_by_provider') && (
                   <button
                     type="button"
                     onClick={() => setSelectedOrderForDispute(order)}
-                    className="text-red-600 hover:text-red-700 text-xs font-semibold flex items-center gap-1 hover:underline p-1"
+                    className="text-red-600 hover:text-red-700 text-xs font-bold flex items-center gap-1.5 p-2 rounded-lg"
                   >
-                    <AlertTriangle className="w-3.5 h-3.5" />
-                    <span>Problema?</span>
+                    <AlertTriangle className="w-4 h-4" />
+                    <span>Reportar Problema</span>
                   </button>
                 )}
 
@@ -191,9 +191,9 @@ export const OrdersScreen: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => markOrderAsCompletedByProvider(order.id)}
-                      className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl transition-all shadow-sm active:scale-95 flex items-center gap-1.5"
+                      className="bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs sm:text-sm px-4 py-3 rounded-xl transition-all shadow-md active:scale-95 flex items-center gap-2"
                     >
-                      <CheckCircle className="w-3.5 h-3.5" />
+                      <CheckCircle className="w-4 h-4" />
                       <span>Marcar como Concluído</span>
                     </button>
                   )}
@@ -203,9 +203,9 @@ export const OrdersScreen: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setSelectedOrderForReview(order)}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-all shadow-md shadow-emerald-500/20 active:scale-95 flex items-center gap-1.5"
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs sm:text-sm px-5 py-3 rounded-xl transition-all shadow-lg shadow-emerald-500/25 active:scale-95 flex items-center gap-2"
                     >
-                      <ShieldCheck className="w-4 h-4" />
+                      <ShieldCheck className="w-5 h-5" />
                       <span>Aprovar e Liberar</span>
                     </button>
                   )}
@@ -218,41 +218,41 @@ export const OrdersScreen: React.FC = () => {
 
       {/* Modal de Avaliação e Liberação de Custódia */}
       {selectedOrderForReview && (
-        <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200">
-          <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div className="fixed inset-0 z-50 bg-slate-900/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
               <div>
-                <h3 className="text-sm font-bold text-slate-900">
+                <h3 className="text-base sm:text-lg font-black text-slate-900">
                   Avaliar e Liberar Pagamento
                 </h3>
-                <p className="text-xs text-slate-500">
-                  Profissional: {selectedOrderForReview.provider?.profile?.fullName}
+                <p className="text-xs text-slate-500 font-medium">
+                  {`Profissional: ${selectedOrderForReview.provider?.profile?.fullName}`}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setSelectedOrderForReview(null)}
-                className="text-slate-400 hover:text-slate-600 p-1"
+                className="text-slate-400 hover:text-slate-600 p-2"
               >
-                <X className="w-5 h-5" />
+                <X className="w-6 h-6" />
               </button>
             </div>
 
             {/* Estrelas */}
-            <div className="text-center py-2 space-y-1">
-              <span className="text-xs font-semibold text-slate-700 block">
+            <div className="text-center py-3 space-y-2 bg-amber-50/50 rounded-2xl border border-amber-200/60 p-4">
+              <span className="text-xs sm:text-sm font-extrabold text-slate-800 block">
                 Que nota você dá para o serviço executado?
               </span>
-              <div className="flex items-center justify-center gap-2">
+              <div className="flex items-center justify-center gap-3">
                 {[1, 2, 3, 4, 5].map((star) => (
                   <button
                     key={star}
                     type="button"
                     onClick={() => setRating(star)}
-                    className="p-1 text-amber-400 hover:scale-110 transition-transform"
+                    className="p-1.5 text-amber-400 hover:scale-125 transition-transform active:scale-95"
                   >
                     <Star
-                      className={`w-7 h-7 ${
+                      className={`w-9 h-9 ${
                         star <= rating ? 'fill-amber-400 text-amber-400' : 'text-slate-300'
                       }`}
                     />
@@ -263,10 +263,10 @@ export const OrdersScreen: React.FC = () => {
 
             {/* Tags de Elogio / Qualidade */}
             <div>
-              <span className="text-xs font-semibold text-slate-700 block mb-1.5">
+              <span className="text-xs sm:text-sm font-extrabold text-slate-800 block mb-2">
                 Destaques do profissional:
               </span>
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap gap-2">
                 {SUGGESTED_REVIEW_TAGS.map((tag) => {
                   const isSelected = selectedTags.includes(tag);
                   return (
@@ -274,14 +274,13 @@ export const OrdersScreen: React.FC = () => {
                       key={tag}
                       type="button"
                       onClick={() => handleToggleTag(tag)}
-                      className={`text-xs px-2.5 py-1 rounded-lg border font-medium transition-all ${
+                      className={`text-xs sm:text-sm px-3.5 py-2 rounded-xl border font-bold transition-all active:scale-95 ${
                         isSelected
-                          ? 'bg-brand-50 border-brand-500 text-brand-700 font-semibold'
-                          : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                          ? 'bg-brand-50 border-brand-500 text-brand-800 shadow-sm ring-1 ring-brand-500'
+                          : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
                       }`}
                     >
-                      {isSelected ? '✓ ' : '+ '}
-                      {tag}
+                      {isSelected ? `✓ ${tag}` : `+ ${tag}`}
                     </button>
                   );
                 })}
@@ -290,16 +289,16 @@ export const OrdersScreen: React.FC = () => {
 
             {/* Comentário */}
             <div>
-              <label htmlFor="review-comment" className="text-xs font-semibold text-slate-700 block mb-1">
-                Deixe um comentário para os outros moradores da cidade:
+              <label htmlFor="review-comment" className="text-xs sm:text-sm font-extrabold text-slate-800 block mb-1.5">
+                Deixe um comentário para os outros moradores de Rondonópolis:
               </label>
               <textarea
                 id="review-comment"
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
-                placeholder="Ex: O profissional chegou na hora, fez o trabalho perfeito e deixou tudo limpo..."
+                placeholder="Ex: O profissional chegou pontualmente, fez o serviço com muito capricho e limpou tudo ao final..."
                 rows={3}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs focus:outline-none focus:border-brand-500"
+                className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-3.5 text-sm sm:text-base text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-brand-500"
               />
             </div>
 
@@ -308,10 +307,10 @@ export const OrdersScreen: React.FC = () => {
               <button
                 type="button"
                 onClick={handleFinalizeAndRelease}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-3 px-4 rounded-xl shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 active:scale-95"
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm sm:text-base py-4 px-5 rounded-2xl shadow-lg shadow-emerald-500/25 transition-all flex items-center justify-center gap-2 active:scale-95"
               >
-                <CheckCircle className="w-4 h-4" />
-                <span>Confirmar e Liberar {formatCurrencyBRL(selectedOrderForReview.providerPayoutAmount)}</span>
+                <CheckCircle className="w-5 h-5" />
+                <span>{`Confirmar e Liberar ${formatCurrencyBRL(selectedOrderForReview.providerPayoutAmount)}`}</span>
               </button>
             </div>
           </div>
@@ -320,44 +319,48 @@ export const OrdersScreen: React.FC = () => {
 
       {/* Modal de Abertura de Disputa / Problema */}
       {selectedOrderForDispute && (
-        <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200">
-          <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <div className="p-2 bg-red-50 text-red-600 rounded-xl">
-                  <ShieldAlert className="w-5 h-5" />
+        <div className="fixed inset-0 z-50 bg-slate-900/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2.5 bg-red-50 text-red-600 rounded-2xl">
+                  <ShieldAlert className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-slate-900">
+                  <h3 className="text-base sm:text-lg font-black text-slate-900">
                     Reportar Problema no Serviço
                   </h3>
-                  <p className="text-xs text-slate-500">
-                    Pedido: {selectedOrderForDispute.orderNumber}
+                  <p className="text-xs text-slate-500 font-medium">
+                    {`Pedido: ${selectedOrderForDispute.orderNumber}`}
                   </p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setSelectedOrderForDispute(null)}
-                className="text-slate-400 hover:text-slate-600 p-1"
+                className="text-slate-400 hover:text-slate-600 p-2"
               >
-                <X className="w-5 h-5" />
+                <X className="w-6 h-6" />
               </button>
             </div>
 
-            <div className="bg-amber-50 p-3 rounded-2xl border border-amber-200 text-xs text-amber-900 leading-relaxed">
-              O pagamento de <strong>{formatCurrencyBRL(selectedOrderForDispute.totalAmount)}</strong> continuará <strong>bloqueado em custódia segura</strong> enquanto nossa moderação analisa a situação.
+            <div className="bg-amber-50 p-4 rounded-2xl border border-amber-200 text-xs sm:text-sm text-amber-950 leading-relaxed font-medium">
+              <span>O pagamento de </span>
+              <strong>{formatCurrencyBRL(selectedOrderForDispute.totalAmount)}</strong>
+              <span> continuará </span>
+              <strong>bloqueado sob custódia segura</strong>
+              <span> enquanto a moderação analisa o caso.</span>
             </div>
 
             <div>
-              <label htmlFor="dispute-reason" className="block text-xs font-bold text-slate-700 mb-1">
+              <label htmlFor="dispute-reason" className="block text-xs sm:text-sm font-extrabold text-slate-800 mb-1.5">
                 Qual o motivo principal?
               </label>
               <select
                 id="dispute-reason"
                 value={disputeReason}
                 onChange={(e) => setDisputeReason(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 font-medium focus:outline-none focus:border-red-500"
+                className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-3.5 text-sm sm:text-base text-slate-900 font-bold focus:outline-none focus:border-red-500"
               >
                 <option value="Prestador não compareceu no endereço">Prestador não compareceu no endereço</option>
                 <option value="Serviço incompleto ou com defeito">Serviço incompleto ou com defeito</option>
@@ -367,25 +370,25 @@ export const OrdersScreen: React.FC = () => {
             </div>
 
             <div>
-              <label htmlFor="dispute-details" className="block text-xs font-bold text-slate-700 mb-1">
+              <label htmlFor="dispute-details" className="block text-xs sm:text-sm font-extrabold text-slate-800 mb-1.5">
                 Descreva detalhadamente o ocorrido:
               </label>
               <textarea
                 id="dispute-details"
                 value={disputeDetails}
                 onChange={(e) => setDisputeDetails(e.target.value)}
-                placeholder="Ex: O profissional agendou para as 14h na Vila Aurora mas não veio e não atendeu as mensagens..."
+                placeholder="Ex: O profissional agendou para as 14h mas não veio e não respondeu as mensagens..."
                 rows={3}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs focus:outline-none focus:border-red-500"
+                className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-3.5 text-sm sm:text-base text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-red-500"
               />
             </div>
 
             <button
               type="button"
               onClick={handleConfirmDispute}
-              className="w-full bg-red-600 hover:bg-red-700 text-white font-bold text-xs py-3 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 active:scale-95"
+              className="w-full bg-red-600 hover:bg-red-700 text-white font-black text-sm sm:text-base py-4 px-5 rounded-2xl shadow-lg shadow-red-500/25 transition-all flex items-center justify-center gap-2 active:scale-95 mt-2"
             >
-              <ShieldAlert className="w-4 h-4" />
+              <ShieldAlert className="w-5 h-5" />
               <span>Abrir Disputa com a Moderação RooServ</span>
             </button>
           </div>

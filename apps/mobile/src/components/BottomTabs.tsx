@@ -27,29 +27,29 @@ export const BottomTabs: React.FC<BottomTabsProps> = ({ activeTab, setActiveTab 
 
   if (currentRole === 'provider') {
     return (
-      <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white border-t border-slate-200 py-2 px-4 flex items-center justify-around z-30 shadow-lg">
+      <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white border-t border-slate-200/90 py-2.5 px-3 flex items-center justify-around z-30 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">
         <button
           type="button"
           onClick={() => setActiveTab('provider_dashboard')}
-          className={`flex flex-col items-center gap-1 text-[11px] font-medium transition-colors ${
-            activeTab === 'provider_dashboard' ? 'text-amber-600 font-bold' : 'text-slate-500 hover:text-slate-800'
+          className={`flex-1 py-1.5 flex flex-col items-center gap-1 text-xs font-bold transition-all active:scale-95 ${
+            activeTab === 'provider_dashboard' ? 'text-amber-600 font-extrabold' : 'text-slate-500 hover:text-slate-800'
           }`}
         >
-          <Wallet className="w-5 h-5" />
+          <Wallet className="w-6 h-6" />
           <span>Carteira</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab('provider_leads')}
-          className={`flex flex-col items-center gap-1 text-[11px] font-medium relative transition-colors ${
-            activeTab === 'provider_leads' ? 'text-amber-600 font-bold' : 'text-slate-500 hover:text-slate-800'
+          className={`flex-1 py-1.5 flex flex-col items-center gap-1 text-xs font-bold relative transition-all active:scale-95 ${
+            activeTab === 'provider_leads' ? 'text-amber-600 font-extrabold' : 'text-slate-500 hover:text-slate-800'
           }`}
         >
-          <Inbox className="w-5 h-5" />
+          <Inbox className="w-6 h-6" />
           <span>Oportunidades</span>
           {requests.length > 0 && (
-            <span className="absolute -top-1 right-2 bg-amber-500 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-bold">
+            <span className="absolute top-0 right-4 bg-amber-500 text-slate-950 text-[10px] w-4.5 h-4.5 rounded-full flex items-center justify-center font-black shadow-xs">
               {requests.length}
             </span>
           )}
@@ -58,13 +58,13 @@ export const BottomTabs: React.FC<BottomTabsProps> = ({ activeTab, setActiveTab 
         <button
           type="button"
           onClick={() => setActiveTab('messages')}
-          className={`flex flex-col items-center gap-1 text-[11px] font-medium relative transition-colors ${
-            activeTab === 'messages' ? 'text-amber-600 font-bold' : 'text-slate-500 hover:text-slate-800'
+          className={`flex-1 py-1.5 flex flex-col items-center gap-1 text-xs font-bold relative transition-all active:scale-95 ${
+            activeTab === 'messages' ? 'text-amber-600 font-extrabold' : 'text-slate-500 hover:text-slate-800'
           }`}
         >
-          <MessageSquare className="w-5 h-5" />
+          <MessageSquare className="w-6 h-6" />
           <span>Chat</span>
-          <span className="absolute -top-1 right-1 bg-brand-600 text-white text-[9px] w-3.5 h-3.5 rounded-full flex items-center justify-center font-bold">
+          <span className="absolute top-0 right-5 bg-brand-600 text-white text-[10px] w-4.5 h-4.5 rounded-full flex items-center justify-center font-black">
             1
           </span>
         </button>
@@ -72,14 +72,14 @@ export const BottomTabs: React.FC<BottomTabsProps> = ({ activeTab, setActiveTab 
         <button
           type="button"
           onClick={() => setActiveTab('orders')}
-          className={`flex flex-col items-center gap-1 text-[11px] font-medium relative transition-colors ${
-            activeTab === 'orders' ? 'text-amber-600 font-bold' : 'text-slate-500 hover:text-slate-800'
+          className={`flex-1 py-1.5 flex flex-col items-center gap-1 text-xs font-bold relative transition-all active:scale-95 ${
+            activeTab === 'orders' ? 'text-amber-600 font-extrabold' : 'text-slate-500 hover:text-slate-800'
           }`}
         >
-          <FileText className="w-5 h-5" />
+          <FileText className="w-6 h-6" />
           <span>Serviços</span>
           {activeOrdersCount > 0 && (
-            <span className="absolute -top-1 right-1 bg-brand-600 text-white text-[9px] w-3.5 h-3.5 rounded-full flex items-center justify-center font-bold">
+            <span className="absolute top-0 right-4 bg-brand-600 text-white text-[10px] w-4.5 h-4.5 rounded-full flex items-center justify-center font-black">
               {activeOrdersCount}
             </span>
           )}
@@ -89,54 +89,55 @@ export const BottomTabs: React.FC<BottomTabsProps> = ({ activeTab, setActiveTab 
   }
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white border-t border-slate-200 py-2 px-4 flex items-center justify-between z-30 shadow-lg">
+    <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white border-t border-slate-200/90 py-2.5 px-3 flex items-center justify-around z-30 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">
       <button
         type="button"
         onClick={() => setActiveTab('explore')}
-        className={`flex flex-col items-center gap-1 text-[11px] font-medium transition-colors ${
-          activeTab === 'explore' ? 'text-brand-600 font-bold' : 'text-slate-500 hover:text-slate-800'
+        className={`flex-1 py-1.5 flex flex-col items-center gap-1 text-xs font-bold transition-all active:scale-95 ${
+          activeTab === 'explore' ? 'text-brand-600 font-extrabold' : 'text-slate-500 hover:text-slate-800'
         }`}
       >
-        <Compass className="w-5 h-5" />
-        <span>Explorar</span>
+        <Compass className="w-6 h-6" />
+        <span>Início</span>
       </button>
 
       <button
         type="button"
         onClick={() => setActiveTab('messages')}
-        className={`flex flex-col items-center gap-1 text-[11px] font-medium relative transition-colors ${
-          activeTab === 'messages' ? 'text-brand-600 font-bold' : 'text-slate-500 hover:text-slate-800'
+        className={`flex-1 py-1.5 flex flex-col items-center gap-1 text-xs font-bold relative transition-all active:scale-95 ${
+          activeTab === 'messages' ? 'text-brand-600 font-extrabold' : 'text-slate-500 hover:text-slate-800'
         }`}
       >
-        <MessageSquare className="w-5 h-5" />
-        <span>Chat</span>
-        <span className="absolute -top-1 right-1 bg-brand-600 text-white text-[9px] w-3.5 h-3.5 rounded-full flex items-center justify-center font-bold">
+        <MessageSquare className="w-6 h-6" />
+        <span>Mensagens</span>
+        <span className="absolute top-0 right-5 bg-brand-600 text-white text-[10px] w-4.5 h-4.5 rounded-full flex items-center justify-center font-black">
           1
         </span>
       </button>
 
+      {/* Botão Central de Destaque para Pedir Orçamento */}
       <button
         type="button"
         onClick={() => setActiveTab('new_request')}
-        className="flex flex-col items-center gap-0.5 -mt-4"
+        className="flex-1 flex flex-col items-center gap-0.5 -mt-6 active:scale-90 transition-transform"
       >
-        <div className="w-11 h-11 rounded-full bg-brand-600 text-white flex items-center justify-center shadow-lg shadow-brand-500/30 hover:bg-brand-700 transition-transform active:scale-95">
-          <PlusCircle className="w-6 h-6" />
+        <div className="w-13 h-13 rounded-2xl bg-gradient-to-tr from-brand-600 to-indigo-600 text-white flex items-center justify-center shadow-lg shadow-brand-500/40 border-2 border-white">
+          <PlusCircle className="w-7 h-7" />
         </div>
-        <span className="text-[10px] font-bold text-brand-600">Pedir</span>
+        <span className="text-xs font-black text-brand-600">Pedir</span>
       </button>
 
       <button
         type="button"
         onClick={() => setActiveTab('orders')}
-        className={`flex flex-col items-center gap-1 text-[11px] font-medium relative transition-colors ${
-          activeTab === 'orders' ? 'text-brand-600 font-bold' : 'text-slate-500 hover:text-slate-800'
+        className={`flex-1 py-1.5 flex flex-col items-center gap-1 text-xs font-bold relative transition-all active:scale-95 ${
+          activeTab === 'orders' ? 'text-brand-600 font-extrabold' : 'text-slate-500 hover:text-slate-800'
         }`}
       >
-        <FileText className="w-5 h-5" />
-        <span>Pedidos</span>
+        <FileText className="w-6 h-6" />
+        <span>Meus Pedidos</span>
         {activeOrdersCount > 0 && (
-          <span className="absolute -top-1 right-1 bg-brand-600 text-white text-[9px] w-3.5 h-3.5 rounded-full flex items-center justify-center font-bold">
+          <span className="absolute top-0 right-4 bg-brand-600 text-white text-[10px] w-4.5 h-4.5 rounded-full flex items-center justify-center font-black">
             {activeOrdersCount}
           </span>
         )}
