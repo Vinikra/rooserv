@@ -36,7 +36,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
 
   const savedProviderData = (() => {
     try {
-      const raw = localStorage.getItem(`rooserv_provider_data_${currentUser?.id}`);
+      const byId = currentUser?.id ? localStorage.getItem(`rooserv_provider_data_${currentUser.id}`) : null;
+      const byEmail = currentUser?.email ? localStorage.getItem(`rooserv_provider_data_${currentUser.email.toLowerCase()}`) : null;
+      const raw = byId || byEmail;
       if (raw) return JSON.parse(raw);
     } catch {}
     return null;

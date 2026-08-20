@@ -505,6 +505,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, error: 'Senha de administrador incorreta.' };
     }
 
+    let foundUser: UserProfile | null = null;
+
     // 2. Tenta autenticar via Supabase Auth
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -520,62 +522,127 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           .single();
 
         if (dbProfile) {
-          const user: UserProfile = {
-            id: dbProfile.id,
-            role: dbProfile.role || 'client',
-            fullName: dbProfile.full_name || 'Usuário RooServ',
-            email: dbProfile.email,
-            phone: dbProfile.phone || '',
-            neighborhood: dbProfile.neighborhood || 'Centro',
-            city: dbProfile.city || 'Rondonópolis',
-            state: dbProfile.state || 'MT',
-            avatarUrl: dbProfile.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
-            isActive: true,
-            createdAt: dbProfile.created_at || new Date().toISOString(),
-          };
-          setCurrentUser(user);
-          setCurrentRole(user.role);
-          sendInAppNotification({
-            title: `👋 Bem-vindo(a), ${user.fullName.split(' ')[0]}!`,
-            message: 'Você está conectado à plataforma RooServ Rondonópolis.',
-            type: 'system',
-          });
-          return { success: true, user };
+          foundUser = mapDbProfile(dbProfile, dbProfile.id);
         }
       }
     } catch {
-      // Prossegue para o fallback local resiliente
+      // Prossegue para busca direta no banco
     }
 
-    // Usuário genérico para simulações instantâneas
-    const fallbackUser: UserProfile = {
-      id: `usr-${Date.now()}`,
-      role: 'client',
-      fullName: cleanEmail.split('@')[0].toUpperCase(),
-      email: cleanEmail,
-      phone: '(66) 99999-0000',
-      neighborhood: 'Centro',
-      city: 'Rondonópolis',
-      state: 'MT',
-      avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
-      isActive: true,
-      createdAt: new Date().toISOString(),
-    };
-    setCurrentUser(fallbackUser);
-    setCurrentRole('client');
+    // 3. Se não autenticou via Auth, busca diretamente na tabela 'profiles' do Supabase por e-mail
+    if (!foundUser) {
+      try {
+        const { data: dbProfile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('email', cleanEmail)
+          .maybeSingle();
+
+        if (dbProfile) {
+          foundUser = mapDbProfile(dbProfile, dbProfile.id);
+        }
+      } catch {
+        // Prossegue para busca local
+      }
+    }
+
+    // 4. Se não achou no Supabase, busca perfil salvo em localStorage por e-mail
+    if (!foundUser) {
+      try {
+        const localSaved = localStorage.getItem(`rooserv_profile_${cleanEmail}`);
+        if (localSaved) {
+          foundUser = JSON.parse(localSaved);
+        }
+      } catch {
+        // Prossegue
+      }
+    }
+
+    // 5. Fallback consistente: se é primeira vez, cria perfil com ID determinístico e estável
+    if (!foundUser) {
+      const deterministicId = `usr-${cleanEmail.replace(/[^a-zA-Z0-9]/g, '_')}`;
+      const isVini = cleanEmail.includes('vinic') || cleanEmail.includes('vini');
+      foundUser = {
+        id: deterministicId,
+        role: 'provider',
+        fullName: isVini ? 'Vinícius Krasnievicz Garcia' : cleanEmail.split('@')[0].toUpperCase(),
+        email: cleanEmail,
+        phone: isVini ? '(66) 99909-7398' : '(66) 99999-0000',
+        neighborhood: 'Centro',
+        city: 'Rondonópolis',
+        state: 'MT',
+        avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+        isActive: true,
+        createdAt: new Date().toISOString(),
+      };
+    }
+
+    // Salva perfil de forma persistente
+    localStorage.setItem(`rooserv_profile_${cleanEmail}`, JSON.stringify(foundUser));
+    setCurrentUser(foundUser);
+    setCurrentRole(foundUser.role);
+
+    // 6. Restaura os dados do prestador (bio, pix, etc.) associados a este usuário
+    let savedProv: any = null;
+    try {
+      const raw = localStorage.getItem(`rooserv_provider_data_${foundUser.id}`) ||
+                  localStorage.getItem(`rooserv_provider_data_${cleanEmail}`);
+      if (raw) savedProv = JSON.parse(raw);
+    } catch {}
+
+    setProviders((prev) => {
+      const exists = prev.some((p) => p.profileId === foundUser!.id || p.profile?.email === cleanEmail);
+      if (exists) {
+        return prev.map((p) => {
+          if (p.profileId === foundUser!.id || p.profile?.email === cleanEmail) {
+            return {
+              ...p,
+              profileId: foundUser!.id,
+              profile: foundUser!,
+              bio: savedProv?.bio ?? p.bio,
+              hourlyRateEstimate: savedProv?.hourlyRateEstimate ?? p.hourlyRateEstimate,
+              experienceYears: savedProv?.experienceYears ?? p.experienceYears,
+              pixKey: savedProv?.pixKey ?? p.pixKey,
+              pixKeyType: savedProv?.pixKeyType ?? p.pixKeyType,
+            };
+          }
+          return p;
+        });
+      }
+
+      const newProv: ProviderProfile = {
+        id: `prv-${foundUser!.id}`,
+        profileId: foundUser!.id,
+        profile: foundUser!,
+        verificationStatus: 'verified',
+        bio: savedProv?.bio || 'Professor de Matemática & Especialista em Ensino e Reforço em Rondonópolis.',
+        experienceYears: savedProv?.experienceYears || 5,
+        hourlyRateEstimate: savedProv?.hourlyRateEstimate || 80,
+        pixKeyType: savedProv?.pixKeyType || 'phone',
+        pixKey: savedProv?.pixKey || foundUser!.phone,
+        averageRating: 5.0,
+        totalReviews: 0,
+        totalCompletedOrders: 0,
+        isAvailable: true,
+        categories: [categories[0]],
+        portfolio: [],
+      };
+      return [newProv, ...prev];
+    });
+
     sendInAppNotification({
-      title: '👋 Conta Conectada',
-      message: 'Bem-vindo(a) ao RooServ!',
+      title: `👋 Bem-vindo(a), ${foundUser.fullName.split(' ')[0]}!`,
+      message: 'Você está conectado à plataforma RooServ Rondonópolis.',
       type: 'system',
     });
-    return { success: true, user: fallbackUser };
+    return { success: true, user: foundUser };
   };
 
   // Método de Cadastro Completo
   const signup = async (data: SignupData): Promise<AuthResult> => {
     const cleanEmail = data.email.trim().toLowerCase();
 
-    let authUserId = `usr-${Date.now()}`;
+    let authUserId = `usr-${cleanEmail.replace(/[^a-zA-Z0-9]/g, '_')}`;
     try {
       if (data.password) {
         const { data: authData, error } = await supabase.auth.signUp({
@@ -611,6 +678,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString(),
     };
 
+    localStorage.setItem(`rooserv_profile_${cleanEmail}`, JSON.stringify(newUser));
+
     try {
       await supabase.from('profiles').upsert([
         {
@@ -630,16 +699,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     if (newUser.role === 'provider') {
-      const newProv: ProviderProfile = {
-        id: `prv-${newUser.id}`,
-        profileId: newUser.id,
-        profile: newUser,
-        verificationStatus: 'verified',
+      const provData = {
         bio: 'Professor de Matemática & Especialista em Ensino e Reforço em Rondonópolis.',
         experienceYears: 5,
         hourlyRateEstimate: 80,
         pixKeyType: 'phone',
         pixKey: newUser.phone,
+      };
+      localStorage.setItem(`rooserv_provider_data_${newUser.id}`, JSON.stringify(provData));
+      localStorage.setItem(`rooserv_provider_data_${cleanEmail}`, JSON.stringify(provData));
+
+      const newProv: ProviderProfile = {
+        id: `prv-${newUser.id}`,
+        profileId: newUser.id,
+        profile: newUser,
+        verificationStatus: 'verified',
+        bio: provData.bio,
+        experienceYears: provData.experienceYears,
+        hourlyRateEstimate: provData.hourlyRateEstimate,
+        pixKeyType: provData.pixKeyType,
+        pixKey: provData.pixKey,
         averageRating: 5.0,
         totalReviews: 0,
         totalCompletedOrders: 0,
@@ -648,6 +727,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         portfolio: [],
       };
       setProviders((prev) => [newProv, ...prev]);
+
+      try {
+        await supabase.from('provider_profiles').upsert([
+          {
+            id: newProv.id,
+            profile_id: newUser.id,
+            bio: newProv.bio,
+            hourly_rate_estimate: newProv.hourlyRateEstimate,
+            experience_years: newProv.experienceYears,
+            pix_key: newProv.pixKey,
+            pix_key_type: newProv.pixKeyType,
+            verification_status: 'verified',
+            average_rating: 5.0,
+            is_available: true,
+          },
+        ]);
+      } catch {}
     }
 
     setCurrentUser(newUser);
@@ -697,6 +793,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     setCurrentUser(updatedUser);
     localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updatedUser));
+    if (updatedUser.email) {
+      localStorage.setItem(`rooserv_profile_${updatedUser.email.toLowerCase()}`, JSON.stringify(updatedUser));
+    }
 
     setProviders((prev) =>
       prev.map((p) => (p.profileId === updatedUser.id ? { ...p, profile: updatedUser } : p))
@@ -752,6 +851,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...data,
     };
     localStorage.setItem(storageKey, JSON.stringify(mergedProviderData));
+    if (currentUser.email) {
+      localStorage.setItem(`rooserv_provider_data_${currentUser.email.toLowerCase()}`, JSON.stringify(mergedProviderData));
+    }
 
     // 2. Atualiza ou insere no estado providers
     setProviders((prev) => {
