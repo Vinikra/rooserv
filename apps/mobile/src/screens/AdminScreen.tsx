@@ -11,7 +11,6 @@ import {
   Scale,
   ShieldCheck,
   KeyRound,
-  ArrowRight,
   Eye
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -19,19 +18,15 @@ import { formatCurrencyBRL, CITY_CONFIG } from '@servicos/shared';
 
 export const AdminScreen: React.FC = () => {
   const { 
-    providers, 
+    adminProviders,
     orders, 
     verifyProviderByAdmin, 
     resolveDisputeByAdmin, 
     getAdminStats,
     isAdmin,
-    loginAsAdmin,
     setCurrentRole
   } = useApp();
 
-  const [adminPin, setAdminPin] = useState('');
-  const [authError, setAuthError] = useState<string | null>(null);
-  const [isVerifying, setIsVerifying] = useState(false);
   const [pendingDisputeId, setPendingDisputeId] = useState<string | null>(null);
   const [pendingProviderId, setPendingProviderId] = useState<string | null>(null);
   const [loadingDocumentsId, setLoadingDocumentsId] = useState<string | null>(null);
@@ -41,19 +36,6 @@ export const AdminScreen: React.FC = () => {
     selfie: string;
   }>>({});
   const [operationError, setOperationError] = useState<string | null>(null);
-
-  const handleAdminUnlock = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsVerifying(true);
-    setAuthError(null);
-
-    const res = await loginAsAdmin(adminPin);
-    setIsVerifying(false);
-
-    if (!res.success) {
-      setAuthError(res.error || 'Chave administrativa incorreta.');
-    }
-  };
 
   const handleResolveDispute = async (
     orderId: string,
@@ -117,55 +99,19 @@ export const AdminScreen: React.FC = () => {
               Painel de Gestão RooServ
             </h3>
             <p className="text-xs text-slate-500 mt-1">
-              Esta área é restrita aos proprietários e administradores da plataforma em Rondonópolis.
+              Entre pela conta principal autorizada para acessar esta área.
             </p>
           </div>
 
-          <form onSubmit={handleAdminUnlock} className="space-y-3 pt-2 text-left">
-            <div>
-              <label htmlFor="admin-pin-input" className="block text-xs font-bold text-slate-700 mb-1">
-                Chave Master ou Senha de Gestão
-              </label>
-              <input
-                id="admin-pin-input"
-                type="password"
-                required
-                placeholder="Insira a chave master"
-                value={adminPin}
-                onChange={(e) => setAdminPin(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-
-            {authError && (
-              <div className="p-2.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-600 font-medium">
-                {authError}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={isVerifying}
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-3.5 rounded-xl shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
-            >
-              {isVerifying ? (
-                <span>Validando...</span>
-              ) : (
-                <>
-                  <span>Desbloquear Painel</span>
-                  <ArrowRight className="w-4 h-4" />
-                </>
-              )}
-            </button>
-
+          <div className="pt-2">
             <button
               type="button"
               onClick={() => setCurrentRole('client')}
-              className="w-full text-center text-xs text-slate-500 hover:text-slate-800 font-medium py-1"
+              className="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs py-3.5 rounded-xl"
             >
               Voltar para o aplicativo
             </button>
-          </form>
+          </div>
         </div>
       </div>
     );
@@ -173,7 +119,7 @@ export const AdminScreen: React.FC = () => {
 
   const stats = getAdminStats();
 
-  const pendingProviders = providers.filter(
+  const pendingProviders = adminProviders.filter(
     (p) => p.verificationStatus === 'under_review' || p.verificationStatus === 'pending'
   );
 

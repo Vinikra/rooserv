@@ -2,18 +2,6 @@ import { describe, it, expect } from 'vitest';
 import { UserRole, SignupData } from '../types';
 
 describe('RooServ Authentication & Role Permissions Engine', () => {
-  const adminKeys = ['admin2026', 'Vini@220499', 'Vini@2204992026', 'admin'];
-
-  it.each(adminKeys)('validates admin master key %s successfully', (key) => {
-    const isValidKey = adminKeys.includes(key);
-    expect(isValidKey).toBe(true);
-  });
-
-  it('rejects invalid admin keys', () => {
-    const invalidKey = 'wrong_password_123';
-    expect(adminKeys.includes(invalidKey)).toBe(false);
-  });
-
   it('correctly constructs client signup payload', () => {
     const signupPayload: SignupData = {
       role: 'client',

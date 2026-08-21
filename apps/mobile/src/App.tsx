@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useApp } from './context/AppContext';
 import { Header } from './components/Header';
 import { BottomTabs } from './components/BottomTabs';
@@ -19,7 +19,9 @@ import { TermsModal } from './components/TermsModal';
 import { ReferralModal } from './components/ReferralModal';
 import { InAppToast } from './components/InAppToast';
 import { ProfileModal } from './screens/ProfileModal';
+import { PasswordResetModal } from './screens/PasswordResetModal';
 import { ProviderProfile } from '@servicos/shared';
+import { supabase } from './lib/supabase';
 
 export const App: React.FC = () => {
   const { currentRole, activeToast, dismissActiveToast } = useApp();
@@ -33,6 +35,16 @@ export const App: React.FC = () => {
   const [isTermsOpen, setIsTermsOpen] = useState(false);
   const [isReferralOpen, setIsReferralOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isPasswordResetOpen, setIsPasswordResetOpen] = useState(
+    () => window.location.hash.includes('type=recovery') || window.location.search.includes('type=recovery')
+  );
+
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') setIsPasswordResetOpen(true);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
   
   const [activeChatPartner, setActiveChatPartner] = useState<{
     id: string;
@@ -212,6 +224,7 @@ export const App: React.FC = () => {
       {isTermsOpen && <TermsModal onClose={() => setIsTermsOpen(false)} />}
       {isReferralOpen && <ReferralModal onClose={() => setIsReferralOpen(false)} />}
       {isProfileOpen && <ProfileModal onClose={() => setIsProfileOpen(false)} />}
+      {isPasswordResetOpen && <PasswordResetModal onClose={() => setIsPasswordResetOpen(false)} />}
     </div>
   );
 };

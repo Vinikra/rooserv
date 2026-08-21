@@ -121,6 +121,9 @@ export interface PayoutRequest {
   pixKeyDestination: string;
   status: 'pending' | 'processing' | 'completed' | 'failed';
   gatewayTransferId?: string;
+  failReason?: string;
+  transactionReceiptUrl?: string;
+  processingStartedAt?: string;
   processedAt?: string;
   createdAt: string;
 }

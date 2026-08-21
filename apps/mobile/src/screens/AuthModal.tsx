@@ -7,8 +7,6 @@ import {
   ArrowRight, 
   CheckCircle, 
   Briefcase,
-  ShieldCheck,
-  KeyRound,
   Mail,
   ArrowLeft
 } from 'lucide-react';
@@ -29,13 +27,12 @@ const validatePassword = (pass: string): string | null => {
 };
 
 export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
-  const { login, signup, loginAsAdmin } = useApp();
-  const [authMode, setAuthMode] = useState<'login' | 'signup' | 'admin' | 'forgot'>('login');
+  const { login, signup } = useApp();
+  const [authMode, setAuthMode] = useState<'login' | 'signup' | 'forgot'>('login');
   const [userRole, setUserRole] = useState<'client' | 'provider'>('client');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [adminKey, setAdminKey] = useState('');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [cpf, setCpf] = useState('');
@@ -124,27 +121,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
     }
   };
 
-  const handleAdminAuth = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setErrorMessage(null);
-
-    const result = await loginAsAdmin(adminKey);
-
-    if (result.success) {
-      setSuccessMessage('Acesso Administrativo Liberado!');
-      setIsSuccess(true);
-      setTimeout(() => {
-        setIsSuccess(false);
-        setIsLoading(false);
-        onSuccess();
-      }, 1200);
-    } else {
-      setIsLoading(false);
-      setErrorMessage(result.error || 'Chave de administração inválida.');
-    }
-  };
-
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -158,7 +134,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
 
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
-        redirectTo: window.location.origin,
+        redirectTo: import.meta.env.PROD ? window.location.origin : 'https://rooserv.vercel.app',
       });
 
       if (error) {
@@ -281,19 +257,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
         <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
           <div className="flex items-center gap-3">
             <div className="p-2.5 bg-brand-50 text-brand-600 rounded-2xl shrink-0">
-              {authMode === 'admin' ? <ShieldCheck className="w-6 h-6 text-emerald-600" /> : authMode === 'forgot' ? <Mail className="w-6 h-6 text-blue-600" /> : <Lock className="w-6 h-6 text-brand-600" />}
+              {authMode === 'forgot' ? <Mail className="w-6 h-6 text-blue-600" /> : <Lock className="w-6 h-6 text-brand-600" />}
             </div>
             <div>
               <h3 className="text-base sm:text-lg font-black text-slate-900 leading-tight">
                 {authMode === 'login' && 'Entrar no RooServ'}
                 {authMode === 'signup' && 'Criar Conta no RooServ'}
-                {authMode === 'admin' && 'Acesso Administrativo'}
                 {authMode === 'forgot' && 'Recuperar Senha'}
               </h3>
               <p className="text-xs text-slate-500">
-                {authMode === 'admin' 
-                  ? 'Painel exclusivo da gestão da plataforma'
-                  : authMode === 'forgot'
+                {authMode === 'forgot'
                   ? 'Enviaremos um link de redefinição por e-mail'
                   : 'Serviços e contratações em Rondonópolis'}
               </p>
@@ -343,20 +316,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
                 }`}
               >
                 Criar Conta
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setAuthMode('admin');
-                  setErrorMessage(null);
-                }}
-                className={`py-2.5 px-3.5 rounded-xl transition-all flex items-center gap-1.5 ${
-                  authMode === 'admin' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'
-                }`}
-                title="Acesso da Administração"
-              >
-                <KeyRound className="w-4 h-4" />
-                <span>Admin</span>
               </button>
             </div>
 
@@ -494,57 +453,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
                   ) : (
                     <>
                       <span>Finalizar Cadastro</span>
-                      <ArrowRight className="w-5 h-5" />
-                    </>
-                  )}
-                </button>
-              </form>
-            )}
-
-            {/* Formulário de Acesso Administrativo */}
-            {authMode === 'admin' && (
-              <form onSubmit={handleAdminAuth} className="space-y-3.5">
-                <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-2xl text-xs sm:text-sm text-emerald-950 space-y-1">
-                  <div className="font-extrabold flex items-center gap-2">
-                    <ShieldCheck className="w-5 h-5 text-emerald-700" />
-                    <span>Acesso Restrito ao Gestor</span>
-                  </div>
-                  <p className="text-xs text-emerald-800">
-                    Insira a senha de administrador ou chave de gestão do RooServ.
-                  </p>
-                </div>
-
-                <div>
-                  <label htmlFor="auth-admin-key" className="block text-xs sm:text-sm font-extrabold text-slate-800 mb-1.5">
-                    Senha Master ou Chave Admin
-                  </label>
-                  <input
-                    id="auth-admin-key"
-                    type="password"
-                    required
-                    placeholder="Digite a chave administrativa"
-                    value={adminKey}
-                    onChange={(e) => setAdminKey(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-3.5 text-sm sm:text-base text-slate-900 font-bold focus:outline-none focus:border-emerald-500"
-                  />
-                </div>
-
-                {errorMessage && (
-                  <div className="p-3 bg-red-50 border border-red-200 rounded-2xl text-xs sm:text-sm text-red-600 font-medium">
-                    {errorMessage}
-                  </div>
-                )}
-
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm sm:text-base py-4 px-5 rounded-2xl shadow-lg shadow-emerald-500/25 transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 mt-4"
-                >
-                  {isLoading ? (
-                    <span>Validando chave...</span>
-                  ) : (
-                    <>
-                      <span>Acessar Painel Administrativo</span>
                       <ArrowRight className="w-5 h-5" />
                     </>
                   )}

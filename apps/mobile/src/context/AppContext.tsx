@@ -28,11 +28,11 @@ interface AppContextType {
   isAdmin: boolean;
   login: (email: string, pass: string) => Promise<AuthResult>;
   signup: (data: SignupData) => Promise<AuthResult>;
-  loginAsAdmin: (secretOrPass: string) => Promise<AuthResult>;
   logout: () => Promise<void>;
   deleteAccount: () => Promise<boolean>;
   categories: ServiceCategory[];
   providers: ProviderProfile[];
+  adminProviders: ProviderProfile[];
   orders: Order[];
   reviews: Review[];
   requests: ServiceRequest[];
@@ -251,6 +251,9 @@ function mapDbPayoutRequest(request: any): PayoutRequest {
     pixKeyDestination: request.pix_key_destination,
     status: request.status || 'pending',
     gatewayTransferId: request.gateway_transfer_id || undefined,
+    failReason: request.fail_reason || undefined,
+    transactionReceiptUrl: request.transaction_receipt_url || undefined,
+    processingStartedAt: request.processing_started_at || undefined,
     processedAt: request.processed_at || undefined,
     createdAt: request.created_at,
   };
@@ -312,11 +315,27 @@ function computeAdminStats(orders: Order[], providers: ProviderProfile[]) {
   };
 }
 
+type AdminStats = ReturnType<typeof computeAdminStats>;
+
+function mapDbAdminStats(data: any): AdminStats {
+  return {
+    totalVolumeTransacted: Number(data?.total_volume_transacted) || 0,
+    platformRevenue: Number(data?.platform_revenue) || 0,
+    inEscrowAmount: Number(data?.in_escrow_amount) || 0,
+    activeProvidersCount: Number(data?.active_providers_count) || 0,
+    pendingVerificationsCount: Number(data?.pending_verifications_count) || 0,
+    completedOrdersCount: Number(data?.completed_orders_count) || 0,
+  };
+}
+
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [currentRole, setCurrentRole] = useState<UserRole>('client');
   const [categories, setCategories] = useState<ServiceCategory[]>([]);
   const [providers, setProviders] = useState<ProviderProfile[]>([]);
+  const [adminProviders, setAdminProviders] = useState<ProviderProfile[]>([]);
+  const [adminDashboardStats, setAdminDashboardStats] = useState<AdminStats | null>(null);
+  const [hasAdminAccess, setHasAdminAccess] = useState(false);
   const [orders, setOrders] = useState<Order[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [requests, setRequests] = useState<ServiceRequest[]>([]);
@@ -331,6 +350,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [notifications, setNotifications] = useState<InAppNotification[]>([]);
 
   const [activeToast, setActiveToast] = useState<InAppNotification | null>(null);
+
+  const refreshAdminData = async () => {
+    const [{ data: dbAdminProviders, error: providersError }, { data: dbStats, error: statsError }] = await Promise.all([
+      supabase.rpc('list_admin_provider_directory'),
+      supabase.rpc('get_admin_dashboard_metrics'),
+    ]);
+    if (providersError) throw providersError;
+    if (statsError) throw statsError;
+    setAdminProviders((dbAdminProviders || []).map(mapDbProvider));
+    setAdminDashboardStats(mapDbAdminStats(dbStats));
+  };
 
   const unreadNotificationsCount = useMemo(() => {
     return notifications.filter((n) => !n.isRead).length;
@@ -389,7 +419,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const isAuthenticated = Boolean(currentUser);
-  const isAdmin = currentUser?.role === 'admin';
+  const isAdmin = hasAdminAccess;
 
   // A sessão do Supabase Auth é a única fonte de autenticação. Dados locais
   // nunca restauram usuário ou papel sem uma sessão válida no servidor.
@@ -405,6 +435,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setProposals([]);
           setProviderWallet(null);
           setPayoutRequests([]);
+          setAdminProviders([]);
+          setAdminDashboardStats(null);
+          setHasAdminAccess(false);
         }
         return;
       }
@@ -419,12 +452,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (error || !profile) {
         setCurrentUser(null);
         setCurrentRole('client');
+        setHasAdminAccess(false);
         return;
       }
 
       const authenticatedProfile = mapDbProfile(profile, profile.id);
+      const { data: adminAccess } = await supabase.rpc('is_rooserv_admin');
+      if (!active) return;
       setCurrentUser(authenticatedProfile);
       setCurrentRole(authenticatedProfile.role);
+      setHasAdminAccess(adminAccess === true);
     };
 
     supabase.auth.getSession().then(({ data }) => {
@@ -495,10 +532,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               .rpc('get_my_provider_finances');
             if (financesError) throw financesError;
             setProviderWallet(finances?.wallet ? mapDbProviderWallet(finances.wallet) : null);
-            setPayoutRequests((finances?.payout_requests || []).map(mapDbPayoutRequest));
+            const mappedPayouts = (finances?.payout_requests || []).map(mapDbPayoutRequest);
+            setPayoutRequests(mappedPayouts);
+
+            const payoutsToReconcile = mappedPayouts
+              .filter((payout: PayoutRequest) => payout.status === 'processing' && payout.gatewayTransferId)
+              .slice(0, 5);
+            if (payoutsToReconcile.length > 0) {
+              await Promise.allSettled(payoutsToReconcile.map((payout: PayoutRequest) => (
+                supabase.functions.invoke('process-provider-payout', {
+                  body: { payoutRequestId: payout.id },
+                })
+              )));
+              const { data: reconciledFinances } = await supabase.rpc('get_my_provider_finances');
+              if (reconciledFinances?.wallet) {
+                setProviderWallet(mapDbProviderWallet(reconciledFinances.wallet));
+                setPayoutRequests((reconciledFinances.payout_requests || []).map(mapDbPayoutRequest));
+              }
+            }
           } else {
             setProviderWallet(null);
             setPayoutRequests([]);
+          }
+
+          if (hasAdminAccess) {
+            const [{ data: dbAdminProviders, error: adminProvidersError }, { data: dbAdminStats, error: adminStatsError }] = await Promise.all([
+              supabase.rpc('list_admin_provider_directory'),
+              supabase.rpc('get_admin_dashboard_metrics'),
+            ]);
+            if (adminProvidersError) throw adminProvidersError;
+            if (adminStatsError) throw adminStatsError;
+            setAdminProviders((dbAdminProviders || []).map(mapDbProvider));
+            setAdminDashboardStats(mapDbAdminStats(dbAdminStats));
+          } else {
+            setAdminProviders([]);
+            setAdminDashboardStats(null);
           }
 
           // Carrega solicitações de serviço do Supabase
@@ -529,7 +597,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     loadFromSupabase();
-  }, [currentUser?.id]);
+  }, [currentUser?.id, hasAdminAccess]);
 
   // WebSockets Realtime Globais para Sincronização Instantânea
   useEffect(() => {
@@ -707,47 +775,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true, user: newUser };
   };
 
-  // Login Seguro de Administrador
-  const loginAsAdmin = async (secretOrPass: string): Promise<AuthResult> => {
-    // Admin login requires email:password in format 'email|password' or just password with admin email
-    const parts = secretOrPass.includes('|') ? secretOrPass.split('|') : ['admin@rooserv.com', secretOrPass];
-    const [adminEmail, adminPass] = parts;
-    
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: adminEmail.trim().toLowerCase(),
-        password: adminPass.trim(),
-      });
-      
-      if (error || !data?.user) {
-        return { success: false, error: 'Credenciais administrativas inválidas.' };
-      }
-      
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('user_id', data.user.id)
-        .single();
-      
-      if (profile?.role !== 'admin') {
-        await supabase.auth.signOut();
-        return { success: false, error: 'Acesso administrativo não autorizado.' };
-      }
-      
-      const adminProfile = mapDbProfile(profile, profile.id);
-      setCurrentUser(adminProfile);
-      setCurrentRole('admin');
-      sendInAppNotification({
-        title: '🛡️ Gestão RooServ',
-        message: 'Acesso liberado às métricas e conciliação financeira.',
-        type: 'system',
-      });
-      return { success: true, user: adminProfile };
-    } catch {
-      return { success: false, error: 'Erro ao verificar credenciais administrativas.' };
-    }
-  };
-
   // Logout
   const logout = async () => {
     const { error } = await supabase.auth.signOut();
@@ -759,6 +786,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setProposals([]);
     setProviderWallet(null);
     setPayoutRequests([]);
+    setAdminProviders([]);
+    setAdminDashboardStats(null);
+    setHasAdminAccess(false);
   };
 
   const deleteAccount = async (): Promise<boolean> => {
@@ -775,6 +805,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setProposals([]);
     setProviderWallet(null);
     setPayoutRequests([]);
+    setAdminProviders([]);
+    setAdminDashboardStats(null);
+    setHasAdminAccess(false);
     return true;
   };
 
@@ -1172,6 +1205,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       verifiedAt: status === 'verified' ? new Date().toISOString() : undefined,
       isAvailable: status === 'verified',
     } : provider));
+    setAdminProviders((prev) => prev.map((provider) => provider.id === providerId ? {
+      ...provider,
+      verificationStatus: status,
+      verifiedAt: status === 'verified' ? new Date().toISOString() : undefined,
+      isAvailable: status === 'verified',
+    } : provider));
+    await refreshAdminData();
   };
 
   const requestProviderPayout = async (amount: number): Promise<PayoutRequest> => {
@@ -1184,9 +1224,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const payout = mapDbPayoutRequest(data.payout_request);
     setProviderWallet(wallet);
     setPayoutRequests((previous) => [payout, ...previous.filter((item) => item.id !== payout.id)]);
+
+    const { error: processingError } = await supabase.functions.invoke('process-provider-payout', {
+      body: { payoutRequestId: payout.id },
+    });
+
+    const { data: finances, error: financesError } = await supabase.rpc('get_my_provider_finances');
+    if (!financesError && finances?.wallet) {
+      setProviderWallet(mapDbProviderWallet(finances.wallet));
+      setPayoutRequests((finances.payout_requests || []).map(mapDbPayoutRequest));
+    }
+    if (processingError) {
+      throw new Error('O saque foi registrado, mas o Asaas não confirmou o processamento. Consulte o status no histórico.');
+    }
+
     sendInAppNotification({
-      title: 'Saque Pix solicitado',
-      message: `A solicitação de R$ ${payout.amount.toFixed(2)} foi registrada para processamento.`,
+      title: 'Saque Pix enviado ao Asaas',
+      message: `A transferência de R$ ${payout.amount.toFixed(2)} foi registrada para processamento.`,
       type: 'payment',
     });
     return payout;
@@ -1282,9 +1336,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         },
       },
     });
+    await refreshAdminData();
   };
 
-  const getAdminStats = () => computeAdminStats(orders, providers);
+  const getAdminStats = () => adminDashboardStats ?? computeAdminStats([], []);
 
   const contextValue = useMemo(() => ({
     currentRole,
@@ -1294,13 +1349,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     isAdmin,
     login,
     signup,
-    loginAsAdmin,
     logout,
     deleteAccount,
     updateUserProfile,
     updateProviderProfile,
     categories,
     providers,
+    adminProviders,
     orders,
     reviews,
     requests,
@@ -1338,6 +1393,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     isAdmin,
     categories,
     providers,
+    adminProviders,
+    adminDashboardStats,
     orders,
     reviews,
     requests,

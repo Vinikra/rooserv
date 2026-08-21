@@ -264,7 +264,7 @@ const UserDropdownMenu: React.FC<{
           <button
             type="button"
             onClick={() => {
-              setCurrentRole(currentRole === 'admin' ? 'client' : 'admin');
+              setCurrentRole(currentRole === 'admin' ? currentUser.role : 'admin');
               onClose();
             }}
             className={`w-full py-2.5 px-3 rounded-xl text-xs font-extrabold transition-all flex items-center justify-between cursor-pointer ${
@@ -275,7 +275,7 @@ const UserDropdownMenu: React.FC<{
           >
             <div className="flex items-center gap-2">
               <ShieldCheck className="w-4 h-4" />
-              <span>{currentRole === 'admin' ? 'Ver como Cliente' : 'Painel de Gestão Admin'}</span>
+              <span>{currentRole === 'admin' ? (currentUser.role === 'provider' ? 'Ver como Prestador' : 'Ver como Cliente') : 'Painel de Gestão Admin'}</span>
             </div>
             <span className="text-[10px] bg-black/40 px-2 py-0.5 rounded font-bold">Gestão</span>
           </button>

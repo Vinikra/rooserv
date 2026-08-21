@@ -20,14 +20,10 @@ Deno.serve(async (req) => {
     const { data: authData, error: authError } = await userClient.auth.getUser();
     if (authError || !authData.user) return errorResponse('Sessão inválida.', 401);
 
-    const { data: adminProfile } = await adminClient
-      .from('profiles')
-      .select('id')
-      .eq('user_id', authData.user.id)
-      .eq('role', 'admin')
-      .eq('is_active', true)
-      .maybeSingle();
-    if (!adminProfile) return errorResponse('Acesso administrativo não autorizado.', 403);
+    const { data: hasAdminAccess, error: adminAccessError } = await userClient.rpc('is_rooserv_admin');
+    if (adminAccessError || hasAdminAccess !== true) {
+      return errorResponse('Acesso administrativo não autorizado.', 403);
+    }
 
     const body = await req.json() as ReviewRequest;
     if (!body.providerId) return errorResponse('Prestador não informado.', 400);

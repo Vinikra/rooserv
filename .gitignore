@@ -42,3 +42,4 @@ test*.mjs
 *.mjs
 
 .vercel
+.firecrawl/
