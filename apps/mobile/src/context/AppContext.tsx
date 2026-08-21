@@ -51,6 +51,7 @@ interface AppContextType {
   signup: (data: SignupData) => Promise<AuthResult>;
   loginAsAdmin: (secretOrPass: string) => Promise<AuthResult>;
   logout: () => Promise<void>;
+  deleteAccount: () => Promise<boolean>;
   categories: ServiceCategory[];
   providers: ProviderProfile[];
   orders: Order[];
@@ -612,22 +613,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Método de Login Completo
   const login = async (email: string, pass: string): Promise<AuthResult> => {
     const cleanEmail = email.trim().toLowerCase();
-
-    // 1. Verificação Especial de Administrador
-    if (cleanEmail === 'admin@rooserv.com' || cleanEmail === 'admin' || cleanEmail === 'admin@rooserv.com.br') {
-      if (pass === 'admin2026' || pass === 'Vini@220499' || pass === 'admin' || pass === 'Vini@2204992026') {
-        setCurrentUser(ADMIN_PROFILE);
-        setCurrentRole('admin');
-        sendInAppNotification({
-          title: '🛡️ Modo Gestor Autenticado',
-          message: 'Painel de administração master liberado com métricas financeiras e KYC.',
-          type: 'system',
-        });
-        return { success: true, user: ADMIN_PROFILE };
-      }
-      return { success: false, error: 'Senha de administrador incorreta.' };
-    }
-
     let foundUser: UserProfile | null = null;
 
     // 2. Tenta autenticar via Supabase Auth
@@ -637,67 +622,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         password: pass,
       });
 
-      if (!error && data?.user) {
-        const { data: dbProfile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('email', cleanEmail)
-          .single();
+      if (error || !data?.user) {
+        return { success: false, error: 'Credenciais inválidas. Verifique seu e-mail e senha.' };
+      }
 
-        if (dbProfile) {
-          foundUser = mapDbProfile(dbProfile, dbProfile.id);
-        }
+      const { data: dbProfile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('email', cleanEmail)
+        .single();
+
+      if (dbProfile) {
+        foundUser = mapDbProfile(dbProfile, dbProfile.id);
+      } else {
+        return { success: false, error: 'Perfil não encontrado para este usuário.' };
       }
     } catch {
-      // Prossegue para busca direta no banco
-    }
-
-    // 3. Se não autenticou via Auth, busca diretamente na tabela 'profiles' do Supabase por e-mail
-    if (!foundUser) {
-      try {
-        const { data: dbProfile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('email', cleanEmail)
-          .maybeSingle();
-
-        if (dbProfile) {
-          foundUser = mapDbProfile(dbProfile, dbProfile.id);
-        }
-      } catch {
-        // Prossegue para busca local
-      }
-    }
-
-    // 4. Se não achou no Supabase, busca perfil salvo em localStorage por e-mail
-    if (!foundUser) {
-      try {
-        const localSaved = localStorage.getItem(`rooserv_profile_${cleanEmail}`);
-        if (localSaved) {
-          foundUser = JSON.parse(localSaved);
-        }
-      } catch {
-        // Prossegue
-      }
-    }
-
-    // 5. Fallback consistente: se é primeira vez, cria perfil com ID determinístico e estável
-    if (!foundUser) {
-      const deterministicId = `usr-${cleanEmail.replace(/[^a-zA-Z0-9]/g, '_')}`;
-      const isVini = cleanEmail.includes('vinic') || cleanEmail.includes('vini');
-      foundUser = {
-        id: deterministicId,
-        role: 'provider',
-        fullName: isVini ? 'Vinícius Krasnievicz Garcia' : cleanEmail.split('@')[0].toUpperCase(),
-        email: cleanEmail,
-        phone: isVini ? '(66) 99909-7398' : '(66) 99999-0000',
-        neighborhood: 'Centro',
-        city: 'Rondonópolis',
-        state: 'MT',
-        avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
-        isActive: true,
-        createdAt: new Date().toISOString(),
-      };
+      return { success: false, error: 'Erro de comunicação com o servidor de autenticação.' };
     }
 
     // Restaura avatar customizado salvo localmente se existir
@@ -714,6 +655,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     setCurrentUser(foundUser);
     setCurrentRole(foundUser.role);
+
+    if (foundUser.role === 'admin') {
+      sendInAppNotification({
+        title: '🛡️ Modo Gestor Autenticado',
+        message: 'Painel de administração master liberado com métricas financeiras e KYC.',
+        type: 'system',
+      });
+      return { success: true, user: foundUser };
+    }
 
     // 6. Restaura os dados do prestador (bio, pix, etc.) associados a este usuário
     let savedProv: any = null;
@@ -775,26 +725,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const signup = async (data: SignupData): Promise<AuthResult> => {
     const cleanEmail = data.email.trim().toLowerCase();
 
-    let authUserId = `usr-${cleanEmail.replace(/[^a-zA-Z0-9]/g, '_')}`;
+    if (!data.password) {
+      return { success: false, error: 'A senha é obrigatória para o cadastro.' };
+    }
+
+    let authUserId = '';
     try {
-      if (data.password) {
-        const { data: authData, error } = await supabase.auth.signUp({
-          email: cleanEmail,
-          password: data.password,
-          options: {
-            data: {
-              full_name: data.fullName,
-              role: data.role,
-              neighborhood: data.neighborhood,
-            },
+      const { data: authData, error } = await supabase.auth.signUp({
+        email: cleanEmail,
+        password: data.password,
+        options: {
+          data: {
+            full_name: data.fullName,
+            role: data.role,
+            neighborhood: data.neighborhood,
           },
-        });
-        if (!error && authData?.user) {
-          authUserId = authData.user.id;
-        }
+        },
+      });
+
+      if (error || !authData?.user) {
+        return { success: false, error: error?.message || 'Falha ao criar conta no sistema.' };
       }
+      authUserId = authData.user.id;
     } catch {
-      // Fallback
+      return { success: false, error: 'Erro de comunicação com o servidor de autenticação.' };
     }
 
     const newUser: UserProfile = {
@@ -891,8 +845,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Login Seguro de Administrador
   const loginAsAdmin = async (secretOrPass: string): Promise<AuthResult> => {
-    const key = secretOrPass.trim();
-    if (key === 'admin2026' || key === 'Vini@220499' || key === 'Vini@2204992026' || key === 'admin') {
+    // Admin login requires email:password in format 'email|password' or just password with admin email
+    const parts = secretOrPass.includes('|') ? secretOrPass.split('|') : ['admin@rooserv.com', secretOrPass];
+    const [adminEmail, adminPass] = parts;
+    
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: adminEmail.trim().toLowerCase(),
+        password: adminPass.trim(),
+      });
+      
+      if (error || !data?.user) {
+        return { success: false, error: 'Credenciais administrativas inválidas.' };
+      }
+      
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('email', adminEmail.trim().toLowerCase())
+        .single();
+      
+      if (profile?.role !== 'admin') {
+        await supabase.auth.signOut();
+        return { success: false, error: 'Acesso administrativo não autorizado.' };
+      }
+      
       setCurrentUser(ADMIN_PROFILE);
       setCurrentRole('admin');
       sendInAppNotification({
@@ -901,8 +878,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         type: 'system',
       });
       return { success: true, user: ADMIN_PROFILE };
+    } catch {
+      return { success: false, error: 'Erro ao verificar credenciais administrativas.' };
     }
-    return { success: false, error: 'Chave ou senha administrativa incorreta.' };
   };
 
   // Logout
@@ -912,9 +890,61 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch {
       // Ignora
     }
+
+    if (currentUser?.email) {
+      const cleanEmail = currentUser.email.toLowerCase();
+      localStorage.removeItem(`rooserv_profile_${cleanEmail}`);
+      localStorage.removeItem(`rooserv_avatar_${cleanEmail}`);
+      if (currentUser.id) {
+        localStorage.removeItem(`rooserv_avatar_${currentUser.id}`);
+      }
+    }
+
     setCurrentUser(null);
     setCurrentRole('client');
     localStorage.removeItem(AUTH_STORAGE_KEY);
+  };
+
+  const deleteAccount = async (): Promise<boolean> => {
+    if (!currentUser?.email) return false;
+    const cleanEmail = currentUser.email.toLowerCase();
+
+    try {
+      // 1. Attempt admin user deletion
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore
+      await supabase.auth.admin.deleteUser(currentUser.id);
+    } catch {
+      // Ignore if it fails from frontend
+    }
+
+    try {
+      // 2. Delete from profiles table
+      await supabase.from('profiles').delete().eq('email', cleanEmail);
+    } catch {
+      // Ignore
+    }
+
+    // 3. Clear localStorage keys starting with rooserv_
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('rooserv_')) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach(k => localStorage.removeItem(k));
+
+    // 4. Logout
+    await logout();
+    
+    sendInAppNotification({
+      title: 'Conta Excluída',
+      message: 'Sua conta e dados foram removidos com sucesso.',
+      type: 'system',
+    });
+
+    return true;
   };
 
   const updateUserProfile = async (data: Partial<UserProfile>) => {
@@ -1452,6 +1482,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     signup,
     loginAsAdmin,
     logout,
+    deleteAccount,
     updateUserProfile,
     updateProviderProfile,
     categories,

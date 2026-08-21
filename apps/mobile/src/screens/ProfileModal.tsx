@@ -13,7 +13,8 @@ import {
   Wallet, 
   Sparkles,
   BookOpen,
-  Loader2
+  Loader2,
+  AlertTriangle
 } from 'lucide-react';
 import { RooServStorageService } from '../services/storageService';
 
@@ -31,8 +32,17 @@ const PRESET_AVATARS = [
 ];
 
 export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
-  const { currentUser, providers, updateUserProfile, updateProviderProfile } = useApp();
+  const { currentUser, providers, updateUserProfile, updateProviderProfile, deleteAccount } = useApp();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleDeleteAccount = async () => {
+    if (window.confirm('TEM CERTEZA? Esta ação apagará definitivamente seus dados, histórico e não pode ser desfeita.')) {
+      const success = await deleteAccount();
+      if (success) {
+        onClose();
+      }
+    }
+  };
 
   const savedProviderData = (() => {
     try {
@@ -406,6 +416,26 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
                   />
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* Zona de Perigo - LGPD */}
+          <div className="pt-4 border-t border-slate-100">
+            <div className="bg-red-50 p-4 rounded-2xl border border-red-200">
+              <div className="flex items-center gap-2 text-xs font-extrabold text-red-800 mb-2">
+                <AlertTriangle className="w-4 h-4" />
+                <span>Excluir Minha Conta (LGPD)</span>
+              </div>
+              <p className="text-xs text-red-600 font-medium mb-3">
+                Ao excluir sua conta, todos os seus dados pessoais, histórico de serviços e anúncios serão permanentemente apagados. Esta ação não pode ser desfeita.
+              </p>
+              <button
+                type="button"
+                onClick={handleDeleteAccount}
+                className="w-full bg-white text-red-600 hover:bg-red-100 font-bold text-sm py-2.5 rounded-xl border border-red-200 transition-colors cursor-pointer"
+              >
+                Excluir Minha Conta Definitivamente
+              </button>
             </div>
           </div>
 
