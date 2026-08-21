@@ -121,11 +121,16 @@ export interface Order {
   paymentMethod?: PaymentMethodType;
   installmentsCount: number;
   paidAt?: string;
+  startedAt?: string;
   completedAt?: string;
   fundsReleasedAt?: string;
+  completionProofPhotos?: string[];
   disputeReason?: string;
   disputeDetails?: string;
+  disputeOpenedBy?: string;
   disputeOpenedAt?: string;
+  disputeResolution?: 'refund_client' | 'release_provider';
+  refundRequestedAt?: string;
   disputeResolvedAt?: string;
   serviceTitle?: string;
   serviceDescription?: string;
@@ -195,4 +200,3 @@ export interface InAppNotification {
   metadata?: Record<string, any>;
   createdAt?: string;
 }
-

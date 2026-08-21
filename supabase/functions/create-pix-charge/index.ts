@@ -1,14 +1,3 @@
-// Edge Function: Criar Cobrança Pix via Asaas
-// Endpoint: POST /functions/v1/create-pix-charge
-//
-// Esta função é chamada pelo frontend quando o cliente confirma um pagamento Pix.
-// Ela cria a cobrança no Asaas e retorna o QR Code real para pagamento.
-//
-// Variáveis de ambiente necessárias (configurar no Supabase Dashboard):
-// - ASAAS_API_KEY: Chave de API do Asaas (sandbox ou produção)
-// - ASAAS_ENV: 'sandbox' ou 'production'
-// - PLATFORM_FEE_PERCENT: Percentual da taxa da plataforma (padrão: 12.0)
-
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import {
   ASAAS_BASE_URL,
@@ -16,170 +5,137 @@ import {
   corsHeaders,
   errorResponse,
   successResponse,
-  PLATFORM_FEE_PERCENT,
 } from '../_shared/config.ts';
 
-interface PixChargeRequest {
-  orderId: string;
-  orderNumber: string;
-  totalAmount: number;
-  customerName: string;
-  customerEmail: string;
-  customerCpf: string;
-  description: string;
+interface PixChargeRequest { orderId?: string }
+interface AsaasErrorResponse { errors?: Array<{ description?: string }> }
+
+function asaasError(data: AsaasErrorResponse, fallback: string) {
+  return data.errors?.[0]?.description || fallback;
 }
 
 Deno.serve(async (req) => {
-  // Handle CORS preflight
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
-  }
-
-  if (req.method !== 'POST') {
-    return errorResponse('Método não permitido. Use POST.', 405);
-  }
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  if (req.method !== 'POST') return errorResponse('Método não permitido. Use POST.', 405);
 
   try {
-    // 1. Validar autenticação do usuário
     const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      return errorResponse('Token de autenticação não fornecido.', 401);
-    }
+    if (!authHeader) return errorResponse('Token de autenticação não fornecido.', 401);
 
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      { global: { headers: { Authorization: authHeader } } }
-    );
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+    const userClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY') ?? '', {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const adminClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '');
 
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
-    if (authError || !user) {
-      return errorResponse('Usuário não autenticado.', 401);
-    }
+    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    if (authError || !user) return errorResponse('Usuário não autenticado.', 401);
 
-    // 2. Parsear e validar o corpo da requisição
     const body: PixChargeRequest = await req.json();
+    if (!body.orderId) return errorResponse('Pedido não informado.');
 
-    if (!body.orderId || !body.totalAmount || body.totalAmount <= 0) {
-      return errorResponse('Dados do pedido incompletos ou inválidos.');
-    }
+    const { data: profile, error: profileError } = await adminClient
+      .from('profiles')
+      .select('id, full_name, email, document_cpf')
+      .eq('user_id', user.id)
+      .single();
+    if (profileError || !profile) return errorResponse('Perfil do cliente não encontrado.', 404);
 
-    // 3. Verificar se o pedido existe e pertence ao usuário
-    const { data: order, error: orderError } = await supabaseClient
+    const { data: order, error: orderError } = await adminClient
       .from('orders')
-      .select('id, client_id, total_amount, status')
+      .select('id, order_number, client_id, total_amount, status, gateway_transaction_id')
       .eq('id', body.orderId)
       .single();
+    if (orderError || !order) return errorResponse('Pedido não encontrado.', 404);
+    if (order.client_id !== profile.id) return errorResponse('Você não pode pagar este pedido.', 403);
+    if (order.status !== 'awaiting_payment') return errorResponse('Pedido não aguarda pagamento.', 409);
 
-    if (orderError || !order) {
-      return errorResponse('Pedido não encontrado.');
+    if (order.gateway_transaction_id) {
+      const response = await fetch(`${ASAAS_BASE_URL}/payments/${order.gateway_transaction_id}/pixQrCode`, {
+        headers: asaasHeaders(),
+      });
+      const pixData = await response.json();
+      if (!response.ok) return errorResponse(asaasError(pixData, 'Cobrança existente indisponível.'), 502);
+      return successResponse({
+        paymentId: order.gateway_transaction_id,
+        pixQrCode: pixData,
+        amount: Number(order.total_amount),
+      });
     }
 
-    if (order.status !== 'awaiting_payment') {
-      return errorResponse('Este pedido não está aguardando pagamento.');
-    }
+    const cpf = String(profile.document_cpf || '').replace(/\D/g, '');
+    if (cpf.length !== 11) return errorResponse('CPF válido é obrigatório para gerar a cobrança.', 422);
 
-    // 4. Criar/buscar cliente no Asaas
-    let asaasCustomerId: string;
+    const searchResponse = await fetch(`${ASAAS_BASE_URL}/customers?cpfCnpj=${cpf}`, { headers: asaasHeaders() });
+    const searchData = await searchResponse.json();
+    if (!searchResponse.ok) return errorResponse(asaasError(searchData, 'Falha ao consultar cliente no Asaas.'), 502);
 
-    // Buscar cliente existente por CPF
-    const searchRes = await fetch(`${ASAAS_BASE_URL}/customers?cpfCnpj=${body.customerCpf}`, {
-      headers: asaasHeaders(),
-    });
-    const searchData = await searchRes.json();
-
-    if (searchData.data && searchData.data.length > 0) {
-      asaasCustomerId = searchData.data[0].id;
-    } else {
-      // Criar novo cliente
-      const createRes = await fetch(`${ASAAS_BASE_URL}/customers`, {
+    let customerId = searchData.data?.[0]?.id as string | undefined;
+    if (!customerId) {
+      const response = await fetch(`${ASAAS_BASE_URL}/customers`, {
         method: 'POST',
         headers: asaasHeaders(),
         body: JSON.stringify({
-          name: body.customerName,
-          email: body.customerEmail,
-          cpfCnpj: body.customerCpf.replace(/\D/g, ''),
+          name: profile.full_name,
+          email: profile.email,
+          cpfCnpj: cpf,
+          externalReference: profile.id,
         }),
       });
-      const createData = await createRes.json();
-
-      if (createData.errors) {
-        return errorResponse(`Erro ao cadastrar cliente: ${createData.errors[0]?.description || 'Erro desconhecido'}`);
+      const customerData = await response.json();
+      if (!response.ok || !customerData.id) {
+        return errorResponse(asaasError(customerData, 'Falha ao criar cliente no Asaas.'), 502);
       }
-      asaasCustomerId = createData.id;
+      customerId = customerData.id;
     }
 
-    // 5. Criar cobrança Pix no Asaas
-    const platformFee = body.totalAmount * (PLATFORM_FEE_PERCENT / 100);
-    const dueDate = new Date();
-    dueDate.setDate(dueDate.getDate() + 1); // Vencimento em 1 dia
+    const totalAmount = Number(order.total_amount);
+    if (!Number.isFinite(totalAmount) || totalAmount <= 0) return errorResponse('Valor do pedido inválido.', 422);
 
-    const chargeRes = await fetch(`${ASAAS_BASE_URL}/payments`, {
+    const dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + 1);
+    const chargeResponse = await fetch(`${ASAAS_BASE_URL}/payments`, {
       method: 'POST',
       headers: asaasHeaders(),
       body: JSON.stringify({
-        customer: asaasCustomerId,
+        customer: customerId,
         billingType: 'PIX',
-        value: body.totalAmount,
-        dueDate: dueDate.toISOString().split('T')[0],
-        description: body.description || `RooServ - Pedido ${body.orderNumber}`,
-        externalReference: body.orderId,
+        value: totalAmount,
+        dueDate: dueDate.toISOString().slice(0, 10),
+        description: `RooServ - Pedido ${order.order_number}`,
+        externalReference: order.id,
       }),
     });
-
-    const chargeData = await chargeRes.json();
-
-    if (chargeData.errors) {
-      return errorResponse(`Erro ao gerar cobrança: ${chargeData.errors[0]?.description || 'Erro desconhecido'}`);
+    const chargeData = await chargeResponse.json();
+    if (!chargeResponse.ok || !chargeData.id) {
+      return errorResponse(asaasError(chargeData, 'Falha ao gerar cobrança Pix.'), 502);
     }
 
-    // 6. Obter QR Code Pix
-    const pixRes = await fetch(`${ASAAS_BASE_URL}/payments/${chargeData.id}/pixQrCode`, {
+    const { error: registerError } = await adminClient.rpc('register_asaas_charge', {
+      p_order_id: order.id,
+      p_payment_id: chargeData.id,
+    });
+    if (registerError) {
+      console.error('[create-pix-charge] Falha ao registrar cobrança:', registerError.message);
+      return errorResponse('Não foi possível vincular a cobrança ao pedido.', 409);
+    }
+
+    const pixResponse = await fetch(`${ASAAS_BASE_URL}/payments/${chargeData.id}/pixQrCode`, {
       headers: asaasHeaders(),
     });
-    const pixData = await pixRes.json();
+    const pixData = await pixResponse.json();
+    if (!pixResponse.ok || !pixData.payload) {
+      return errorResponse(asaasError(pixData, 'Falha ao obter QR Code Pix.'), 502);
+    }
 
-    // 7. Atualizar o pedido com o ID da transação do gateway
-    await supabaseClient
-      .from('orders')
-      .update({
-        gateway_transaction_id: chargeData.id,
-        status: 'awaiting_payment',
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', body.orderId);
-
-    // 8. Registrar transação de pagamento
-    const serviceClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
-
-    await serviceClient.from('payment_transactions').insert({
-      order_id: body.orderId,
-      gateway_provider: 'asaas',
-      gateway_transaction_id: chargeData.id,
-      amount: body.totalAmount,
-      platform_fee: platformFee,
-      provider_amount: body.totalAmount - platformFee,
-      payment_method: 'pix',
-      status: 'pending',
-    });
-
-    // 9. Retornar dados do Pix para o frontend
     return successResponse({
       paymentId: chargeData.id,
-      pixQrCode: {
-        encodedImage: pixData.encodedImage,
-        payload: pixData.payload,
-        expirationDate: pixData.expirationDate,
-      },
-      amount: body.totalAmount,
+      pixQrCode: pixData,
+      amount: totalAmount,
       dueDate: dueDate.toISOString(),
     });
-
-  } catch (err) {
-    console.error('[create-pix-charge] Erro:', err);
+  } catch (error) {
+    console.error('[create-pix-charge] Erro:', error instanceof Error ? error.message : error);
     return errorResponse('Erro interno ao processar pagamento.', 500);
   }
 });

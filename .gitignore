@@ -35,6 +35,7 @@ Thumbs.db
 
 # Vercel & system
 .vercel
+supabase/.temp/
 .system_generated
 test-*.mjs
 test*.mjs

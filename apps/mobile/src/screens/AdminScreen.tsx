@@ -30,6 +30,8 @@ export const AdminScreen: React.FC = () => {
   const [adminPin, setAdminPin] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [pendingDisputeId, setPendingDisputeId] = useState<string | null>(null);
+  const [operationError, setOperationError] = useState<string | null>(null);
 
   const handleAdminUnlock = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,6 +43,21 @@ export const AdminScreen: React.FC = () => {
 
     if (!res.success) {
       setAuthError(res.error || 'Chave administrativa incorreta.');
+    }
+  };
+
+  const handleResolveDispute = async (
+    orderId: string,
+    decision: 'refund_client' | 'release_provider'
+  ) => {
+    setPendingDisputeId(orderId);
+    setOperationError(null);
+    try {
+      await resolveDisputeByAdmin(orderId, decision);
+    } catch (error) {
+      setOperationError(error instanceof Error ? error.message : 'Não foi possível resolver a disputa.');
+    } finally {
+      setPendingDisputeId(null);
     }
   };
 
@@ -185,6 +202,12 @@ export const AdminScreen: React.FC = () => {
       </div>
 
       {/* Grid de Operações: Disputas & KYC */}
+      {operationError && (
+        <div role="alert" className="bg-red-50 border border-red-200 text-red-800 rounded-2xl px-4 py-3 text-sm font-semibold">
+          {operationError}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Disputas & Mediações em Aberto */}
         <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-sm space-y-4">
@@ -225,11 +248,17 @@ export const AdminScreen: React.FC = () => {
                   <strong>Motivo:</strong> "{order.disputeReason}"
                 </p>
 
+                {order.disputeResolution === 'refund_client' ? (
+                  <div className="bg-amber-100 border border-amber-200 text-amber-900 rounded-xl px-3 py-2 text-xs font-bold">
+                    Reembolso autorizado — aguardando processamento pelo Asaas.
+                  </div>
+                ) : (
                 <div className="grid grid-cols-2 gap-2 pt-1">
                   <button
                     type="button"
-                    onClick={() => resolveDisputeByAdmin(order.id, 'refund_client')}
-                    className="bg-white hover:bg-slate-50 text-red-600 border border-red-300 font-bold text-xs py-2 rounded-xl transition-all shadow-xs flex items-center justify-center gap-1 cursor-pointer"
+                    onClick={() => handleResolveDispute(order.id, 'refund_client')}
+                    disabled={pendingDisputeId === order.id}
+                    className="bg-white hover:bg-slate-50 disabled:opacity-60 text-red-600 border border-red-300 font-bold text-xs py-2 rounded-xl transition-all shadow-xs flex items-center justify-center gap-1 cursor-pointer"
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
                     <span>Reembolsar Cliente</span>
@@ -237,13 +266,15 @@ export const AdminScreen: React.FC = () => {
 
                   <button
                     type="button"
-                    onClick={() => resolveDisputeByAdmin(order.id, 'release_provider')}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2 rounded-xl transition-all shadow-xs flex items-center justify-center gap-1 cursor-pointer"
+                    onClick={() => handleResolveDispute(order.id, 'release_provider')}
+                    disabled={pendingDisputeId === order.id}
+                    className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-bold text-xs py-2 rounded-xl transition-all shadow-xs flex items-center justify-center gap-1 cursor-pointer"
                   >
                     <CheckCircle className="w-3.5 h-3.5" />
                     <span>Liberar Prestador</span>
                   </button>
                 </div>
+                )}
               </div>
             ))
           )}

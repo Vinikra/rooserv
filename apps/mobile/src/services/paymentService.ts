@@ -27,12 +27,6 @@ export class RooServPaymentService {
    */
   public static async initiatePixCheckout(order: {
     id: string;
-    orderNumber: string;
-    totalAmount: number;
-    providerWalletId?: string;
-    customerName?: string;
-    customerEmail?: string;
-    customerCpf?: string;
   }): Promise<PixChargeResult> {
     try {
       const { data: sessionData } = await supabase.auth.getSession();
@@ -51,12 +45,6 @@ export class RooServPaymentService {
         },
         body: JSON.stringify({
           orderId: order.id,
-          orderNumber: order.orderNumber,
-          totalAmount: order.totalAmount,
-          customerName: order.customerName || 'Cliente RooServ',
-          customerEmail: order.customerEmail || '',
-          customerCpf: order.customerCpf || '',
-          description: `RooServ - Pedido ${order.orderNumber}`,
         }),
       });
 

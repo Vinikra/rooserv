@@ -91,6 +91,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
       return;
     }
 
+    if (cpf.replace(/\D/g, '').length !== 11) {
+      setIsLoading(false);
+      setErrorMessage('Informe um CPF válido com 11 dígitos.');
+      return;
+    }
+
     const result = await signup({
       role: userRole,
       fullName: name,
@@ -98,7 +104,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
       password,
       phone: phone || '(66) 99999-0000',
       neighborhood,
-      documentCpf: userRole === 'provider' ? cpf : undefined,
+      documentCpf: cpf,
     });
 
     if (result.success) {
@@ -248,21 +254,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
         </div>
       </div>
 
-      {userRole === 'provider' && (
-        <div>
+      <div>
           <label htmlFor="auth-cpf" className="block text-xs sm:text-sm font-extrabold text-slate-800 mb-1.5">
-            CPF do Profissional
+            CPF
           </label>
           <input
             id="auth-cpf"
             type="text"
+            required
             placeholder="000.000.000-00"
             value={cpf}
             onChange={(e) => setCpf(e.target.value)}
             className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-3.5 text-sm sm:text-base text-slate-900 focus:outline-none focus:border-brand-500"
           />
-        </div>
-      )}
+      </div>
     </>
   );
 

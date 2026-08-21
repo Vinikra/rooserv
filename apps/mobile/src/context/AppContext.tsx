@@ -471,13 +471,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
 
         // Carrega pedidos do Supabase
-        const userId = currentUser?.id;
-        if (userId) {
-          const userUuid = getOrCreateDeterministicUuid(userId);
+        if (currentUser?.id) {
+          // A RLS já restringe o resultado ao cliente/prestador autenticado.
+          // Evita comparar provider_id com profiles.id, que são entidades diferentes.
           const { data: dbOrders } = await supabase
             .from('orders')
             .select('*')
-            .or(`client_id.eq.${userUuid},provider_id.eq.${userUuid}`)
             .order('created_at', { ascending: false })
             .limit(100);
 
@@ -497,8 +496,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               paymentMethod: o.payment_method,
               installmentsCount: o.installments_count || 1,
               paidAt: o.paid_at,
+              startedAt: o.started_at,
               completedAt: o.completed_at,
               fundsReleasedAt: o.funds_released_at,
+              completionProofPhotos: o.completion_proof_photos || [],
+              photos: o.completion_proof_photos || [],
+              disputeReason: o.dispute_reason,
+              disputeDetails: o.dispute_details,
+              disputeOpenedBy: o.dispute_opened_by,
+              disputeOpenedAt: o.dispute_opened_at,
+              disputeResolution: o.dispute_resolution,
+              refundRequestedAt: o.refund_requested_at,
+              disputeResolvedAt: o.dispute_resolved_at,
               createdAt: o.created_at,
             }));
             setOrders((prev) => {
@@ -514,7 +523,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const { data: dbReviews } = await supabase
             .from('reviews')
             .select('*')
-            .or(`client_id.eq.${userUuid},provider_id.eq.${userUuid}`)
             .order('created_at', { ascending: false })
             .limit(100);
 
@@ -753,10 +761,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const newUser: UserProfile = {
       id: authUserId,
-      role: data.role,
+      role: data.role === 'provider' ? 'provider' : 'client',
       fullName: data.fullName,
       email: cleanEmail,
       phone: data.phone,
+      documentCpf: data.documentCpf,
       neighborhood: data.neighborhood || 'Centro',
       city: 'Rondonópolis',
       state: 'MT',
@@ -765,25 +774,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString(),
     };
 
-    localStorage.setItem(`rooserv_profile_${cleanEmail}`, JSON.stringify(newUser));
-
-    try {
-      await supabase.from('profiles').upsert([
+    const { error: profileInsertError } = await supabase.from('profiles').insert([
         {
           id: newUser.id,
+          user_id: authUserId,
           role: newUser.role,
           full_name: newUser.fullName,
           email: newUser.email,
           phone: newUser.phone,
+          document_cpf: newUser.documentCpf,
           neighborhood: newUser.neighborhood,
           city: newUser.city,
           state: newUser.state,
           avatar_url: newUser.avatarUrl,
         },
       ]);
-    } catch {
-      // Ignora e prossegue localmente
+    if (profileInsertError) {
+      await supabase.auth.signOut();
+      return { success: false, error: `Falha ao criar perfil: ${profileInsertError.message}` };
     }
+
+    localStorage.setItem(`rooserv_profile_${cleanEmail}`, JSON.stringify(newUser));
 
     if (newUser.role === 'provider') {
       const provData = {
@@ -793,14 +804,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         pixKeyType: 'phone',
         pixKey: newUser.phone,
       };
-      localStorage.setItem(`rooserv_provider_data_${newUser.id}`, JSON.stringify(provData));
-      localStorage.setItem(`rooserv_provider_data_${cleanEmail}`, JSON.stringify(provData));
-
       const newProv: ProviderProfile = {
-        id: `prv-${newUser.id}`,
+        id: generateUuid(),
         profileId: newUser.id,
         profile: newUser,
-        verificationStatus: 'verified',
+        verificationStatus: 'pending',
         bio: provData.bio,
         experienceYears: provData.experienceYears,
         hourlyRateEstimate: provData.hourlyRateEstimate,
@@ -813,10 +821,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         categories: [categories[0]],
         portfolio: [],
       };
-      setProviders((prev) => [newProv, ...prev]);
-
       try {
-        await supabase.from('provider_profiles').upsert([
+        const { error: providerInsertError } = await supabase.from('provider_profiles').insert([
           {
             id: newProv.id,
             profile_id: newUser.id,
@@ -825,12 +831,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             experience_years: newProv.experienceYears,
             pix_key: newProv.pixKey,
             pix_key_type: newProv.pixKeyType,
-            verification_status: 'verified',
+            verification_status: 'pending',
             average_rating: 5.0,
             is_available: true,
           },
         ]);
-      } catch {}
+        if (providerInsertError) throw providerInsertError;
+      } catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Falha ao criar perfil de prestador.',
+        };
+      }
+
+      localStorage.setItem(`rooserv_provider_data_${newUser.id}`, JSON.stringify(provData));
+      localStorage.setItem(`rooserv_provider_data_${cleanEmail}`, JSON.stringify(provData));
+      setProviders((prev) => [newProv, ...prev]);
     }
 
     setCurrentUser(newUser);
@@ -1169,12 +1185,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     paymentMethod: 'pix' | 'credit_card';
     installments: number;
   }): Promise<Order> => {
+    if (!currentUser) {
+      throw new Error('Faça login antes de iniciar uma contratação.');
+    }
+
+    if (params.paymentMethod !== 'pix') {
+      throw new Error('Pagamento com cartão ainda não está disponível.');
+    }
+
     const provider = providers.find((p) => p.id === params.providerId);
+    if (!provider) {
+      throw new Error('Prestador não encontrado.');
+    }
+
     const split = calculateServiceSplit(params.amount, 12.0);
-    const client = currentUser || INITIAL_CLIENT;
+    const client = currentUser;
     const orderUuid = generateUuid();
-    const clientUuid = getOrCreateDeterministicUuid(client.id || client.email || 'guest-visitor');
-    const providerUuid = getOrCreateDeterministicUuid(params.providerId);
+    const clientUuid = client.id;
+    const providerUuid = params.providerId;
 
     const randomSuffix = typeof crypto !== 'undefined' && crypto.getRandomValues
       ? (1000 + (crypto.getRandomValues(new Uint32Array(1))[0] % 9000))
@@ -1191,18 +1219,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       platformFeePercent: split.platformFeePercent,
       platformFeeAmount: split.platformFeeAmount,
       providerPayoutAmount: split.providerPayoutAmount,
-      status: 'payment_in_escrow',
+      status: 'awaiting_payment',
       paymentMethod: params.paymentMethod,
       installmentsCount: params.installments,
-      paidAt: new Date().toISOString(),
       createdAt: new Date().toISOString(),
     };
 
-    setOrders((prev) => [newOrder, ...prev]);
-
-    // Persiste no Supabase
-    try {
-      await supabase.from('orders').upsert([{
+    // O pedido precisa existir antes da cobrança. A confirmação de custódia
+    // acontece exclusivamente pelo webhook autenticado do gateway.
+    const { error } = await supabase.from('orders').insert([{
         id: orderUuid,
         order_number: newOrder.orderNumber,
         client_id: clientUuid,
@@ -1214,54 +1239,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         status: newOrder.status,
         payment_method: newOrder.paymentMethod,
         installments_count: newOrder.installmentsCount,
-        paid_at: newOrder.paidAt,
       }]);
-    } catch {
-      // Fallback resiliente
+
+    if (error) {
+      throw new Error(`Não foi possível criar o pedido: ${error.message}`);
     }
 
-    // Dispara Notificação In-App em Tempo Real
+    setOrders((prev) => [newOrder, ...prev]);
+
     sendInAppNotification({
-      title: '🔒 Pagamento em Custódia Segura!',
-      message: `R$ ${split.totalAmount.toFixed(2)} retidos com proteção RooServ. O prestador ${provider?.profile?.fullName || ''} foi avisado no app para iniciar o serviço!`,
+      title: 'Pedido criado — aguardando pagamento',
+      message: `A cobrança de R$ ${split.totalAmount.toFixed(2)} será confirmada somente após o retorno do Asaas.`,
       type: 'payment',
       actionTab: 'orders',
-    });
-
-    const globalChannel = supabase.channel('rooserv_global_events');
-    globalChannel.send({
-      type: 'broadcast',
-      event: 'order_updated',
-      payload: { orderId: newOrder.id, changes: { status: 'payment_in_escrow' } },
     });
 
     return newOrder;
   };
 
   const markOrderAsCompletedByProvider = async (orderId: string, proofPhotos?: string[]) => {
-    setOrders((prev) =>
-      prev.map((o) =>
-        o.id === orderId
-          ? {
-              ...o,
-              status: 'completed_by_provider',
-              completedAt: new Date().toISOString(),
-              photos: proofPhotos || o.photos,
-            }
-          : o
-      )
-    );
+    const { error } = await supabase.rpc('complete_order_by_provider', {
+      p_order_id: orderId,
+      p_proof_photos: proofPhotos || [],
+    });
+    if (error) throw new Error(`Não foi possível concluir o serviço: ${error.message}`);
 
-    // Persiste status no Supabase
-    try {
-      const orderUuid = getOrCreateDeterministicUuid(orderId);
-      await supabase.from('orders').update({
-        status: 'completed_by_provider',
-        completed_at: new Date().toISOString(),
-      }).eq('id', orderUuid);
-    } catch {
-      // Fallback
-    }
+    const completedAt = new Date().toISOString();
+    setOrders((prev) => prev.map((o) => o.id === orderId ? {
+      ...o,
+      status: 'completed_by_provider',
+      startedAt: o.startedAt || completedAt,
+      completedAt,
+      completionProofPhotos: proofPhotos || [],
+      photos: proofPhotos || o.photos,
+    } : o));
 
     sendInAppNotification({
       title: '🛠️ Serviço Marcado como Concluído!',
@@ -1285,60 +1296,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     tags: string[];
   }) => {
     const targetOrder = orders.find((o) => o.id === params.orderId);
-    if (!targetOrder) return;
-    const client = currentUser || INITIAL_CLIENT;
-    const reviewUuid = generateUuid();
-    const orderUuid = getOrCreateDeterministicUuid(params.orderId);
-    const clientUuid = getOrCreateDeterministicUuid(client.id || client.email || 'guest-visitor');
-    const providerUuid = getOrCreateDeterministicUuid(targetOrder.providerId);
+    if (!targetOrder || !currentUser) throw new Error('Pedido ou usuário não encontrado.');
 
-    setOrders((prev) =>
-      prev.map((o) =>
-        o.id === params.orderId
-          ? {
-              ...o,
-              status: 'approved_by_client',
-              fundsReleasedAt: new Date().toISOString(),
-            }
-          : o
-      )
-    );
+    const { data, error } = await supabase.rpc('release_order_escrow', {
+      p_order_id: params.orderId,
+      p_rating: params.rating,
+      p_comment: params.comment,
+      p_tags: params.tags,
+    });
+    if (error) throw new Error(`Não foi possível liberar a custódia: ${error.message}`);
+
+    const releasedAt = new Date().toISOString();
+    setOrders((prev) => prev.map((o) => o.id === params.orderId ? {
+      ...o,
+      status: 'approved_by_client',
+      fundsReleasedAt: releasedAt,
+      completedAt: o.completedAt || releasedAt,
+    } : o));
 
     const newReview: Review = {
-      id: reviewUuid,
-      orderId: orderUuid,
-      clientId: clientUuid,
-      client,
-      providerId: providerUuid,
+      id: data?.review_id || generateUuid(),
+      orderId: params.orderId,
+      clientId: currentUser.id,
+      client: currentUser,
+      providerId: targetOrder.providerId,
       rating: params.rating,
       comment: params.comment,
       tags: params.tags,
       photos: [],
-      createdAt: new Date().toISOString(),
+      createdAt: releasedAt,
     };
 
     setReviews((prev) => [newReview, ...prev]);
-
-    // Persiste review e status do pedido no Supabase
-    try {
-      await supabase.from('orders').update({
-        status: 'approved_by_client',
-        funds_released_at: new Date().toISOString(),
-      }).eq('id', orderUuid);
-
-      await supabase.from('reviews').upsert([{
-        id: reviewUuid,
-        order_id: orderUuid,
-        client_id: clientUuid,
-        provider_id: providerUuid,
-        rating: newReview.rating,
-        comment: newReview.comment,
-        tags: newReview.tags,
-        photos: newReview.photos,
-      }]);
-    } catch {
-      // Fallback
-    }
 
     sendInAppNotification({
       title: '💰 Pagamento Liberado com Sucesso!',
@@ -1370,32 +1359,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const openDispute = async (orderId: string, reason: string, details: string) => {
-    setOrders((prev) =>
-      prev.map((o) =>
-        o.id === orderId
-          ? {
-              ...o,
-              status: 'disputed',
-              disputeReason: reason,
-              disputeDetails: details,
-              disputeOpenedAt: new Date().toISOString(),
-            }
-          : o
-      )
-    );
+    const { error } = await supabase.rpc('open_order_dispute', {
+      p_order_id: orderId,
+      p_reason: reason,
+      p_details: details,
+    });
+    if (error) throw new Error(`Não foi possível abrir a disputa: ${error.message}`);
 
-    // Persiste no Supabase
-    try {
-      const orderUuid = getOrCreateDeterministicUuid(orderId);
-      await supabase.from('orders').update({
-        status: 'disputed',
-        dispute_reason: reason,
-        dispute_details: details,
-        dispute_opened_at: new Date().toISOString(),
-      }).eq('id', orderUuid);
-    } catch {
-      // Fallback
-    }
+    const disputeOpenedAt = new Date().toISOString();
+    setOrders((prev) => prev.map((o) => o.id === orderId ? {
+      ...o,
+      status: 'disputed',
+      disputeReason: reason,
+      disputeDetails: details,
+      disputeOpenedBy: currentUser?.id,
+      disputeOpenedAt,
+      disputeResolution: undefined,
+      refundRequestedAt: undefined,
+      disputeResolvedAt: undefined,
+    } : o));
 
     sendInAppNotification({
       title: '⚠️ Disputa Aberta na Plataforma',
@@ -1424,34 +1406,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     orderId: string,
     decision: 'refund_client' | 'release_provider'
   ) => {
-    setOrders((prev) =>
-      prev.map((o) =>
-        o.id === orderId
-          ? {
-              ...o,
-              status: decision === 'refund_client' ? 'refunded' : 'approved_by_client',
-              disputeResolvedAt: new Date().toISOString(),
-              fundsReleasedAt: decision === 'release_provider' ? new Date().toISOString() : undefined,
-            }
-          : o
-      )
-    );
+    const { data, error } = await supabase.rpc('resolve_order_dispute', {
+      p_order_id: orderId,
+      p_decision: decision,
+    });
+    if (error) throw new Error(`Não foi possível resolver a disputa: ${error.message}`);
 
-    // Persiste no Supabase
-    try {
-      const orderUuid = getOrCreateDeterministicUuid(orderId);
-      await supabase.from('orders').update({
-        status: decision === 'refund_client' ? 'refunded' : 'approved_by_client',
-        dispute_resolved_at: new Date().toISOString(),
-        funds_released_at: decision === 'release_provider' ? new Date().toISOString() : null,
-      }).eq('id', orderUuid);
-    } catch {
-      // Fallback
-    }
+    const resolvedAt = new Date().toISOString();
+    const refundPending = decision === 'refund_client' && data?.gateway_action_required === true;
+    setOrders((prev) => prev.map((o) => o.id === orderId ? {
+      ...o,
+      status: decision === 'release_provider' ? 'approved_by_client' : 'disputed',
+      disputeResolution: decision,
+      refundRequestedAt: refundPending ? resolvedAt : o.refundRequestedAt,
+      disputeResolvedAt: decision === 'release_provider' ? resolvedAt : o.disputeResolvedAt,
+      fundsReleasedAt: decision === 'release_provider' ? resolvedAt : o.fundsReleasedAt,
+    } : o));
 
     sendInAppNotification({
-      title: '⚖️ Disputa Concluída pela Gestão',
-      message: decision === 'refund_client' ? 'Reembolso integral ao cliente.' : 'Valor liberado ao profissional.',
+      title: decision === 'refund_client'
+        ? '⚖️ Reembolso Autorizado pela Gestão'
+        : '⚖️ Disputa Concluída pela Gestão',
+      message: decision === 'refund_client'
+        ? 'Reembolso autorizado e aguardando processamento pelo Asaas.'
+        : 'Valor em custódia liberado ao profissional.',
       type: 'system',
       actionTab: 'orders',
     });
@@ -1463,8 +1441,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       payload: {
         orderId,
         changes: {
-          status: decision === 'refund_client' ? 'refunded' : 'approved_by_client',
-          disputeResolvedAt: new Date().toISOString(),
+          status: decision === 'release_provider' ? 'approved_by_client' : 'disputed',
+          disputeResolution: decision,
+          refundRequestedAt: refundPending ? resolvedAt : undefined,
+          disputeResolvedAt: decision === 'release_provider' ? resolvedAt : undefined,
         },
       },
     });

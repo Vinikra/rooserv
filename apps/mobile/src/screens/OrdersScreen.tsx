@@ -4,7 +4,10 @@ import {
   Order, 
   ORDER_STATUS_LABELS, 
   SUGGESTED_REVIEW_TAGS,
-  formatCurrencyBRL 
+  formatCurrencyBRL,
+  canClientReleaseEscrow,
+  canParticipantOpenDispute,
+  canProviderCompleteOrder,
 } from '@servicos/shared';
 import { 
   ShieldCheck, 
@@ -38,6 +41,8 @@ export const OrdersScreen: React.FC = () => {
   const [selectedOrderForDispute, setSelectedOrderForDispute] = useState<Order | null>(null);
   const [disputeReason, setDisputeReason] = useState<string>('Prestador não compareceu no endereço');
   const [disputeDetails, setDisputeDetails] = useState<string>('');
+  const [pendingAction, setPendingAction] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const handleToggleTag = (tag: string) => {
     if (selectedTags.includes(tag)) {
@@ -49,20 +54,48 @@ export const OrdersScreen: React.FC = () => {
 
   const handleFinalizeAndRelease = async () => {
     if (!selectedOrderForReview) return;
-    await confirmAndReleaseEscrow({
-      orderId: selectedOrderForReview.id,
-      rating,
-      comment,
-      tags: selectedTags,
-    });
-    setSelectedOrderForReview(null);
+    setPendingAction(`release:${selectedOrderForReview.id}`);
+    setActionError(null);
+    try {
+      await confirmAndReleaseEscrow({
+        orderId: selectedOrderForReview.id,
+        rating,
+        comment,
+        tags: selectedTags,
+      });
+      setSelectedOrderForReview(null);
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Não foi possível liberar o pagamento.');
+    } finally {
+      setPendingAction(null);
+    }
   };
 
   const handleConfirmDispute = async () => {
     if (!selectedOrderForDispute) return;
-    await openDispute(selectedOrderForDispute.id, disputeReason, disputeDetails);
-    setSelectedOrderForDispute(null);
-    setDisputeDetails('');
+    setPendingAction(`dispute:${selectedOrderForDispute.id}`);
+    setActionError(null);
+    try {
+      await openDispute(selectedOrderForDispute.id, disputeReason, disputeDetails);
+      setSelectedOrderForDispute(null);
+      setDisputeDetails('');
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Não foi possível abrir a disputa.');
+    } finally {
+      setPendingAction(null);
+    }
+  };
+
+  const handleCompleteOrder = async (orderId: string) => {
+    setPendingAction(`complete:${orderId}`);
+    setActionError(null);
+    try {
+      await markOrderAsCompletedByProvider(orderId);
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Não foi possível concluir o serviço.');
+    } finally {
+      setPendingAction(null);
+    }
   };
 
   return (
@@ -80,6 +113,12 @@ export const OrdersScreen: React.FC = () => {
           {`${orders.length} pedidos`}
         </span>
       </div>
+
+      {actionError && (
+        <div role="alert" className="bg-red-50 border border-red-200 text-red-800 rounded-2xl px-4 py-3 text-sm font-semibold">
+          {actionError}
+        </div>
+      )}
 
       {orders.length === 0 ? (
         <div className="bg-white rounded-3xl p-12 text-center border border-slate-200 shadow-sm space-y-2">
@@ -184,7 +223,7 @@ export const OrdersScreen: React.FC = () => {
                 {/* Botões de Ação */}
                 <div className="flex items-center justify-between pt-2 border-t border-slate-100">
                   {/* Botão Reportar Problema / Disputa (Cliente) */}
-                  {currentRole === 'client' && (order.status === 'payment_in_escrow' || order.status === 'completed_by_provider') && (
+                  {currentRole === 'client' && canParticipantOpenDispute(order.status) && (
                     <button
                       type="button"
                       onClick={() => setSelectedOrderForDispute(order)}
@@ -228,19 +267,20 @@ export const OrdersScreen: React.FC = () => {
                     )}
 
                     {/* Ação do Prestador: Concluir serviço */}
-                    {currentRole === 'provider' && order.status === 'payment_in_escrow' && (
+                    {currentRole === 'provider' && canProviderCompleteOrder(order.status) && (
                       <button
                         type="button"
-                        onClick={() => markOrderAsCompletedByProvider(order.id)}
-                        className="bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs sm:text-sm px-5 py-3 rounded-xl transition-all shadow-md active:scale-95 flex items-center gap-2 cursor-pointer"
+                        onClick={() => handleCompleteOrder(order.id)}
+                        disabled={pendingAction === `complete:${order.id}`}
+                        className="bg-amber-600 hover:bg-amber-700 disabled:opacity-60 text-white font-extrabold text-xs sm:text-sm px-5 py-3 rounded-xl transition-all shadow-md active:scale-95 flex items-center gap-2 cursor-pointer"
                       >
                         <CheckCircle className="w-4 h-4" />
-                        <span>Marcar como Concluído</span>
+                        <span>{pendingAction === `complete:${order.id}` ? 'Concluindo...' : 'Marcar como Concluído'}</span>
                       </button>
                     )}
 
                     {/* Ação do Cliente: Aprovar serviço e Liberar Pagamento */}
-                    {currentRole === 'client' && (order.status === 'payment_in_escrow' || order.status === 'completed_by_provider') && (
+                    {currentRole === 'client' && canClientReleaseEscrow(order.status) && (
                       <button
                         type="button"
                         onClick={() => setSelectedOrderForReview(order)}
@@ -344,15 +384,24 @@ export const OrdersScreen: React.FC = () => {
               />
             </div>
 
+            {actionError && (
+              <div role="alert" className="bg-red-50 border border-red-200 text-red-800 rounded-xl px-3 py-2 text-xs font-semibold">
+                {actionError}
+              </div>
+            )}
+
             {/* Confirmação e Liberação */}
             <div className="pt-2">
               <button
                 type="button"
                 onClick={handleFinalizeAndRelease}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm sm:text-base py-4 px-5 rounded-2xl shadow-lg shadow-emerald-500/25 transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
+                disabled={pendingAction === `release:${selectedOrderForReview.id}`}
+                className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-black text-sm sm:text-base py-4 px-5 rounded-2xl shadow-lg shadow-emerald-500/25 transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
               >
                 <CheckCircle className="w-5 h-5" />
-                <span>{`Confirmar e Liberar ${formatCurrencyBRL(selectedOrderForReview.providerPayoutAmount)}`}</span>
+                <span>{pendingAction === `release:${selectedOrderForReview.id}`
+                  ? 'Liberando com segurança...'
+                  : `Confirmar e Liberar ${formatCurrencyBRL(selectedOrderForReview.providerPayoutAmount)}`}</span>
               </button>
             </div>
           </div>
@@ -425,13 +474,22 @@ export const OrdersScreen: React.FC = () => {
               />
             </div>
 
+            {actionError && (
+              <div role="alert" className="bg-red-50 border border-red-200 text-red-800 rounded-xl px-3 py-2 text-xs font-semibold">
+                {actionError}
+              </div>
+            )}
+
             <button
               type="button"
               onClick={handleConfirmDispute}
-              className="w-full bg-red-600 hover:bg-red-700 text-white font-black text-sm sm:text-base py-4 px-5 rounded-2xl shadow-lg shadow-red-500/25 transition-all flex items-center justify-center gap-2 active:scale-95 mt-2 cursor-pointer"
+              disabled={pendingAction === `dispute:${selectedOrderForDispute.id}`}
+              className="w-full bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white font-black text-sm sm:text-base py-4 px-5 rounded-2xl shadow-lg shadow-red-500/25 transition-all flex items-center justify-center gap-2 active:scale-95 mt-2 cursor-pointer"
             >
               <ShieldAlert className="w-5 h-5" />
-              <span>Abrir Disputa com a Moderação RooServ</span>
+              <span>{pendingAction === `dispute:${selectedOrderForDispute.id}`
+                ? 'Abrindo disputa...'
+                : 'Abrir Disputa com a Moderação RooServ'}</span>
             </button>
           </div>
         </div>
