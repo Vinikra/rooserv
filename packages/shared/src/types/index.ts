@@ -104,6 +104,27 @@ export interface Proposal {
   createdAt: string;
 }
 
+export interface ProviderWalletSummary {
+  id?: string;
+  providerId: string;
+  balanceAvailable: number;
+  balanceInEscrow: number;
+  totalEarnedLifetime: number;
+  updatedAt?: string;
+}
+
+export interface PayoutRequest {
+  id: string;
+  walletId: string;
+  providerId: string;
+  amount: number;
+  pixKeyDestination: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  gatewayTransferId?: string;
+  processedAt?: string;
+  createdAt: string;
+}
+
 export interface Order {
   id: string;
   orderNumber: string;

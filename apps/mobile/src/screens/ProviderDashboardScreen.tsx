@@ -8,7 +8,10 @@ import {
   Send, 
   CheckCircle, 
   MapPin,
-  Inbox
+  Inbox,
+  X,
+  AlertCircle,
+  LoaderCircle
 } from 'lucide-react';
 import { formatCurrencyBRL } from '@servicos/shared';
 
@@ -19,57 +22,102 @@ interface ProviderDashboardScreenProps {
 export const ProviderDashboardScreen: React.FC<ProviderDashboardScreenProps> = ({
   onOpenOnboarding,
 }) => {
-  const { requests, orders, providers, currentUser } = useApp();
+  const {
+    requests,
+    providers,
+    proposals,
+    currentUser,
+    providerWallet,
+    payoutRequests,
+    sendServiceProposal,
+    requestProviderPayout,
+  } = useApp();
 
-  const currentProvider = providers.find((p) => p.profileId === currentUser?.id || (currentUser?.email && p.profile?.email === currentUser.email)) || {
-    id: `prv-${currentUser?.id || 'guest'}`,
-    profileId: currentUser?.id || 'guest',
-    profile: currentUser || {
-      id: 'p-guest',
-      role: 'provider',
-      fullName: 'Professor de Matemática',
-      email: 'professor@rooserv.com.br',
-      phone: '(66) 99909-7398',
-      neighborhood: 'Centro',
-      city: 'Rondonópolis',
-      state: 'MT',
-      avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200',
-      isActive: true,
-      createdAt: new Date().toISOString(),
-    },
-    verificationStatus: 'verified',
-    bio: 'Professor de Matemática & Reforço Escolar especializado em Rondonópolis.',
-    experienceYears: 5,
-    hourlyRateEstimate: 80,
-    pixKeyType: 'phone',
-    pixKey: currentUser?.phone || '(66) 99909-7398',
-    averageRating: 5.0,
-    totalReviews: 0,
-    totalCompletedOrders: 0,
-    isAvailable: true,
-  };
+  const currentProvider = providers.find((p) => p.profileId === currentUser?.id);
 
   // Cálculos da Carteira
-  const completedOrders = orders.filter((o) => o.status === 'approved_by_client');
-  const escrowOrders = orders.filter(
-    (o) => o.status === 'payment_in_escrow' || o.status === 'completed_by_provider'
-  );
-
-  const availableBalance = completedOrders.reduce((acc, o) => acc + o.providerPayoutAmount, 0);
-  const escrowBalance = escrowOrders.reduce((acc, o) => acc + o.providerPayoutAmount, 0);
+  const availableBalance = providerWallet?.balanceAvailable || 0;
+  const escrowBalance = providerWallet?.balanceInEscrow || 0;
 
   const [payoutSuccess, setPayoutSuccess] = useState(false);
+  const [payoutError, setPayoutError] = useState<string | null>(null);
+  const [isRequestingPayout, setIsRequestingPayout] = useState(false);
   const [proposalSentId, setProposalSentId] = useState<string | null>(null);
+  const [proposalRequestId, setProposalRequestId] = useState<string | null>(null);
+  const [laborAmount, setLaborAmount] = useState('');
+  const [materialsAmount, setMaterialsAmount] = useState('0');
+  const [estimatedDays, setEstimatedDays] = useState('1');
+  const [warrantyDays, setWarrantyDays] = useState('30');
+  const [proposalDescription, setProposalDescription] = useState('');
+  const [proposalError, setProposalError] = useState<string | null>(null);
+  const [isSendingProposal, setIsSendingProposal] = useState(false);
 
-  const handleRequestPayout = () => {
-    setPayoutSuccess(true);
-    setTimeout(() => setPayoutSuccess(false), 3000);
+  const handleRequestPayout = async () => {
+    if (availableBalance <= 0) return;
+    setIsRequestingPayout(true);
+    setPayoutError(null);
+    try {
+      await requestProviderPayout(availableBalance);
+      setPayoutSuccess(true);
+      setTimeout(() => setPayoutSuccess(false), 4000);
+    } catch (error) {
+      setPayoutError(error instanceof Error ? error.message : 'Não foi possível solicitar o saque.');
+    } finally {
+      setIsRequestingPayout(false);
+    }
   };
 
-  const handleSendProposal = (reqId: string) => {
-    setProposalSentId(reqId);
-    setTimeout(() => setProposalSentId(null), 2500);
+  const openProposalModal = (reqId: string, budget?: number) => {
+    setProposalRequestId(reqId);
+    setLaborAmount(budget ? String(budget) : '');
+    setMaterialsAmount('0');
+    setEstimatedDays('1');
+    setWarrantyDays('30');
+    setProposalDescription('');
+    setProposalError(null);
   };
+
+  const handleSendProposal = async () => {
+    if (!proposalRequestId) return;
+    setIsSendingProposal(true);
+    setProposalError(null);
+    try {
+      await sendServiceProposal({
+        requestId: proposalRequestId,
+        laborAmount: Number(laborAmount),
+        materialsAmount: Number(materialsAmount),
+        estimatedDays: Number(estimatedDays),
+        warrantyDays: Number(warrantyDays),
+        description: proposalDescription.trim(),
+      });
+      setProposalSentId(proposalRequestId);
+      setProposalRequestId(null);
+      setTimeout(() => setProposalSentId(null), 2500);
+    } catch (error) {
+      setProposalError(error instanceof Error ? error.message : 'Não foi possível enviar o orçamento.');
+    } finally {
+      setIsSendingProposal(false);
+    }
+  };
+
+  if (!currentProvider || currentProvider.verificationStatus !== 'verified') {
+    return (
+      <div className="max-w-2xl mx-auto w-full px-4 py-12">
+        <div className="bg-white rounded-3xl border border-amber-200 shadow-sm p-8 text-center space-y-4">
+          <AlertCircle className="w-12 h-12 text-amber-600 mx-auto" />
+          <h2 className="text-xl font-black text-slate-900">Perfil profissional ainda não verificado</h2>
+          <p className="text-sm text-slate-600">
+            Conclua o cadastro e aguarde a validação RooServ antes de visualizar oportunidades ou enviar propostas.
+          </p>
+          {onOpenOnboarding && (
+            <button type="button" onClick={onOpenOnboarding} className="bg-amber-600 hover:bg-amber-700 text-white font-black px-6 py-3 rounded-2xl">
+              Completar cadastro profissional
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="pb-24 pt-4 px-4 sm:px-6 lg:px-8 space-y-6 max-w-7xl mx-auto w-full">
@@ -140,16 +188,36 @@ export const ProviderDashboardScreen: React.FC<ProviderDashboardScreenProps> = (
             <button
               type="button"
               onClick={handleRequestPayout}
-              disabled={availableBalance <= 0}
+              disabled={availableBalance <= 0 || isRequestingPayout}
               className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-sm sm:text-base py-4 rounded-2xl transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
             >
-              <ArrowUpRight className="w-5 h-5" />
-              <span>{`Solicitar Saque Pix (${formatCurrencyBRL(availableBalance)})`}</span>
+              {isRequestingPayout ? <LoaderCircle className="w-5 h-5 animate-spin" /> : <ArrowUpRight className="w-5 h-5" />}
+              <span>{isRequestingPayout ? 'Registrando saque...' : `Solicitar Saque Pix (${formatCurrencyBRL(availableBalance)})`}</span>
             </button>
 
             {payoutSuccess && (
               <div className="bg-emerald-500/25 border border-emerald-400/50 text-emerald-300 text-xs sm:text-sm p-3.5 rounded-2xl text-center font-bold animate-in fade-in">
-                ✓ Saque Pix solicitado com sucesso! O valor foi enviado diretamente para sua chave Pix.
+                ✓ Solicitação registrada. O valor foi reservado e aguarda processamento para sua chave Pix.
+              </div>
+            )}
+
+            {payoutError && (
+              <div role="alert" className="bg-red-500/20 border border-red-400/40 text-red-200 text-xs sm:text-sm p-3.5 rounded-2xl font-bold">
+                {payoutError}
+              </div>
+            )}
+
+            {payoutRequests.length > 0 && (
+              <div className="border-t border-slate-700 pt-4 space-y-2">
+                <span className="text-[11px] uppercase tracking-wider text-slate-400 font-extrabold">Últimos saques</span>
+                {payoutRequests.slice(0, 3).map((payout) => (
+                  <div key={payout.id} className="flex items-center justify-between text-xs bg-slate-800/80 rounded-xl px-3 py-2.5">
+                    <strong className="text-white">{formatCurrencyBRL(payout.amount)}</strong>
+                    <span className={`font-bold ${payout.status === 'completed' ? 'text-emerald-400' : payout.status === 'failed' ? 'text-red-400' : 'text-amber-400'}`}>
+                      {payout.status === 'completed' ? 'Concluído' : payout.status === 'failed' ? 'Falhou' : payout.status === 'processing' ? 'Processando' : 'Pendente'}
+                    </span>
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -181,7 +249,8 @@ export const ProviderDashboardScreen: React.FC<ProviderDashboardScreenProps> = (
               </div>
             ) : (
               requests.map((req) => {
-              const isSent = proposalSentId === req.id;
+              const existingProposal = proposals.find((proposal) => proposal.requestId === req.id);
+              const isSent = proposalSentId === req.id || Boolean(existingProposal);
               return (
                 <div
                   key={req.id}
@@ -225,7 +294,7 @@ export const ProviderDashboardScreen: React.FC<ProviderDashboardScreenProps> = (
 
                     <button
                       type="button"
-                      onClick={() => handleSendProposal(req.id)}
+                      onClick={() => openProposalModal(req.id, existingProposal?.totalAmount || req.budgetEstimate)}
                       className={`font-black text-xs sm:text-sm px-5 py-3 rounded-xl transition-all flex items-center gap-2 active:scale-95 cursor-pointer ${
                         isSent
                           ? 'bg-emerald-600 text-white shadow-md'
@@ -235,7 +304,7 @@ export const ProviderDashboardScreen: React.FC<ProviderDashboardScreenProps> = (
                       {isSent ? (
                         <>
                           <CheckCircle className="w-4 h-4" />
-                          <span>Orçamento Enviado!</span>
+                          <span>{proposalSentId === req.id ? 'Orçamento Enviado!' : 'Editar Orçamento'}</span>
                         </>
                       ) : (
                         <>
@@ -251,6 +320,58 @@ export const ProviderDashboardScreen: React.FC<ProviderDashboardScreenProps> = (
           </div>
         </div>
       </div>
+
+      {proposalRequestId && (
+        <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-lg font-black text-slate-900">Orçamento oficial</h3>
+                <p className="text-xs text-slate-500">O cliente receberá a proposta no chat seguro.</p>
+              </div>
+              <button type="button" onClick={() => setProposalRequestId(null)} disabled={isSendingProposal} className="p-2 text-slate-400 hover:text-slate-700">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <label className="text-xs font-extrabold text-slate-700">
+                Mão de obra (R$)
+                <input type="number" min="1" step="0.01" value={laborAmount} onChange={(event) => setLaborAmount(event.target.value)} className="mt-1.5 w-full border border-slate-200 rounded-xl px-3 py-3 text-sm" />
+              </label>
+              <label className="text-xs font-extrabold text-slate-700">
+                Materiais (R$)
+                <input type="number" min="0" step="0.01" value={materialsAmount} onChange={(event) => setMaterialsAmount(event.target.value)} className="mt-1.5 w-full border border-slate-200 rounded-xl px-3 py-3 text-sm" />
+              </label>
+              <label className="text-xs font-extrabold text-slate-700">
+                Prazo (dias)
+                <input type="number" min="1" max="365" value={estimatedDays} onChange={(event) => setEstimatedDays(event.target.value)} className="mt-1.5 w-full border border-slate-200 rounded-xl px-3 py-3 text-sm" />
+              </label>
+              <label className="text-xs font-extrabold text-slate-700">
+                Garantia (dias)
+                <input type="number" min="0" max="3650" value={warrantyDays} onChange={(event) => setWarrantyDays(event.target.value)} className="mt-1.5 w-full border border-slate-200 rounded-xl px-3 py-3 text-sm" />
+              </label>
+            </div>
+
+            <label className="block text-xs font-extrabold text-slate-700">
+              Descrição do serviço
+              <textarea rows={4} maxLength={2000} value={proposalDescription} onChange={(event) => setProposalDescription(event.target.value)} placeholder="Detalhe o que está incluso, materiais e condições." className="mt-1.5 w-full border border-slate-200 rounded-xl px-3 py-3 text-sm resize-none" />
+            </label>
+
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 flex justify-between text-sm">
+              <span className="font-bold text-slate-600">Valor total</span>
+              <strong className="font-black text-slate-950">{formatCurrencyBRL((Number(laborAmount) || 0) + (Number(materialsAmount) || 0))}</strong>
+            </div>
+
+            {proposalError && <div role="alert" className="bg-red-50 border border-red-200 text-red-800 rounded-xl p-3 text-xs font-bold">{proposalError}</div>}
+
+            <button type="button" onClick={handleSendProposal} disabled={isSendingProposal} className="w-full bg-slate-950 hover:bg-slate-900 disabled:opacity-60 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-2">
+              {isSendingProposal ? <LoaderCircle className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+              <span>{isSendingProposal ? 'Enviando...' : 'Registrar e enviar orçamento'}</span>
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

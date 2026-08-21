@@ -3,6 +3,9 @@ import {
   ProviderProfile,
   ServiceCategory,
   Order,
+  Proposal,
+  ProviderWalletSummary,
+  PayoutRequest,
   ServiceRequest,
   Review,
   UserProfile,
@@ -33,6 +36,9 @@ interface AppContextType {
   orders: Order[];
   reviews: Review[];
   requests: ServiceRequest[];
+  proposals: Proposal[];
+  providerWallet: ProviderWalletSummary | null;
+  payoutRequests: PayoutRequest[];
   selectedNeighborhood: string;
   setSelectedNeighborhood: (bairro: string) => void;
   selectedCategorySlug: string | null;
@@ -74,6 +80,16 @@ interface AppContextType {
     photos?: string[];
   }) => Promise<ServiceRequest>;
 
+  sendServiceProposal: (data: {
+    requestId: string;
+    laborAmount: number;
+    materialsAmount: number;
+    estimatedDays: number;
+    description: string;
+    warrantyDays: number;
+  }) => Promise<Proposal>;
+  acceptChatProposal: (messageId: string) => Promise<void>;
+
   hireProviderWithEscrow: (params: {
     providerId: string;
     amount: number;
@@ -91,7 +107,7 @@ interface AppContextType {
   }) => Promise<void>;
 
   verifyProviderByAdmin: (providerId: string, status: VerificationStatus) => Promise<void>;
-  requestProviderPayout: (providerId: string, amount: number) => boolean;
+  requestProviderPayout: (amount: number) => Promise<PayoutRequest>;
   openDispute: (orderId: string, reason: string, details: string) => Promise<void>;
   resolveDisputeByAdmin: (orderId: string, decision: 'refund_client' | 'release_provider') => Promise<void>;
   getAdminStats: () => {
@@ -199,6 +215,83 @@ function mapDbProvider(p: any): ProviderProfile {
   };
 }
 
+function mapDbProposal(p: any): Proposal {
+  return {
+    id: p.id,
+    requestId: p.request_id,
+    providerId: p.provider_id,
+    laborAmount: Number(p.labor_amount) || 0,
+    materialsAmount: Number(p.materials_amount) || 0,
+    totalAmount: Number(p.total_amount) || 0,
+    estimatedDays: Number(p.estimated_days) || 1,
+    description: p.description || '',
+    warrantyDays: Number(p.warranty_days) || 0,
+    status: p.status || 'pending',
+    createdAt: p.created_at,
+  };
+}
+
+function mapDbProviderWallet(wallet: any): ProviderWalletSummary {
+  return {
+    id: wallet.id || undefined,
+    providerId: wallet.provider_id,
+    balanceAvailable: Number(wallet.balance_available) || 0,
+    balanceInEscrow: Number(wallet.balance_in_escrow) || 0,
+    totalEarnedLifetime: Number(wallet.total_earned_lifetime) || 0,
+    updatedAt: wallet.updated_at || undefined,
+  };
+}
+
+function mapDbPayoutRequest(request: any): PayoutRequest {
+  return {
+    id: request.id,
+    walletId: request.wallet_id,
+    providerId: request.provider_id,
+    amount: Number(request.amount) || 0,
+    pixKeyDestination: request.pix_key_destination,
+    status: request.status || 'pending',
+    gatewayTransferId: request.gateway_transfer_id || undefined,
+    processedAt: request.processed_at || undefined,
+    createdAt: request.created_at,
+  };
+}
+
+function mapDbOrder(o: any): Order {
+  return {
+    id: o.id,
+    orderNumber: o.order_number || `SRV-${o.id.slice(0, 8)}`,
+    clientId: o.client_id,
+    providerId: o.provider_id,
+    client: o.client ? mapDbProfile(o.client, o.client_id) : undefined,
+    provider: o.provider ? mapDbProvider(o.provider) : undefined,
+    proposalId: o.proposal_id,
+    requestId: o.request_id,
+    totalAmount: Number(o.total_amount) || 0,
+    platformFeePercent: Number(o.platform_fee_percent) || 12,
+    platformFeeAmount: Number(o.platform_fee_amount) || 0,
+    providerPayoutAmount: Number(o.provider_payout_amount) || 0,
+    status: o.status || 'awaiting_payment',
+    paymentMethod: o.payment_method,
+    installmentsCount: o.installments_count || 1,
+    paidAt: o.paid_at,
+    startedAt: o.started_at,
+    completedAt: o.completed_at,
+    fundsReleasedAt: o.funds_released_at,
+    completionProofPhotos: o.completion_proof_photos || [],
+    disputeReason: o.dispute_reason,
+    disputeDetails: o.dispute_details,
+    disputeOpenedBy: o.dispute_opened_by,
+    disputeOpenedAt: o.dispute_opened_at,
+    disputeResolution: o.dispute_resolution,
+    refundRequestedAt: o.refund_requested_at,
+    disputeResolvedAt: o.dispute_resolved_at,
+    serviceTitle: o.service_request?.title || undefined,
+    serviceDescription: o.service_request?.description || undefined,
+    photos: o.service_request?.photos || o.completion_proof_photos || [],
+    createdAt: o.created_at,
+  };
+}
+
 function computeAdminStats(orders: Order[], providers: ProviderProfile[]) {
   const totalVolumeTransacted = orders.reduce((acc, o) => acc + o.totalAmount, 0);
   const platformRevenue = orders.reduce((acc, o) => acc + o.platformFeeAmount, 0);
@@ -227,6 +320,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [orders, setOrders] = useState<Order[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [requests, setRequests] = useState<ServiceRequest[]>([]);
+  const [proposals, setProposals] = useState<Proposal[]>([]);
+  const [providerWallet, setProviderWallet] = useState<ProviderWalletSummary | null>(null);
+  const [payoutRequests, setPayoutRequests] = useState<PayoutRequest[]>([]);
 
   const [selectedNeighborhood, setSelectedNeighborhood] = useState<string>('Todos os Bairros');
   const [selectedCategorySlug, setSelectedCategorySlug] = useState<string | null>(null);
@@ -306,6 +402,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setCurrentUser(null);
           setCurrentRole('client');
           setOrders([]);
+          setProposals([]);
+          setProviderWallet(null);
+          setPayoutRequests([]);
         }
         return;
       }
@@ -383,40 +482,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             .rpc('list_my_orders');
 
           if (ordersError) throw ordersError;
-          const mappedOrders: Order[] = (dbOrders || []).map((o: any) => ({
-              id: o.id,
-              orderNumber: o.order_number || `SRV-${o.id.slice(0, 8)}`,
-              clientId: o.client_id,
-              providerId: o.provider_id,
-              client: o.client ? mapDbProfile(o.client, o.client_id) : undefined,
-              provider: o.provider ? mapDbProvider(o.provider) : undefined,
-              proposalId: o.proposal_id,
-              requestId: o.request_id,
-              totalAmount: Number(o.total_amount) || 0,
-              platformFeePercent: Number(o.platform_fee_percent) || 12,
-              platformFeeAmount: Number(o.platform_fee_amount) || 0,
-              providerPayoutAmount: Number(o.provider_payout_amount) || 0,
-              status: o.status || 'payment_in_escrow',
-              paymentMethod: o.payment_method,
-              installmentsCount: o.installments_count || 1,
-              paidAt: o.paid_at,
-              startedAt: o.started_at,
-              completedAt: o.completed_at,
-              fundsReleasedAt: o.funds_released_at,
-              completionProofPhotos: o.completion_proof_photos || [],
-              disputeReason: o.dispute_reason,
-              disputeDetails: o.dispute_details,
-              disputeOpenedBy: o.dispute_opened_by,
-              disputeOpenedAt: o.dispute_opened_at,
-              disputeResolution: o.dispute_resolution,
-              refundRequestedAt: o.refund_requested_at,
-              disputeResolvedAt: o.dispute_resolved_at,
-              serviceTitle: o.service_request?.title || undefined,
-              serviceDescription: o.service_request?.description || undefined,
-              photos: o.service_request?.photos || o.completion_proof_photos || [],
-              createdAt: o.created_at,
-            }));
+          const mappedOrders: Order[] = (dbOrders || []).map(mapDbOrder);
           setOrders(mappedOrders);
+
+          const { data: dbProposals, error: proposalsError } = await supabase
+            .rpc('list_my_provider_proposals');
+          if (proposalsError) throw proposalsError;
+          setProposals((dbProposals || []).map(mapDbProposal));
+
+          if (currentUser.role === 'provider') {
+            const { data: finances, error: financesError } = await supabase
+              .rpc('get_my_provider_finances');
+            if (financesError) throw financesError;
+            setProviderWallet(finances?.wallet ? mapDbProviderWallet(finances.wallet) : null);
+            setPayoutRequests((finances?.payout_requests || []).map(mapDbPayoutRequest));
+          } else {
+            setProviderWallet(null);
+            setPayoutRequests([]);
+          }
 
           // Carrega solicitações de serviço do Supabase
           const { data: dbRequests, error: requestsError } = await supabase
@@ -480,6 +563,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       supabase.removeChannel(globalChannel);
     };
   }, []);
+
+  // Alterações confirmadas pelo banco (inclusive webhooks de pagamento) são a
+  // fonte autoritativa para atualizar o status financeiro exibido no app.
+  useEffect(() => {
+    if (!currentUser?.id) return;
+
+    const channel = supabase
+      .channel(`rooserv_orders_${currentUser.id}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, (payload) => {
+        const row = payload.new as any;
+        if (!row?.id) return;
+        setOrders((previous) => previous.map((order) => order.id === row.id ? {
+          ...order,
+          status: row.status || order.status,
+          paymentMethod: row.payment_method || order.paymentMethod,
+          paidAt: row.paid_at || order.paidAt,
+          startedAt: row.started_at || order.startedAt,
+          completedAt: row.completed_at || order.completedAt,
+          fundsReleasedAt: row.funds_released_at || order.fundsReleasedAt,
+          disputeReason: row.dispute_reason || order.disputeReason,
+          disputeDetails: row.dispute_details || order.disputeDetails,
+          disputeResolution: row.dispute_resolution || order.disputeResolution,
+        } : order));
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentUser?.id]);
 
   // Método de Login Completo
   const login = async (email: string, pass: string): Promise<AuthResult> => {
@@ -643,6 +756,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCurrentUser(null);
     setCurrentRole('client');
     setOrders([]);
+    setProposals([]);
+    setProviderWallet(null);
+    setPayoutRequests([]);
   };
 
   const deleteAccount = async (): Promise<boolean> => {
@@ -656,6 +772,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCurrentUser(null);
     setCurrentRole('client');
     setOrders([]);
+    setProposals([]);
+    setProviderWallet(null);
+    setPayoutRequests([]);
     return true;
   };
 
@@ -821,6 +940,51 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     return newReq;
+  };
+
+  const sendServiceProposal = async (data: {
+    requestId: string;
+    laborAmount: number;
+    materialsAmount: number;
+    estimatedDays: number;
+    description: string;
+    warrantyDays: number;
+  }): Promise<Proposal> => {
+    const { data: result, error } = await supabase.rpc('create_service_proposal', {
+      p_request_id: data.requestId,
+      p_labor_amount: data.laborAmount,
+      p_materials_amount: data.materialsAmount,
+      p_estimated_days: data.estimatedDays,
+      p_description: data.description,
+      p_warranty_days: data.warrantyDays,
+    });
+    if (error || !result?.proposal) {
+      throw new Error(error?.message || 'O servidor não confirmou o envio da proposta.');
+    }
+
+    const proposal = mapDbProposal(result.proposal);
+    setProposals((previous) => [proposal, ...previous.filter((item) => item.id !== proposal.id)]);
+    sendInAppNotification({
+      title: 'Orçamento oficial enviado',
+      message: 'A proposta foi registrada e enviada ao cliente no chat seguro.',
+      type: 'proposal',
+      actionTab: 'messages',
+    });
+    return proposal;
+  };
+
+  const acceptChatProposal = async (messageId: string): Promise<void> => {
+    const { data: result, error } = await supabase.rpc('accept_chat_proposal', { p_message_id: messageId });
+    if (error) throw new Error(error.message);
+
+    const { data: dbOrders, error: ordersError } = await supabase.rpc('list_my_orders');
+    if (ordersError) throw new Error(ordersError.message);
+    setOrders((dbOrders || []).map(mapDbOrder));
+    setRequests((previous) => previous.map((request) => (
+      request.id === result?.request_id
+        ? { ...request, status: 'assigned' }
+        : request
+    )));
   };
 
   const hireProviderWithEscrow = async (params: {
@@ -1010,9 +1174,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } : provider));
   };
 
-  const requestProviderPayout = (providerId: string, amount: number): boolean => {
-    console.log(`[PIX ASYNC ROOSERV] Transferindo R$ ${amount} para o prestador ${providerId}`);
-    return true;
+  const requestProviderPayout = async (amount: number): Promise<PayoutRequest> => {
+    const { data, error } = await supabase.rpc('request_provider_payout', { p_amount: amount });
+    if (error || !data?.payout_request || !data?.wallet) {
+      throw new Error(error?.message || 'O servidor não confirmou a solicitação de saque.');
+    }
+
+    const wallet = mapDbProviderWallet(data.wallet);
+    const payout = mapDbPayoutRequest(data.payout_request);
+    setProviderWallet(wallet);
+    setPayoutRequests((previous) => [payout, ...previous.filter((item) => item.id !== payout.id)]);
+    sendInAppNotification({
+      title: 'Saque Pix solicitado',
+      message: `A solicitação de R$ ${payout.amount.toFixed(2)} foi registrada para processamento.`,
+      type: 'payment',
+    });
+    return payout;
   };
 
   const openDispute = async (orderId: string, reason: string, details: string) => {
@@ -1127,6 +1304,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     orders,
     reviews,
     requests,
+    proposals,
+    providerWallet,
+    payoutRequests,
     selectedNeighborhood,
     setSelectedNeighborhood,
     selectedCategorySlug,
@@ -1141,6 +1321,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     clearNotifications,
 
     createServiceRequest,
+    sendServiceProposal,
+    acceptChatProposal,
     hireProviderWithEscrow,
     markOrderAsCompletedByProvider,
     confirmAndReleaseEscrow,
@@ -1159,6 +1341,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     orders,
     reviews,
     requests,
+    proposals,
+    providerWallet,
+    payoutRequests,
     selectedNeighborhood,
     selectedCategorySlug,
     notifications,

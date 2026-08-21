@@ -36,8 +36,12 @@ interface Message {
   audioUrl?: string;
   audioDuration?: string;
   proposalData?: {
+    proposalId?: string;
+    requestId?: string;
     totalAmount: number;
     description: string;
+    estimatedDays?: number;
+    warrantyDays?: number;
     isAccepted: boolean;
   };
 }
@@ -101,7 +105,7 @@ const ChatProposalCard: React.FC<{
             ) : (
               <>
                 <DollarSign className="w-4 h-4" />
-                <span>Aceitar & Pagar</span>
+                <span>Aceitar proposta</span>
               </>
             )}
           </button>
@@ -110,7 +114,7 @@ const ChatProposalCard: React.FC<{
         {proposalData.isAccepted && isMe && (
           <div className="flex items-center gap-1.5 text-xs text-emerald-400 font-extrabold bg-emerald-500/20 px-3 py-1.5 rounded-xl border border-emerald-500/30">
             <CheckCircle className="w-4 h-4" />
-            <span>Cliente Aceitou e Pagou</span>
+            <span>Cliente aceitou • pagamento pendente</span>
           </div>
         )}
       </div>
@@ -189,7 +193,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
   onBack,
   onAcceptProposal,
 }) => {
-  const { currentRole, currentUser } = useApp();
+  const { currentRole, currentUser, acceptChatProposal } = useApp();
   const [inputText, setInputText] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
 
@@ -229,9 +233,6 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
     loadMessages();
   }, [currentUser?.id, recipientUser.id]);
 
-  const [isSendingProposal, setIsSendingProposal] = useState(false);
-  const [newProposalAmount, setNewProposalAmount] = useState('80');
-  const [newProposalDesc, setNewProposalDesc] = useState('');
   const [securityAlert, setSecurityAlert] = useState<string | null>(null);
   const [isPersisting, setIsPersisting] = useState(false);
   const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
@@ -359,8 +360,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
   const handleAcceptFormalProposal = async (msgId: string, amount: number) => {
     try {
       setIsPersisting(true);
-      const { error } = await supabase.rpc('accept_chat_proposal', { p_message_id: msgId });
-      if (error) throw error;
+      await acceptChatProposal(msgId);
       setMessages((prev) => prev.map((message) =>
         message.id === msgId && message.proposalData
           ? { ...message, proposalData: { ...message.proposalData, isAccepted: true } }
@@ -369,37 +369,6 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
       onAcceptProposal(amount);
     } catch (error) {
       setSecurityAlert(error instanceof Error ? error.message : 'Não foi possível aceitar a proposta.');
-    } finally {
-      setIsPersisting(false);
-    }
-  };
-
-  const handleSendCustomProposal = async () => {
-    const amount = Number.parseFloat(newProposalAmount) || 150;
-    const desc = newProposalDesc.trim() || 'Serviço sob medida acordado no chat.';
-
-    const pendingMessage: Message = {
-      id: crypto.randomUUID(),
-      senderId: 'me',
-      text: 'Enviei uma proposta formal para este serviço:',
-      time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-      proposalData: {
-        totalAmount: amount,
-        description: desc,
-        isAccepted: false,
-      },
-    };
-
-    setIsPersisting(true);
-    try {
-      const savedMessage = await persistMessageToSupabase(pendingMessage);
-      setMessages((prev) => prev.some((message) => message.id === savedMessage.id)
-        ? prev
-        : [...prev, savedMessage]);
-      setIsSendingProposal(false);
-      setNewProposalDesc('');
-    } catch (error) {
-      setSecurityAlert(error instanceof Error ? error.message : 'Não foi possível enviar a proposta.');
     } finally {
       setIsPersisting(false);
     }
@@ -438,18 +407,6 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
-          {currentRole === 'provider' && (
-            <button
-              type="button"
-              onClick={() => setIsSendingProposal(true)}
-              className="bg-amber-600 hover:bg-amber-500 text-white font-extrabold text-xs px-3.5 py-2 rounded-xl shadow-sm flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Enviar Orçamento</span>
-              <span className="sm:hidden">Orçar</span>
-            </button>
-          )}
-
           <div className="flex items-center gap-1 bg-emerald-950/80 text-emerald-300 border border-emerald-800 px-3 py-1 rounded-full text-xs font-bold">
             <ShieldCheck className="w-4 h-4 text-emerald-400" />
             <span className="hidden sm:inline">Garantia RooServ</span>
@@ -561,77 +518,6 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
         </div>
       </div>
 
-      {/* Modal de Criação de Proposta Rápida (Para o Prestador) */}
-      {isSendingProposal && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-4">
-          <div className="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl space-y-4 animate-in fade-in duration-200">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2.5 bg-amber-50 text-amber-600 rounded-xl">
-                  <Sparkles className="w-6 h-6" />
-                </div>
-                <div>
-                  <h3 className="text-base font-extrabold text-slate-900">
-                    Enviar Orçamento Oficial
-                  </h3>
-                  <p className="text-xs text-slate-500">
-                    O cliente receberá o card para aceitar na hora
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsSendingProposal(false)}
-                className="text-slate-400 hover:text-slate-600 p-2"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-
-            <div>
-              <label htmlFor="custom-proposal-amount" className="block text-xs sm:text-sm font-extrabold text-slate-800 mb-1.5">
-                Valor Total do Serviço (R$)
-              </label>
-              <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-black text-slate-400">
-                  R$
-                </span>
-                <input
-                  id="custom-proposal-amount"
-                  type="number"
-                  value={newProposalAmount}
-                  onChange={(e) => setNewProposalAmount(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-11 pr-4 py-3.5 text-sm sm:text-base text-slate-900 font-black focus:outline-none focus:border-brand-500"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label htmlFor="custom-proposal-desc" className="block text-xs sm:text-sm font-extrabold text-slate-800 mb-1.5">
-                O que está incluso no serviço?
-              </label>
-              <textarea
-                id="custom-proposal-desc"
-                rows={3}
-                placeholder="Ex: Troca de disjuntores, fiação 6mm e 30 dias de garantia..."
-                value={newProposalDesc}
-                onChange={(e) => setNewProposalDesc(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-3.5 text-sm sm:text-base text-slate-900 focus:outline-none focus:border-brand-500"
-              />
-            </div>
-
-            <button
-              type="button"
-              disabled={isPersisting}
-              onClick={handleSendCustomProposal}
-              className="w-full bg-amber-600 hover:bg-amber-700 disabled:opacity-60 text-white font-black text-sm sm:text-base py-4 px-5 rounded-2xl shadow-lg shadow-amber-500/25 active:scale-95 transition-all flex items-center justify-center gap-2 mt-2"
-            >
-              <Send className="w-4 h-4" />
-              <span>Enviar Proposta no Chat</span>
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

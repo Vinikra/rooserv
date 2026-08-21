@@ -18,9 +18,11 @@ import {
   AlertTriangle, 
   ShieldAlert, 
   RotateCcw,
-  FileText
+  FileText,
+  QrCode
 } from 'lucide-react';
 import { generateOrderReceiptPDF } from '../utils/pdfReceiptGenerator';
+import { CheckoutModal } from './CheckoutModal';
 
 export const OrdersScreen: React.FC = () => {
   const { 
@@ -33,6 +35,7 @@ export const OrdersScreen: React.FC = () => {
 
   // Modal de Avaliação & Liberação de Pagamento
   const [selectedOrderForReview, setSelectedOrderForReview] = useState<Order | null>(null);
+  const [selectedOrderForPayment, setSelectedOrderForPayment] = useState<Order | null>(null);
   const [rating, setRating] = useState<number>(5);
   const [comment, setComment] = useState<string>('');
   const [selectedTags, setSelectedTags] = useState<string[]>(['Pontual', 'Caprichoso', 'Preço Justo']);
@@ -173,6 +176,13 @@ export const OrdersScreen: React.FC = () => {
                       <strong className="text-base sm:text-lg font-black text-slate-900">{formatCurrencyBRL(order.totalAmount)}</strong>
                     </div>
 
+                    {order.status === 'awaiting_payment' && currentRole === 'client' && (
+                      <div className="flex items-center gap-2.5 bg-amber-50 text-amber-950 p-3 rounded-xl border border-amber-200 text-xs font-medium">
+                        <Clock className="w-5 h-5 text-amber-600 shrink-0" />
+                        <span>A proposta foi aceita. Gere a cobrança Pix para confirmar a contratação e proteger o valor em custódia.</span>
+                      </div>
+                    )}
+
                     {isEscrowLocked && (
                       <div className="flex items-center gap-2.5 bg-blue-50 text-blue-950 p-3 rounded-xl border border-blue-200/80 text-xs font-medium">
                         <ShieldCheck className="w-5 h-5 text-blue-600 shrink-0" />
@@ -254,6 +264,24 @@ export const OrdersScreen: React.FC = () => {
                   )}
 
                   <div className="flex items-center gap-2 ml-auto">
+                    {currentRole === 'client' && order.status === 'awaiting_payment' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!order.provider) {
+                            setActionError('Os dados do profissional não puderam ser carregados. Atualize a página e tente novamente.');
+                            return;
+                          }
+                          setActionError(null);
+                          setSelectedOrderForPayment(order);
+                        }}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs sm:text-sm px-5 py-3 rounded-xl transition-all shadow-md active:scale-95 flex items-center gap-2 cursor-pointer"
+                      >
+                        <QrCode className="w-4 h-4" />
+                        <span>Pagar com Pix</span>
+                      </button>
+                    )}
+
                     {/* Botão Baixar Recibo PDF (Quando Concluído) */}
                     {order.status === 'approved_by_client' && (
                       <button
@@ -493,6 +521,15 @@ export const OrdersScreen: React.FC = () => {
             </button>
           </div>
         </div>
+      )}
+
+      {selectedOrderForPayment?.provider && (
+        <CheckoutModal
+          provider={selectedOrderForPayment.provider}
+          existingOrder={selectedOrderForPayment}
+          onClose={() => setSelectedOrderForPayment(null)}
+          onSuccess={() => setSelectedOrderForPayment(null)}
+        />
       )}
     </div>
   );

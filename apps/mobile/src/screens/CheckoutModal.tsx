@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { 
   ProviderProfile, 
+  Order,
   CITY_CONFIG, 
   AsaasPixQrCodeResponse,
   calculateCheckoutPricing,
@@ -22,25 +23,27 @@ import { RooServPaymentService } from '../services/paymentService';
 
 interface CheckoutModalProps {
   provider: ProviderProfile | null;
+  existingOrder?: Order;
   onClose: () => void;
   onSuccess: () => void;
 }
 
 export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   provider,
+  existingOrder,
   onClose,
   onSuccess,
 }) => {
   const { hireProviderWithEscrow } = useApp();
   
-  const [serviceAmount, setServiceAmount] = useState<number>(250);
+  const [serviceAmount, setServiceAmount] = useState<number>(existingOrder?.totalAmount || 250);
   const paymentMethod = 'pix' as const;
   const [isCopied, setIsCopied] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [pixData, setPixData] = useState<AsaasPixQrCodeResponse | null>(null);
   const [pixLoading, setPixLoading] = useState(false);
   const [pixError, setPixError] = useState<string | null>(null);
-  const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
+  const [pendingOrderId, setPendingOrderId] = useState<string | null>(existingOrder?.id || null);
   const [timeLeft, setTimeLeft] = useState<number>(900); // 15 minutos
 
   // Contador regressivo de 15 minutos
@@ -126,7 +129,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           </div>
 
           <h3 className="text-base sm:text-lg font-black leading-tight">
-            Contratação: {provider.profile?.fullName}
+            {existingOrder ? `Pagamento do pedido ${existingOrder.orderNumber}` : `Contratação: ${provider.profile?.fullName}`}
           </h3>
           <p className="text-xs sm:text-sm text-slate-300 font-medium">
             {`${provider.profile?.neighborhood} • ${CITY_CONFIG.name} - ${CITY_CONFIG.state}`}
@@ -145,23 +148,31 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               </span>
             </div>
 
-            <div className="flex gap-2 pt-1">
-              {[150, 220, 350, 600, 1200].map((val) => (
-                <button
-                  type="button"
-                  key={val}
-                  onClick={() => setServiceAmount(val)}
-                  disabled={pendingOrderId !== null}
-                  className={`flex-1 py-2 rounded-xl font-black text-xs border transition-all active:scale-95 ${
-                    serviceAmount === val
-                      ? 'bg-brand-600 border-brand-600 text-white shadow-md'
-                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
-                  }`}
-                >
-                  {`R$ ${val}`}
-                </button>
-              ))}
-            </div>
+            {!existingOrder && (
+              <div className="flex gap-2 pt-1">
+                {[150, 220, 350, 600, 1200].map((val) => (
+                  <button
+                    type="button"
+                    key={val}
+                    onClick={() => setServiceAmount(val)}
+                    disabled={pendingOrderId !== null}
+                    className={`flex-1 py-2 rounded-xl font-black text-xs border transition-all active:scale-95 ${
+                      serviceAmount === val
+                        ? 'bg-brand-600 border-brand-600 text-white shadow-md'
+                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
+                    }`}
+                  >
+                    {`R$ ${val}`}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {existingOrder && (
+              <p className="text-xs text-slate-500 font-medium">
+                Valor fixado pela proposta aceita. O pagamento será vinculado a este contrato.
+              </p>
+            )}
 
             {/* Repartição 100% Protegida (12% Plataforma / 88% Prestador) */}
             <div className="pt-2.5 border-t border-slate-200 text-xs text-slate-600 space-y-1.5 font-medium">
