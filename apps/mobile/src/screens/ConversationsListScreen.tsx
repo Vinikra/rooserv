@@ -44,7 +44,7 @@ function buildOrderConversation(order: Order, role: UserRole): ConversationItem 
 
   return {
     id: `conv-order-${order.id}`,
-    partnerId: isProvider ? order.clientId : order.providerId,
+    partnerId: isProvider ? order.clientId : (order.provider?.profileId || order.providerId),
     name: partnerName,
     avatarUrl: partnerAvatar,
     role: isProvider ? 'client' : 'provider',
@@ -60,7 +60,7 @@ function buildProviderConversation(prov: ProviderProfile): ConversationItem | nu
   if (!prov.profile) return null;
   return {
     id: `conv-prov-${prov.id}`,
-    partnerId: prov.id,
+    partnerId: prov.profileId,
     name: prov.profile.fullName,
     avatarUrl: prov.profile.avatarUrl || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
     role: 'provider',

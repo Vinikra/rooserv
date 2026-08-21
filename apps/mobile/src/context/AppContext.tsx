@@ -355,49 +355,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setCategories((dbCategories || []).map(mapDbCategory));
 
         const { data: dbProviders, error: provError } = await supabase
-          .from('provider_profiles')
-          .select(`
-            id,
-            profile_id,
-            verification_status,
-            bio,
-            experience_years,
-            hourly_rate_estimate,
-            pix_key_type,
-            pix_key,
-            average_rating,
-            total_reviews,
-            total_completed_orders,
-            is_available,
-            profiles (
-              id,
-              role,
-              full_name,
-              neighborhood,
-              city,
-              state,
-              avatar_url,
-              is_active,
-              created_at
-            ),
-            provider_categories (
-              service_categories (*)
-            ),
-            portfolio_items (*)
-          `);
+          .rpc('list_provider_directory');
 
         if (provError) throw provError;
         setProviders((dbProviders || []).map(mapDbProvider));
 
+        const { data: dbReviews, error: reviewsError } = await supabase
+          .rpc('list_public_reviews');
+        if (reviewsError) throw reviewsError;
+        const mappedReviews: Review[] = (dbReviews || []).map((r: any) => ({
+          id: r.id,
+          orderId: r.order_id,
+          clientId: r.client_id || '',
+          client: r.client ? mapDbProfile(r.client, r.client_id || '') : undefined,
+          providerId: r.provider_id,
+          rating: Number(r.rating) || 5,
+          comment: r.comment || '',
+          tags: r.tags || [],
+          photos: r.photos || [],
+          createdAt: r.created_at,
+        }));
+        setReviews(mappedReviews);
+
         // Carrega pedidos do Supabase
         if (currentUser?.id) {
-          // A RLS já restringe o resultado ao cliente/prestador autenticado.
-          // Evita comparar provider_id com profiles.id, que são entidades diferentes.
           const { data: dbOrders, error: ordersError } = await supabase
-            .from('orders')
-            .select('*')
-            .order('created_at', { ascending: false })
-            .limit(100);
+            .rpc('list_my_orders');
 
           if (ordersError) throw ordersError;
           const mappedOrders: Order[] = (dbOrders || []).map((o: any) => ({
@@ -405,6 +388,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               orderNumber: o.order_number || `SRV-${o.id.slice(0, 8)}`,
               clientId: o.client_id,
               providerId: o.provider_id,
+              client: o.client ? mapDbProfile(o.client, o.client_id) : undefined,
+              provider: o.provider ? mapDbProvider(o.provider) : undefined,
               proposalId: o.proposal_id,
               requestId: o.request_id,
               totalAmount: Number(o.total_amount) || 0,
@@ -419,7 +404,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               completedAt: o.completed_at,
               fundsReleasedAt: o.funds_released_at,
               completionProofPhotos: o.completion_proof_photos || [],
-              photos: o.completion_proof_photos || [],
               disputeReason: o.dispute_reason,
               disputeDetails: o.dispute_details,
               disputeOpenedBy: o.dispute_opened_by,
@@ -427,43 +411,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               disputeResolution: o.dispute_resolution,
               refundRequestedAt: o.refund_requested_at,
               disputeResolvedAt: o.dispute_resolved_at,
+              serviceTitle: o.service_request?.title || undefined,
+              serviceDescription: o.service_request?.description || undefined,
+              photos: o.service_request?.photos || o.completion_proof_photos || [],
               createdAt: o.created_at,
             }));
           setOrders(mappedOrders);
 
-          // Carrega reviews do Supabase
-          const { data: dbReviews, error: reviewsError } = await supabase
-            .from('reviews')
-            .select('*')
-            .order('created_at', { ascending: false })
-            .limit(100);
-
-          if (reviewsError) throw reviewsError;
-          const mappedReviews: Review[] = (dbReviews || []).map((r: any) => ({
-              id: r.id,
-              orderId: r.order_id,
-              clientId: r.client_id,
-              providerId: r.provider_id,
-              rating: Number(r.rating) || 5,
-              comment: r.comment || '',
-              tags: r.tags || [],
-              photos: r.photos || [],
-              createdAt: r.created_at,
-            }));
-          setReviews(mappedReviews);
-
           // Carrega solicitações de serviço do Supabase
           const { data: dbRequests, error: requestsError } = await supabase
-            .from('service_requests')
-            .select('*')
-            .order('created_at', { ascending: false })
-            .limit(50);
+            .rpc('list_visible_service_requests');
 
           if (requestsError) throw requestsError;
           const mappedRequests: ServiceRequest[] = (dbRequests || []).map((r: any) => ({
               id: r.id,
               clientId: r.client_id,
+              client: r.client ? mapDbProfile(r.client, r.client_id) : undefined,
               categoryId: r.category_id,
+              category: r.category ? mapDbCategory(r.category) : undefined,
               title: r.title,
               description: r.description,
               urgency: r.urgency || 'normal',
@@ -529,6 +494,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
 
       if (error || !data?.user) {
+        if (error?.code === 'email_not_confirmed') {
+          return { success: false, error: 'Confirme seu e-mail antes de entrar. Reenviamos o link de confirmação.' };
+        }
         return { success: false, error: 'Credenciais inválidas. Verifique seu e-mail e senha.' };
       }
 
@@ -585,6 +553,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             full_name: data.fullName,
             role: data.role,
             neighborhood: data.neighborhood,
+            phone: data.phone,
+            document_cpf: data.documentCpf,
+            avatar_url: data.avatarUrl,
           },
         },
       });
@@ -593,97 +564,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return { success: false, error: error?.message || 'Falha ao criar conta no sistema.' };
       }
       authUserId = authData.user.id;
+
+      if (!authData.session) {
+        return { success: true, requiresEmailConfirmation: true };
+      }
     } catch {
       return { success: false, error: 'Erro de comunicação com o servidor de autenticação.' };
     }
 
-    const newUser: UserProfile = {
-      id: authUserId,
-      role: data.role === 'provider' ? 'provider' : 'client',
-      fullName: data.fullName,
-      email: cleanEmail,
-      phone: data.phone,
-      documentCpf: data.documentCpf,
-      neighborhood: data.neighborhood || 'Centro',
-      city: 'Rondonópolis',
-      state: 'MT',
-      avatarUrl: data.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
-      isActive: true,
-      createdAt: new Date().toISOString(),
-    };
-
-    const { error: profileInsertError } = await supabase.from('profiles').insert([
-        {
-          id: newUser.id,
-          user_id: authUserId,
-          role: newUser.role,
-          full_name: newUser.fullName,
-          email: newUser.email,
-          phone: newUser.phone,
-          document_cpf: newUser.documentCpf,
-          neighborhood: newUser.neighborhood,
-          city: newUser.city,
-          state: newUser.state,
-          avatar_url: newUser.avatarUrl,
-        },
-      ]);
-    if (profileInsertError) {
+    const { data: savedProfile, error: profileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('user_id', authUserId)
+      .single();
+    if (profileError || !savedProfile) {
       await supabase.auth.signOut();
-      return { success: false, error: `Falha ao criar perfil: ${profileInsertError.message}` };
+      return { success: false, error: 'A conta foi criada, mas o perfil não pôde ser carregado.' };
     }
 
-    if (newUser.role === 'provider') {
-      const provData = {
-        bio: 'Professor de Matemática & Especialista em Ensino e Reforço em Rondonópolis.',
-        experienceYears: 5,
-        hourlyRateEstimate: 80,
-        pixKeyType: 'phone',
-        pixKey: newUser.phone,
-      };
-      const newProv: ProviderProfile = {
-        id: generateUuid(),
-        profileId: newUser.id,
-        profile: newUser,
-        verificationStatus: 'pending',
-        bio: provData.bio,
-        experienceYears: provData.experienceYears,
-        hourlyRateEstimate: provData.hourlyRateEstimate,
-        pixKeyType: provData.pixKeyType,
-        pixKey: provData.pixKey,
-        averageRating: 5.0,
-        totalReviews: 0,
-        totalCompletedOrders: 0,
-        isAvailable: true,
-        categories: categories[0] ? [categories[0]] : [],
-        portfolio: [],
-      };
-      try {
-        const { error: providerInsertError } = await supabase.from('provider_profiles').insert([
-          {
-            id: newProv.id,
-            profile_id: newUser.id,
-            bio: newProv.bio,
-            hourly_rate_estimate: newProv.hourlyRateEstimate,
-            experience_years: newProv.experienceYears,
-            pix_key: newProv.pixKey,
-            pix_key_type: newProv.pixKeyType,
-            verification_status: 'pending',
-            average_rating: 5.0,
-            is_available: true,
-          },
-        ]);
-        if (providerInsertError) throw providerInsertError;
-      } catch (error) {
-        await supabase.from('profiles').delete().eq('id', newUser.id);
-        await supabase.auth.signOut();
-        return {
-          success: false,
-          error: error instanceof Error ? error.message : 'Falha ao criar perfil de prestador.',
-        };
-      }
-
-      setProviders((prev) => [newProv, ...prev]);
-    }
+    const newUser = mapDbProfile(savedProfile, savedProfile.id);
 
     setCurrentUser(newUser);
     setCurrentRole(newUser.role);

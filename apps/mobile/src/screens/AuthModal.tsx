@@ -108,13 +108,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
     });
 
     if (result.success) {
-      setSuccessMessage('Conta criada com sucesso no RooServ!');
+      setSuccessMessage(result.requiresEmailConfirmation
+        ? 'Conta criada! Confirme o link enviado ao seu e-mail antes de entrar.'
+        : 'Conta criada com sucesso no RooServ!');
       setIsSuccess(true);
       setTimeout(() => {
         setIsSuccess(false);
         setIsLoading(false);
-        onSuccess();
-      }, 1200);
+        if (result.user) onSuccess();
+        else setAuthMode('login');
+      }, result.requiresEmailConfirmation ? 3000 : 1200);
     } else {
       setIsLoading(false);
       setErrorMessage(result.error || 'Erro ao cadastrar conta.');

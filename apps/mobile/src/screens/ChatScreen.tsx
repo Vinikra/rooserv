@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useApp, getOrCreateDeterministicUuid } from '../context/AppContext';
+import { useApp } from '../context/AppContext';
 import { formatCurrencyBRL, sanitizeChatMessage } from '@servicos/shared';
 import { 
   Send, 
@@ -11,10 +11,8 @@ import {
   Sparkles, 
   DollarSign, 
   ShieldAlert,
-  Mic,
   Play,
-  Pause,
-  Trash2
+  Pause
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
@@ -195,45 +193,37 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
   const [inputText, setInputText] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
 
+  const mapDbMessage = (dbMsg: any): Message => {
+    let payload: Partial<Message> = {};
+    try {
+      payload = JSON.parse(dbMsg.content);
+    } catch {
+      payload = { text: dbMsg.content };
+    }
+    return {
+      id: dbMsg.id,
+      senderId: dbMsg.sender_id === currentUser?.id ? 'me' : 'other',
+      text: payload.text || '',
+      time: new Date(dbMsg.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      proposalData: payload.proposalData,
+    };
+  };
+
   useEffect(() => {
     const loadMessages = async () => {
       if (!currentUser?.id || !recipientUser.id) return;
-      const senderUuid = getOrCreateDeterministicUuid(currentUser.id || currentUser.email || 'sender');
-      const recipientUuid = getOrCreateDeterministicUuid(recipientUser.id || 'recipient');
       try {
         const { data, error } = await supabase
           .from('messages')
           .select('*')
-          .or(`and(sender_id.eq.${senderUuid},recipient_id.eq.${recipientUuid}),and(sender_id.eq.${recipientUuid},recipient_id.eq.${senderUuid})`)
+          .or(`and(sender_id.eq.${currentUser.id},recipient_id.eq.${recipientUser.id}),and(sender_id.eq.${recipientUser.id},recipient_id.eq.${currentUser.id})`)
           .order('created_at', { ascending: true });
 
-        if (data && !error && data.length > 0) {
-          const loadedMsgs = data.map((dbMsg: any) => {
-            try {
-              const parsed = JSON.parse(dbMsg.content);
-              parsed.senderId = dbMsg.sender_id === senderUuid ? 'me' : 'other';
-              return parsed;
-            } catch {
-              return {
-                id: dbMsg.id,
-                senderId: dbMsg.sender_id === senderUuid ? 'me' : 'other',
-                text: dbMsg.content,
-                time: new Date(dbMsg.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-              };
-            }
-          });
-          setMessages(loadedMsgs);
-        } else {
-          try {
-            const saved = localStorage.getItem(`rooserv_chat_${recipientUser.id}`) || sessionStorage.getItem(`rooserv_chat_${recipientUser.id}`);
-            if (saved) setMessages(JSON.parse(saved));
-          } catch {}
-        }
-      } catch (err) {
-        try {
-          const saved = localStorage.getItem(`rooserv_chat_${recipientUser.id}`) || sessionStorage.getItem(`rooserv_chat_${recipientUser.id}`);
-          if (saved) setMessages(JSON.parse(saved));
-        } catch {}
+        if (error) throw error;
+        setMessages((data || []).map(mapDbMessage));
+      } catch (error) {
+        setMessages([]);
+        setSecurityAlert(error instanceof Error ? error.message : 'Não foi possível carregar a conversa.');
       }
     };
     loadMessages();
@@ -243,90 +233,10 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
   const [newProposalAmount, setNewProposalAmount] = useState('80');
   const [newProposalDesc, setNewProposalDesc] = useState('');
   const [securityAlert, setSecurityAlert] = useState<string | null>(null);
-  
-  // Estados de Gravação e Reprodução de Áudio
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [isPersisting, setIsPersisting] = useState(false);
   const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
-  
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
-  const recordingTimerRef = useRef<any>(null);
   const activeAudioRef = useRef<HTMLAudioElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  const startRecording = async () => {
-    try {
-      if (typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const mediaRecorder = new MediaRecorder(stream);
-        mediaRecorderRef.current = mediaRecorder;
-        audioChunksRef.current = [];
-
-        mediaRecorder.ondataavailable = (e) => {
-          if (e.data.size > 0) audioChunksRef.current.push(e.data);
-        };
-
-        mediaRecorder.start();
-        setIsRecording(true);
-        setRecordingSeconds(0);
-        recordingTimerRef.current = setInterval(() => {
-          setRecordingSeconds((prev) => prev + 1);
-        }, 1000);
-      }
-    } catch {
-      setSecurityAlert('Permissão de microfone não concedida.');
-    }
-  };
-
-  const stopAndSendAudio = () => {
-    if (!mediaRecorderRef.current) return;
-    clearInterval(recordingTimerRef.current);
-
-    mediaRecorderRef.current.onstop = async () => {
-      const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-      const audioUrl = URL.createObjectURL(audioBlob);
-      const mins = Math.floor(recordingSeconds / 60);
-      const secs = recordingSeconds % 60;
-      const durationStr = `${mins}:${secs.toString().padStart(2, '0')}`;
-
-      const audioMessage: Message = {
-        id: `aud-${Date.now()}`,
-        senderId: 'me',
-        text: '🎙️ Mensagem de Áudio',
-        time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-        audioUrl,
-        audioDuration: durationStr,
-      };
-
-      setMessages((prev) => [...prev, audioMessage]);
-
-      await persistMessageToSupabase(audioMessage);
-
-      const channelName = `rooserv_chat_${recipientUser.id}`;
-      const channel = supabase.channel(channelName);
-      channel.send({
-        type: 'broadcast',
-        event: 'new_message',
-        payload: audioMessage,
-      });
-    };
-
-    mediaRecorderRef.current.stop();
-    mediaRecorderRef.current.stream.getTracks().forEach((track) => track.stop());
-    setIsRecording(false);
-    setRecordingSeconds(0);
-  };
-
-  const cancelRecording = () => {
-    if (mediaRecorderRef.current) {
-      clearInterval(recordingTimerRef.current);
-      mediaRecorderRef.current.stop();
-      mediaRecorderRef.current.stream.getTracks().forEach((track) => track.stop());
-      setIsRecording(false);
-      setRecordingSeconds(0);
-    }
-  };
 
   const handlePlayAudio = (msgId: string, url: string) => {
     if (playingAudioId === msgId && activeAudioRef.current) {
@@ -352,15 +262,6 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
     });
   };
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(`rooserv_chat_${recipientUser.id}`, JSON.stringify(messages));
-      sessionStorage.setItem(`rooserv_chat_${recipientUser.id}`, JSON.stringify(messages));
-    } catch {
-      // Ignora
-    }
-  }, [messages, recipientUser.id]);
-
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -369,57 +270,53 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
     scrollToBottom();
   }, [messages]);
 
-  // Sincronização em Tempo Real com Supabase Realtime WebSockets
+  // Realtime reflete somente linhas que já foram confirmadas pelo banco.
   useEffect(() => {
-    const channelName = `rooserv_chat_${recipientUser.id}`;
+    if (!currentUser?.id) return;
+    const channelName = `rooserv_messages_${currentUser.id}`;
     const channel = supabase.channel(channelName, {
       config: { broadcast: { self: false } },
     });
 
-    const handleNewMessage = (payload: any) => {
-      if (!payload?.payload) return;
-      setMessages((prev) => [...prev, payload.payload]);
+    const handlePersistedMessage = (payload: any) => {
+      const row = payload?.new;
+      if (!row) return;
+      const belongsToConversation = (
+        (row.sender_id === currentUser.id && row.recipient_id === recipientUser.id)
+        || (row.sender_id === recipientUser.id && row.recipient_id === currentUser.id)
+      );
+      if (!belongsToConversation) return;
+      const mapped = mapDbMessage(row);
+      setMessages((prev) => prev.some((message) => message.id === mapped.id)
+        ? prev.map((message) => message.id === mapped.id ? mapped : message)
+        : [...prev, mapped]);
       if (typeof navigator !== 'undefined' && navigator.vibrate) {
         navigator.vibrate(100);
       }
     };
 
-    const handleProposalAccepted = (payload: any) => {
-      const msgId = payload?.payload?.msgId;
-      if (!msgId) return;
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === msgId && m.proposalData
-            ? { ...m, proposalData: { ...m.proposalData, isAccepted: true } }
-            : m
-        )
-      );
-    };
-
     channel
-      .on('broadcast', { event: 'new_message' }, handleNewMessage)
-      .on('broadcast', { event: 'proposal_accepted' }, handleProposalAccepted)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, handlePersistedMessage)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages' }, handlePersistedMessage)
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [recipientUser.id]);
+  }, [currentUser?.id, recipientUser.id]);
 
-  const persistMessageToSupabase = async (msg: Message) => {
-    if (!currentUser?.id || !recipientUser.id) return;
-    try {
-      const senderUuid = getOrCreateDeterministicUuid(currentUser.id || currentUser.email || 'sender');
-      const recipientUuid = getOrCreateDeterministicUuid(recipientUser.id || 'recipient');
-      await supabase.from('messages').insert([{
-        sender_id: senderUuid,
-        recipient_id: recipientUuid,
-        content: JSON.stringify(msg),
-        is_read: false
-      }]);
-    } catch {
-      // Ignora erro silenciosamente
-    }
+  const persistMessageToSupabase = async (msg: Message): Promise<Message> => {
+    if (!currentUser?.id || !recipientUser.id) throw new Error('Faça login para enviar mensagens.');
+    const payload = {
+      text: msg.text,
+      ...(msg.proposalData ? { proposalData: msg.proposalData } : {}),
+    };
+    const { data, error } = await supabase.rpc('send_chat_message', {
+      p_recipient_id: recipientUser.id,
+      p_payload: payload,
+    });
+    if (error || !data?.id) throw new Error(error?.message || 'O servidor não confirmou o envio.');
+    return mapDbMessage(data);
   };
 
   const handleSendMessage = async (e?: React.FormEvent) => {
@@ -434,25 +331,25 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
       );
     }
 
-    const newMsg: Message = {
-      id: `msg-${Date.now()}`,
+    const pendingMessage: Message = {
+      id: crypto.randomUUID(),
       senderId: 'me',
       text: scanResult.sanitizedText,
       time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
     };
 
-    setMessages((prev) => [...prev, newMsg]);
-    setInputText('');
-
-    await persistMessageToSupabase(newMsg);
-
-    const channelName = `rooserv_chat_${recipientUser.id}`;
-    const channel = supabase.channel(channelName);
-    channel.send({
-      type: 'broadcast',
-      event: 'new_message',
-      payload: newMsg,
-    });
+    setIsPersisting(true);
+    try {
+      const savedMessage = await persistMessageToSupabase(pendingMessage);
+      setMessages((prev) => prev.some((message) => message.id === savedMessage.id)
+        ? prev
+        : [...prev, savedMessage]);
+      setInputText('');
+    } catch (error) {
+      setSecurityAlert(error instanceof Error ? error.message : 'Não foi possível enviar a mensagem.');
+    } finally {
+      setIsPersisting(false);
+    }
   };
 
   const handleQuickReply = (text: string) => {
@@ -460,42 +357,29 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
   };
 
   const handleAcceptFormalProposal = async (msgId: string, amount: number) => {
-    setMessages((prev) =>
-      prev.map((m) =>
-        m.id === msgId && m.proposalData
-          ? { ...m, proposalData: { ...m.proposalData, isAccepted: true } }
-          : m
-      )
-    );
-
-    // Atualiza a mensagem no banco
     try {
-      const msgToUpdate = messages.find(m => m.id === msgId);
-      if (msgToUpdate && msgToUpdate.proposalData) {
-        const updatedMsg = { ...msgToUpdate, proposalData: { ...msgToUpdate.proposalData, isAccepted: true } };
-        await supabase.from('messages')
-          .update({ content: JSON.stringify(updatedMsg) })
-          .like('content', `%${msgId}%`);
-      }
-    } catch {}
-
-    const channelName = `rooserv_chat_${recipientUser.id}`;
-    const channel = supabase.channel(channelName);
-    channel.send({
-      type: 'broadcast',
-      event: 'proposal_accepted',
-      payload: { msgId },
-    });
-
-    onAcceptProposal(amount);
+      setIsPersisting(true);
+      const { error } = await supabase.rpc('accept_chat_proposal', { p_message_id: msgId });
+      if (error) throw error;
+      setMessages((prev) => prev.map((message) =>
+        message.id === msgId && message.proposalData
+          ? { ...message, proposalData: { ...message.proposalData, isAccepted: true } }
+          : message
+      ));
+      onAcceptProposal(amount);
+    } catch (error) {
+      setSecurityAlert(error instanceof Error ? error.message : 'Não foi possível aceitar a proposta.');
+    } finally {
+      setIsPersisting(false);
+    }
   };
 
   const handleSendCustomProposal = async () => {
     const amount = Number.parseFloat(newProposalAmount) || 150;
     const desc = newProposalDesc.trim() || 'Serviço sob medida acordado no chat.';
 
-    const newMsg: Message = {
-      id: `msg-${Date.now()}`,
+    const pendingMessage: Message = {
+      id: crypto.randomUUID(),
       senderId: 'me',
       text: 'Enviei uma proposta formal para este serviço:',
       time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
@@ -506,19 +390,19 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
       },
     };
 
-    setMessages((prev) => [...prev, newMsg]);
-    setIsSendingProposal(false);
-    setNewProposalDesc('');
-
-    await persistMessageToSupabase(newMsg);
-
-    const channelName = `rooserv_chat_${recipientUser.id}`;
-    const channel = supabase.channel(channelName);
-    channel.send({
-      type: 'broadcast',
-      event: 'new_message',
-      payload: newMsg,
-    });
+    setIsPersisting(true);
+    try {
+      const savedMessage = await persistMessageToSupabase(pendingMessage);
+      setMessages((prev) => prev.some((message) => message.id === savedMessage.id)
+        ? prev
+        : [...prev, savedMessage]);
+      setIsSendingProposal(false);
+      setNewProposalDesc('');
+    } catch (error) {
+      setSecurityAlert(error instanceof Error ? error.message : 'Não foi possível enviar a proposta.');
+    } finally {
+      setIsPersisting(false);
+    }
   };
 
   return (
@@ -654,68 +538,27 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
         ))}
       </div>
 
-      {/* Input de Mensagem com Botão de Áudio e Envio */}
+      {/* Input de mensagem. Áudio permanece indisponível até existir storage privado persistente. */}
       <div className="bg-white p-3.5 border-t border-slate-200">
-        {isRecording ? (
-          <div className="flex items-center justify-between gap-3 bg-red-50 p-2 rounded-2xl border border-red-200 animate-in fade-in">
-            <div className="flex items-center gap-3 pl-2">
-              <span className="w-3 h-3 bg-red-600 rounded-full animate-ping" />
-              <span className="text-xs sm:text-sm font-extrabold text-red-700">
-                Gravando áudio... {Math.floor(recordingSeconds / 60)}:{(recordingSeconds % 60).toString().padStart(2, '0')}
-              </span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={cancelRecording}
-                className="p-2.5 text-slate-500 hover:text-red-600 rounded-xl hover:bg-white transition-colors cursor-pointer"
-                title="Cancelar Gravação"
-              >
-                <Trash2 className="w-5 h-5" />
-              </button>
-
-              <button
-                type="button"
-                onClick={stopAndSendAudio}
-                className="bg-red-600 hover:bg-red-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-md flex items-center gap-1.5 cursor-pointer active:scale-95"
-              >
-                <Send className="w-4 h-4" />
-                <span>Enviar Áudio</span>
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="flex items-center gap-2.5">
-            <input
-              type="text"
-              placeholder="Digite sua mensagem ou grave um áudio..."
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-              className="flex-1 bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3.5 text-sm sm:text-base text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-brand-500 focus:bg-white"
-            />
-
-            {inputText.trim() ? (
-              <button
-                type="button"
-                onClick={() => handleSendMessage()}
-                className="bg-brand-600 hover:bg-brand-700 text-white w-12 h-12 rounded-2xl flex items-center justify-center transition-all shadow-md active:scale-95 shrink-0 cursor-pointer"
-              >
-                <Send className="w-5 h-5" />
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={startRecording}
-                className="bg-slate-100 hover:bg-brand-50 text-slate-700 hover:text-brand-600 w-12 h-12 rounded-2xl flex items-center justify-center transition-all border border-slate-200 shadow-xs active:scale-95 shrink-0 cursor-pointer"
-                title="Gravar Mensagem de Áudio"
-              >
-                <Mic className="w-5 h-5" />
-              </button>
-            )}
-          </div>
-        )}
+        <div className="flex items-center gap-2.5">
+          <input
+            type="text"
+            placeholder="Digite sua mensagem..."
+            value={inputText}
+            disabled={isPersisting}
+            onChange={(e) => setInputText(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && !isPersisting && handleSendMessage()}
+            className="flex-1 bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3.5 text-sm sm:text-base text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-brand-500 focus:bg-white disabled:opacity-60"
+          />
+          <button
+            type="button"
+            disabled={!inputText.trim() || isPersisting}
+            onClick={() => handleSendMessage()}
+            className="bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white w-12 h-12 rounded-2xl flex items-center justify-center transition-all shadow-md active:scale-95 shrink-0 cursor-pointer"
+          >
+            <Send className="w-5 h-5" />
+          </button>
+        </div>
       </div>
 
       {/* Modal de Criação de Proposta Rápida (Para o Prestador) */}
@@ -779,8 +622,9 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
 
             <button
               type="button"
+              disabled={isPersisting}
               onClick={handleSendCustomProposal}
-              className="w-full bg-amber-600 hover:bg-amber-700 text-white font-black text-sm sm:text-base py-4 px-5 rounded-2xl shadow-lg shadow-amber-500/25 active:scale-95 transition-all flex items-center justify-center gap-2 mt-2"
+              className="w-full bg-amber-600 hover:bg-amber-700 disabled:opacity-60 text-white font-black text-sm sm:text-base py-4 px-5 rounded-2xl shadow-lg shadow-amber-500/25 active:scale-95 transition-all flex items-center justify-center gap-2 mt-2"
             >
               <Send className="w-4 h-4" />
               <span>Enviar Proposta no Chat</span>

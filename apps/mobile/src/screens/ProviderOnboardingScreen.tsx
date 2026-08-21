@@ -99,6 +99,9 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
           documentCpf: cpf,
           avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200',
         });
+        if (signupResult.requiresEmailConfirmation) {
+          throw new Error('Conta criada. Confirme o link enviado ao seu e-mail, faça login e retorne para enviar os documentos.');
+        }
         if (!signupResult.success || !signupResult.user) {
           throw new Error(signupResult.error || 'Não foi possível criar a conta profissional.');
         }

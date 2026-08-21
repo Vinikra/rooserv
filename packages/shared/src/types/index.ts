@@ -185,6 +185,7 @@ export interface AuthResult {
   success: boolean;
   user?: UserProfile;
   error?: string;
+  requiresEmailConfirmation?: boolean;
 }
 
 export type InAppNotificationType = 'order' | 'message' | 'payment' | 'system' | 'proposal';
