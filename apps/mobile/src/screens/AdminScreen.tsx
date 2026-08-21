@@ -11,8 +11,10 @@ import {
   Scale,
   ShieldCheck,
   KeyRound,
-  ArrowRight
+  ArrowRight,
+  Eye
 } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 import { formatCurrencyBRL, CITY_CONFIG } from '@servicos/shared';
 
 export const AdminScreen: React.FC = () => {
@@ -31,6 +33,13 @@ export const AdminScreen: React.FC = () => {
   const [authError, setAuthError] = useState<string | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
   const [pendingDisputeId, setPendingDisputeId] = useState<string | null>(null);
+  const [pendingProviderId, setPendingProviderId] = useState<string | null>(null);
+  const [loadingDocumentsId, setLoadingDocumentsId] = useState<string | null>(null);
+  const [kycDocuments, setKycDocuments] = useState<Record<string, {
+    idFront: string;
+    idBack: string;
+    selfie: string;
+  }>>({});
   const [operationError, setOperationError] = useState<string | null>(null);
 
   const handleAdminUnlock = async (e: React.FormEvent) => {
@@ -58,6 +67,39 @@ export const AdminScreen: React.FC = () => {
       setOperationError(error instanceof Error ? error.message : 'Não foi possível resolver a disputa.');
     } finally {
       setPendingDisputeId(null);
+    }
+  };
+
+  const handleReviewProvider = async (
+    providerId: string,
+    decision: 'verified' | 'rejected'
+  ) => {
+    setPendingProviderId(providerId);
+    setOperationError(null);
+    try {
+      await verifyProviderByAdmin(providerId, decision);
+    } catch (error) {
+      setOperationError(error instanceof Error ? error.message : 'Não foi possível revisar o prestador.');
+    } finally {
+      setPendingProviderId(null);
+    }
+  };
+
+  const handleLoadKycDocuments = async (providerId: string) => {
+    setLoadingDocumentsId(providerId);
+    setOperationError(null);
+    try {
+      const { data, error } = await supabase.functions.invoke('get-kyc-review', {
+        body: { providerId },
+      });
+      if (error || !data?.documents) {
+        throw new Error(error?.message || 'Os documentos não foram retornados.');
+      }
+      setKycDocuments((current) => ({ ...current, [providerId]: data.documents }));
+    } catch (error) {
+      setOperationError(error instanceof Error ? error.message : 'Não foi possível carregar os documentos.');
+    } finally {
+      setLoadingDocumentsId(null);
     }
   };
 
@@ -324,11 +366,42 @@ export const AdminScreen: React.FC = () => {
                   </span>
                 </div>
 
+                {kycDocuments[prov.id] ? (
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    {([
+                      ['Frente', kycDocuments[prov.id].idFront],
+                      ['Verso', kycDocuments[prov.id].idBack],
+                      ['Selfie', kycDocuments[prov.id].selfie],
+                    ] as const).map(([label, url]) => (
+                      <a
+                        key={label}
+                        href={url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="bg-white border border-slate-300 rounded-xl px-2 py-2 text-xs font-bold text-brand-700 hover:bg-brand-50"
+                      >
+                        {label}
+                      </a>
+                    ))}
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handleLoadKycDocuments(prov.id)}
+                    disabled={loadingDocumentsId === prov.id}
+                    className="w-full bg-white hover:bg-slate-100 disabled:opacity-60 text-slate-700 border border-slate-300 font-bold text-xs py-2 rounded-xl transition-all flex items-center justify-center gap-1 cursor-pointer"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>{loadingDocumentsId === prov.id ? 'Carregando...' : 'Ver documentos'}</span>
+                  </button>
+                )}
+
                 <div className="grid grid-cols-2 gap-2 pt-1">
                   <button
                     type="button"
-                    onClick={() => verifyProviderByAdmin(prov.id, 'rejected')}
-                    className="bg-white hover:bg-slate-100 text-red-600 border border-slate-300 font-bold text-xs py-2 rounded-xl transition-all flex items-center justify-center gap-1 cursor-pointer"
+                    onClick={() => handleReviewProvider(prov.id, 'rejected')}
+                    disabled={pendingProviderId === prov.id}
+                    className="bg-white hover:bg-slate-100 disabled:opacity-60 text-red-600 border border-slate-300 font-bold text-xs py-2 rounded-xl transition-all flex items-center justify-center gap-1 cursor-pointer"
                   >
                     <XCircle className="w-3.5 h-3.5" />
                     <span>Recusar</span>
@@ -336,8 +409,9 @@ export const AdminScreen: React.FC = () => {
 
                   <button
                     type="button"
-                    onClick={() => verifyProviderByAdmin(prov.id, 'verified')}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2 rounded-xl transition-all flex items-center justify-center gap-1 cursor-pointer"
+                    onClick={() => handleReviewProvider(prov.id, 'verified')}
+                    disabled={pendingProviderId === prov.id}
+                    className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-bold text-xs py-2 rounded-xl transition-all flex items-center justify-center gap-1 cursor-pointer"
                   >
                     <CheckCircle className="w-3.5 h-3.5" />
                     <span>Aprovar Selo</span>

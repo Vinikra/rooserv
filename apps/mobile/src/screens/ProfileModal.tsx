@@ -37,108 +37,88 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
 
   const handleDeleteAccount = async () => {
     if (window.confirm('TEM CERTEZA? Esta ação apagará definitivamente seus dados, histórico e não pode ser desfeita.')) {
-      const success = await deleteAccount();
-      if (success) {
-        onClose();
+      setSaveError(null);
+      try {
+        const success = await deleteAccount();
+        if (success) onClose();
+        else setSaveError('Não foi possível excluir a conta. Tente novamente.');
+      } catch (error) {
+        setSaveError(error instanceof Error ? error.message : 'Não foi possível excluir a conta.');
       }
     }
   };
-
-  const savedProviderData = (() => {
-    try {
-      const byId = currentUser?.id ? localStorage.getItem(`rooserv_provider_data_${currentUser.id}`) : null;
-      const byEmail = currentUser?.email ? localStorage.getItem(`rooserv_provider_data_${currentUser.email.toLowerCase()}`) : null;
-      const raw = byId || byEmail;
-      if (raw) return JSON.parse(raw);
-    } catch {}
-    return null;
-  })();
 
   const currentProvider = providers.find((p) => p.profileId === currentUser?.id);
 
   const [fullName, setFullName] = useState(currentUser?.fullName || '');
   const [phone, setPhone] = useState(currentUser?.phone || '');
   const [neighborhood, setNeighborhood] = useState(currentUser?.neighborhood || CITY_CONFIG.defaultNeighborhoods[0]);
-  const [avatarUrl, setAvatarUrl] = useState(() => {
-    try {
-      const fromEmail = currentUser?.email ? localStorage.getItem(`rooserv_avatar_${currentUser.email.toLowerCase()}`) : null;
-      const fromId = currentUser?.id ? localStorage.getItem(`rooserv_avatar_${currentUser.id}`) : null;
-      return fromEmail || fromId || currentUser?.avatarUrl || PRESET_AVATARS[0];
-    } catch {
-      return currentUser?.avatarUrl || PRESET_AVATARS[0];
-    }
-  });
+  const [avatarUrl, setAvatarUrl] = useState(currentUser?.avatarUrl || PRESET_AVATARS[0]);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
 
   const [bio, setBio] = useState(
-    savedProviderData?.bio ?? currentProvider?.bio ?? 'Professor de Matemática & Reforço Escolar especializado em Rondonópolis.'
+    currentProvider?.bio ?? 'Profissional em Rondonópolis.'
   );
   const [hourlyRate, setHourlyRate] = useState(
-    String(savedProviderData?.hourlyRateEstimate ?? currentProvider?.hourlyRateEstimate ?? 80)
+    String(currentProvider?.hourlyRateEstimate ?? 80)
   );
   const [experienceYears, setExperienceYears] = useState(
-    savedProviderData?.experienceYears ?? currentProvider?.experienceYears ?? 5
+    currentProvider?.experienceYears ?? 1
   );
   const [pixKeyType, setPixKeyType] = useState(
-    savedProviderData?.pixKeyType ?? currentProvider?.pixKeyType ?? 'phone'
+    currentProvider?.pixKeyType ?? 'phone'
   );
   const [pixKey, setPixKey] = useState(
-    savedProviderData?.pixKey ?? currentProvider?.pixKey ?? currentUser?.phone ?? ''
+    currentProvider?.pixKey ?? currentUser?.phone ?? ''
   );
 
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setIsUploadingAvatar(true);
-      const url = await RooServStorageService.uploadImage(file, 'avatars');
-      if (url) {
+      setSaveError(null);
+      try {
+        const url = await RooServStorageService.uploadImage(file, 'avatars');
         setAvatarUrl(url);
-        if (currentUser?.email) {
-          localStorage.setItem(`rooserv_avatar_${currentUser.email.toLowerCase()}`, url);
-        }
-        if (currentUser?.id) {
-          localStorage.setItem(`rooserv_avatar_${currentUser.id}`, url);
-        }
+      } catch (error) {
+        setSaveError(error instanceof Error ? error.message : 'Não foi possível enviar a imagem.');
+      } finally {
+        setIsUploadingAvatar(false);
       }
-      setIsUploadingAvatar(false);
     }
   };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
+    setSaveError(null);
+    try {
+      await updateUserProfile({ fullName, phone, neighborhood, avatarUrl });
 
-    if (currentUser?.email) {
-      localStorage.setItem(`rooserv_avatar_${currentUser.email.toLowerCase()}`, avatarUrl);
+      if (currentUser?.role === 'provider') {
+        await updateProviderProfile({
+          bio,
+          hourlyRateEstimate: Number(hourlyRate) || 80,
+          experienceYears,
+          pixKey,
+          pixKeyType,
+        });
+      }
+
+      setSaveSuccess(true);
+      setTimeout(() => {
+        setSaveSuccess(false);
+        onClose();
+      }, 1200);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Não foi possível salvar o perfil.');
+    } finally {
+      setIsSaving(false);
     }
-    if (currentUser?.id) {
-      localStorage.setItem(`rooserv_avatar_${currentUser.id}`, avatarUrl);
-    }
-
-    await updateUserProfile({
-      fullName,
-      phone,
-      neighborhood,
-      avatarUrl,
-    });
-
-    await updateProviderProfile({
-      bio,
-      hourlyRateEstimate: Number(hourlyRate) || 80,
-      experienceYears,
-      pixKey,
-      pixKeyType,
-    });
-
-    setIsSaving(false);
-    setSaveSuccess(true);
-    setTimeout(() => {
-      setSaveSuccess(false);
-      onClose();
-    }, 1200);
   };
 
   const renderSaveButtonContent = () => {
@@ -438,6 +418,12 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
               </button>
             </div>
           </div>
+
+          {saveError && (
+            <div role="alert" className="bg-red-50 border border-red-200 text-red-800 rounded-xl px-3 py-2 text-xs font-semibold">
+              {saveError}
+            </div>
+          )}
 
           {/* Botão de Salvar */}
           <div className="pt-2">

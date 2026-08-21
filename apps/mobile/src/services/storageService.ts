@@ -1,49 +1,48 @@
 import { supabase } from '../lib/supabase';
 
 export class RooServStorageService {
-  /**
-   * Faz upload de uma imagem para o Supabase Storage ou retorna Base64 em caso de indisponibilidade
-   */
+  private static validateImage(file: File) {
+    if (!file.type.startsWith('image/')) throw new Error('Selecione um arquivo de imagem válido.');
+    if (file.size > 8 * 1024 * 1024) throw new Error('A imagem deve ter no máximo 8 MB.');
+  }
+
+  /** Faz upload autenticado. Falhas nunca viram Data URL ou sucesso local. */
   public static async uploadImage(
     file: File,
     folder: 'avatars' | 'requests' | 'proofs' = 'requests'
   ): Promise<string> {
-    const fileName = `${folder}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+    this.validateImage(file);
 
-    try {
-      // 1. Tenta upload no Supabase Storage
-      const { error } = await supabase.storage
-        .from('rooserv-media')
-        .upload(fileName, file, {
-          cacheControl: '3600',
-          upsert: true,
-        });
+    const { data: authData } = await supabase.auth.getUser();
+    if (!authData.user) throw new Error('Faça login antes de enviar imagens.');
 
-      if (!error) {
-        const { data: publicData } = supabase.storage
-          .from('rooserv-media')
-          .getPublicUrl(fileName);
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const fileName = `${folder}/${authData.user.id}/${crypto.randomUUID()}_${safeName}`;
+    const { error } = await supabase.storage
+      .from('rooserv-media')
+      .upload(fileName, file, { cacheControl: '3600', upsert: false });
+    if (error) throw new Error(`Não foi possível enviar a imagem: ${error.message}`);
 
-        if (publicData?.publicUrl) {
-          return publicData.publicUrl;
-        }
-      }
-    } catch {
-      // Fallback silencioso
-    }
+    const { data: publicData } = supabase.storage.from('rooserv-media').getPublicUrl(fileName);
+    if (!publicData?.publicUrl) throw new Error('O armazenamento não retornou a URL da imagem.');
 
-    // 2. Fallback resiliente para Base64 Data URL
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (typeof reader.result === 'string') {
-          resolve(reader.result);
-        } else {
-          resolve('');
-        }
-      };
-      reader.onerror = () => resolve('');
-      reader.readAsDataURL(file);
-    });
+    return publicData.publicUrl;
+  }
+
+  public static async uploadKycDocument(
+    file: File,
+    kind: 'id-front' | 'id-back' | 'selfie'
+  ): Promise<string> {
+    this.validateImage(file);
+    const { data: authData } = await supabase.auth.getUser();
+    if (!authData.user) throw new Error('Confirme seu e-mail e faça login antes de enviar documentos.');
+
+    const extension = file.name.split('.').pop()?.replace(/[^a-zA-Z0-9]/g, '') || 'jpg';
+    const path = `${authData.user.id}/${kind}-${crypto.randomUUID()}.${extension}`;
+    const { error } = await supabase.storage
+      .from('rooserv-kyc')
+      .upload(path, file, { cacheControl: '3600', upsert: false });
+    if (error) throw new Error(`Não foi possível enviar o documento: ${error.message}`);
+    return path;
   }
 }

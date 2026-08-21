@@ -14,32 +14,8 @@ import {
   InAppNotificationType,
   calculateServiceSplit,
 } from '@servicos/shared';
-import {
-  INITIAL_CATEGORIES,
-  INITIAL_CLIENT,
-  INITIAL_PROVIDERS,
-  INITIAL_ORDERS,
-  INITIAL_REVIEWS,
-  INITIAL_REQUESTS,
-} from '../data/mockData';
 import { supabase } from '../lib/supabase';
 import { inAppSound } from '../utils/notificationSound';
-
-const AUTH_STORAGE_KEY = 'rooserv_authenticated_user';
-
-export const ADMIN_PROFILE: UserProfile = {
-  id: 'usr-admin-master',
-  role: 'admin',
-  fullName: 'Administração RooServ',
-  email: 'admin@rooserv.com',
-  phone: '(66) 99999-8888',
-  neighborhood: 'Centro',
-  city: 'Rondonópolis',
-  state: 'MT',
-  avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200',
-  isActive: true,
-  createdAt: '2026-01-01T00:00:00Z',
-};
 
 interface AppContextType {
   currentRole: UserRole;
@@ -114,7 +90,7 @@ interface AppContextType {
     tags: string[];
   }) => Promise<void>;
 
-  verifyProviderByAdmin: (providerId: string, status: VerificationStatus) => void;
+  verifyProviderByAdmin: (providerId: string, status: VerificationStatus) => Promise<void>;
   requestProviderPayout: (providerId: string, amount: number) => boolean;
   openDispute: (orderId: string, reason: string, details: string) => Promise<void>;
   resolveDisputeByAdmin: (orderId: string, decision: 'refund_client' | 'release_provider') => Promise<void>;
@@ -173,29 +149,19 @@ export function getOrCreateDeterministicUuid(emailOrId: string): string {
   return `${p1}-${p2}-${p3}-${p4}-${p5}`;
 }
 
-function getSavedAvatar(emailOrId?: string): string | null {
-  if (!emailOrId) return null;
-  try {
-    const clean = emailOrId.trim().toLowerCase();
-    return localStorage.getItem(`rooserv_avatar_${clean}`) || null;
-  } catch {
-    return null;
-  }
-}
-
 function mapDbProfile(prof: any, profileId: string): UserProfile {
   const email = prof?.email || '';
-  const localAvatar = getSavedAvatar(email) || getSavedAvatar(prof?.id) || getSavedAvatar(profileId);
   return {
     id: prof?.id || profileId,
-    role: prof?.role || 'provider',
+    role: prof?.role || 'client',
     fullName: prof?.full_name || 'Profissional',
     email,
     phone: prof?.phone || '(66) 99888-0000',
+    documentCpf: prof?.document_cpf || undefined,
     neighborhood: prof?.neighborhood || 'Centro',
     city: prof?.city || 'Rondonópolis',
     state: prof?.state || 'MT',
-    avatarUrl: localAvatar || prof?.avatar_url || 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=150',
+    avatarUrl: prof?.avatar_url || 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=150',
     isActive: prof?.is_active ?? true,
     createdAt: prof?.created_at || '2026-01-01T00:00:00Z',
   };
@@ -206,7 +172,7 @@ function mapDbProvider(p: any): ProviderProfile {
   return {
     id: p.id,
     profileId: p.profile_id,
-    verificationStatus: p.verification_status || 'verified',
+    verificationStatus: p.verification_status || 'pending',
     bio: p.bio || 'Profissional qualificado em Rondonópolis.',
     experienceYears: Number(p.experience_years) || 3,
     hourlyRateEstimate: Number(p.hourly_rate_estimate) || 80,
@@ -217,8 +183,19 @@ function mapDbProvider(p: any): ProviderProfile {
     totalCompletedOrders: Number(p.total_completed_orders) || 0,
     isAvailable: p.is_available ?? true,
     profile: mapDbProfile(prof, p.profile_id),
-    categories: INITIAL_CATEGORIES.slice(0, 2),
-    portfolio: INITIAL_PROVIDERS[0]?.portfolio || [],
+    categories: (p.provider_categories || [])
+      .map((relation: any) => relation.service_categories)
+      .filter(Boolean)
+      .map(mapDbCategory),
+    portfolio: (p.portfolio_items || []).map((item: any) => ({
+      id: item.id,
+      providerId: item.provider_id,
+      title: item.title,
+      description: item.description || '',
+      beforeImageUrl: item.before_image_url || undefined,
+      afterImageUrl: item.after_image_url,
+      createdAt: item.created_at,
+    })),
   };
 }
 
@@ -243,105 +220,16 @@ function computeAdminStats(orders: Order[], providers: ProviderProfile[]) {
 }
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Inicialização de usuário a partir do localStorage
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
-    try {
-      const saved = localStorage.getItem(AUTH_STORAGE_KEY);
-      if (saved) {
-        return JSON.parse(saved);
-      }
-    } catch {
-      // Ignora erro de JSON
-    }
-    return null;
-  });
-
-  const [currentRole, setCurrentRole] = useState<UserRole>(() => {
-    try {
-      const saved = localStorage.getItem(AUTH_STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        return parsed?.role || 'client';
-      }
-    } catch {
-      // Ignora
-    }
-    return 'client';
-  });
-
-  const [categories, setCategories] = useState<ServiceCategory[]>(INITIAL_CATEGORIES);
-
-  const [providers, setProviders] = useState<ProviderProfile[]>(() => {
-    try {
-      const saved = localStorage.getItem('rooserv_providers');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch {}
-    return INITIAL_PROVIDERS;
-  });
-
-  const [orders, setOrders] = useState<Order[]>(() => {
-    try {
-      const saved = localStorage.getItem('rooserv_orders');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch {}
-    return INITIAL_ORDERS;
-  });
-
-  const [reviews, setReviews] = useState<Review[]>(() => {
-    try {
-      const saved = localStorage.getItem('rooserv_reviews');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch {}
-    return INITIAL_REVIEWS;
-  });
-
-  const [requests, setRequests] = useState<ServiceRequest[]>(() => {
-    try {
-      const saved = localStorage.getItem('rooserv_requests');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch {}
-    return INITIAL_REQUESTS;
-  });
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [currentRole, setCurrentRole] = useState<UserRole>('client');
+  const [categories, setCategories] = useState<ServiceCategory[]>([]);
+  const [providers, setProviders] = useState<ProviderProfile[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [requests, setRequests] = useState<ServiceRequest[]>([]);
 
   const [selectedNeighborhood, setSelectedNeighborhood] = useState<string>('Todos os Bairros');
   const [selectedCategorySlug, setSelectedCategorySlug] = useState<string | null>(null);
-
-  // Sincronização contínua com o LocalStorage
-  useEffect(() => {
-    try {
-      localStorage.setItem('rooserv_providers', JSON.stringify(providers));
-    } catch {}
-  }, [providers]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('rooserv_orders', JSON.stringify(orders));
-    } catch {}
-  }, [orders]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('rooserv_reviews', JSON.stringify(reviews));
-    } catch {}
-  }, [reviews]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('rooserv_requests', JSON.stringify(requests));
-    } catch {}
-  }, [requests]);
 
   // Sistema de Notificações In-App em Tempo Real (Estilo Uber)
   const [notifications, setNotifications] = useState<InAppNotification[]>([]);
@@ -405,16 +293,54 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const isAuthenticated = Boolean(currentUser);
-  const isAdmin = currentUser?.role === 'admin' || currentRole === 'admin';
+  const isAdmin = currentUser?.role === 'admin';
 
-  // Sincroniza sessão no localStorage
+  // A sessão do Supabase Auth é a única fonte de autenticação. Dados locais
+  // nunca restauram usuário ou papel sem uma sessão válida no servidor.
   useEffect(() => {
-    if (currentUser) {
-      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
-    } else {
-      localStorage.removeItem(AUTH_STORAGE_KEY);
-    }
-  }, [currentUser]);
+    let active = true;
+
+    const hydrateAuthenticatedProfile = async (authUserId?: string) => {
+      if (!authUserId) {
+        if (active) {
+          setCurrentUser(null);
+          setCurrentRole('client');
+          setOrders([]);
+        }
+        return;
+      }
+
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', authUserId)
+        .single();
+
+      if (!active) return;
+      if (error || !profile) {
+        setCurrentUser(null);
+        setCurrentRole('client');
+        return;
+      }
+
+      const authenticatedProfile = mapDbProfile(profile, profile.id);
+      setCurrentUser(authenticatedProfile);
+      setCurrentRole(authenticatedProfile.role);
+    };
+
+    supabase.auth.getSession().then(({ data }) => {
+      void hydrateAuthenticatedProfile(data.session?.user.id);
+    });
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      void hydrateAuthenticatedProfile(session?.user.id);
+    });
+
+    return () => {
+      active = false;
+      authListener.subscription.unsubscribe();
+    };
+  }, []);
 
   // Sincronização inicial com o Supabase
   useEffect(() => {
@@ -425,9 +351,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           .select('*')
           .order('sort_order', { ascending: true });
 
-        if (!catError && dbCategories && dbCategories.length > 0) {
-          setCategories(dbCategories.map(mapDbCategory));
-        }
+        if (catError) throw catError;
+        setCategories((dbCategories || []).map(mapDbCategory));
 
         const { data: dbProviders, error: provError } = await supabase
           .from('provider_profiles')
@@ -448,40 +373,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               id,
               role,
               full_name,
-              email,
-              phone,
               neighborhood,
               city,
               state,
               avatar_url,
               is_active,
               created_at
-            )
+            ),
+            provider_categories (
+              service_categories (*)
+            ),
+            portfolio_items (*)
           `);
 
-        if (!provError && dbProviders && dbProviders.length > 0) {
-          const mappedDbProviders = dbProviders.map(mapDbProvider);
-          setProviders((prev) => {
-            const map = new Map(prev.map((p) => [p.id, p]));
-            for (const p of mappedDbProviders) {
-              map.set(p.id, p);
-            }
-            return Array.from(map.values());
-          });
-        }
+        if (provError) throw provError;
+        setProviders((dbProviders || []).map(mapDbProvider));
 
         // Carrega pedidos do Supabase
         if (currentUser?.id) {
           // A RLS já restringe o resultado ao cliente/prestador autenticado.
           // Evita comparar provider_id com profiles.id, que são entidades diferentes.
-          const { data: dbOrders } = await supabase
+          const { data: dbOrders, error: ordersError } = await supabase
             .from('orders')
             .select('*')
             .order('created_at', { ascending: false })
             .limit(100);
 
-          if (dbOrders && dbOrders.length > 0) {
-            const mappedOrders: Order[] = dbOrders.map((o: any) => ({
+          if (ordersError) throw ordersError;
+          const mappedOrders: Order[] = (dbOrders || []).map((o: any) => ({
               id: o.id,
               orderNumber: o.order_number || `SRV-${o.id.slice(0, 8)}`,
               clientId: o.client_id,
@@ -510,24 +429,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               disputeResolvedAt: o.dispute_resolved_at,
               createdAt: o.created_at,
             }));
-            setOrders((prev) => {
-              const map = new Map(prev.map((o) => [o.id, o]));
-              for (const ord of mappedOrders) {
-                map.set(ord.id, { ...(map.get(ord.id) || {}), ...ord });
-              }
-              return Array.from(map.values());
-            });
-          }
+          setOrders(mappedOrders);
 
           // Carrega reviews do Supabase
-          const { data: dbReviews } = await supabase
+          const { data: dbReviews, error: reviewsError } = await supabase
             .from('reviews')
             .select('*')
             .order('created_at', { ascending: false })
             .limit(100);
 
-          if (dbReviews && dbReviews.length > 0) {
-            const mappedReviews: Review[] = dbReviews.map((r: any) => ({
+          if (reviewsError) throw reviewsError;
+          const mappedReviews: Review[] = (dbReviews || []).map((r: any) => ({
               id: r.id,
               orderId: r.order_id,
               clientId: r.client_id,
@@ -538,24 +450,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               photos: r.photos || [],
               createdAt: r.created_at,
             }));
-            setReviews((prev) => {
-              const map = new Map(prev.map((r) => [r.id, r]));
-              for (const rev of mappedReviews) {
-                map.set(rev.id, { ...(map.get(rev.id) || {}), ...rev });
-              }
-              return Array.from(map.values());
-            });
-          }
+          setReviews(mappedReviews);
 
           // Carrega solicitações de serviço do Supabase
-          const { data: dbRequests } = await supabase
+          const { data: dbRequests, error: requestsError } = await supabase
             .from('service_requests')
             .select('*')
             .order('created_at', { ascending: false })
             .limit(50);
 
-          if (dbRequests && dbRequests.length > 0) {
-            const mappedRequests: ServiceRequest[] = dbRequests.map((r: any) => ({
+          if (requestsError) throw requestsError;
+          const mappedRequests: ServiceRequest[] = (dbRequests || []).map((r: any) => ({
               id: r.id,
               clientId: r.client_id,
               categoryId: r.category_id,
@@ -568,17 +473,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               status: r.status || 'open',
               createdAt: r.created_at,
             }));
-            setRequests((prev) => {
-              const map = new Map(prev.map((r) => [r.id, r]));
-              for (const req of mappedRequests) {
-                map.set(req.id, { ...(map.get(req.id) || {}), ...req });
-              }
-              return Array.from(map.values());
-            });
-          }
+          setRequests(mappedRequests);
         }
-      } catch {
-        // Fallback resiliente caso Supabase esteja desconectado
+      } catch (error) {
+        console.error('[RooServ] Falha ao carregar dados do Supabase:', error);
       }
     }
 
@@ -637,7 +535,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const { data: dbProfile } = await supabase
         .from('profiles')
         .select('*')
-        .eq('email', cleanEmail)
+        .eq('user_id', data.user.id)
         .single();
 
       if (dbProfile) {
@@ -649,18 +547,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, error: 'Erro de comunicação com o servidor de autenticação.' };
     }
 
-    // Restaura avatar customizado salvo localmente se existir
-    const localAvatar = getSavedAvatar(cleanEmail) || getSavedAvatar(foundUser.id);
-    if (localAvatar) {
-      foundUser.avatarUrl = localAvatar;
-    }
-
-    // Salva perfil de forma persistente
-    localStorage.setItem(`rooserv_profile_${cleanEmail}`, JSON.stringify(foundUser));
-    if (foundUser.avatarUrl) {
-      localStorage.setItem(`rooserv_avatar_${cleanEmail}`, foundUser.avatarUrl);
-      localStorage.setItem(`rooserv_avatar_${foundUser.id}`, foundUser.avatarUrl);
-    }
     setCurrentUser(foundUser);
     setCurrentRole(foundUser.role);
 
@@ -672,54 +558,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
       return { success: true, user: foundUser };
     }
-
-    // 6. Restaura os dados do prestador (bio, pix, etc.) associados a este usuário
-    let savedProv: any = null;
-    try {
-      const raw = localStorage.getItem(`rooserv_provider_data_${foundUser.id}`) ||
-                  localStorage.getItem(`rooserv_provider_data_${cleanEmail}`);
-      if (raw) savedProv = JSON.parse(raw);
-    } catch {}
-
-    setProviders((prev) => {
-      const exists = prev.some((p) => p.profileId === foundUser!.id || p.profile?.email === cleanEmail);
-      if (exists) {
-        return prev.map((p) => {
-          if (p.profileId === foundUser!.id || p.profile?.email === cleanEmail) {
-            return {
-              ...p,
-              profileId: foundUser!.id,
-              profile: foundUser!,
-              bio: savedProv?.bio ?? p.bio,
-              hourlyRateEstimate: savedProv?.hourlyRateEstimate ?? p.hourlyRateEstimate,
-              experienceYears: savedProv?.experienceYears ?? p.experienceYears,
-              pixKey: savedProv?.pixKey ?? p.pixKey,
-              pixKeyType: savedProv?.pixKeyType ?? p.pixKeyType,
-            };
-          }
-          return p;
-        });
-      }
-
-      const newProv: ProviderProfile = {
-        id: `prv-${foundUser!.id}`,
-        profileId: foundUser!.id,
-        profile: foundUser!,
-        verificationStatus: 'verified',
-        bio: savedProv?.bio || 'Professor de Matemática & Especialista em Ensino e Reforço em Rondonópolis.',
-        experienceYears: savedProv?.experienceYears || 5,
-        hourlyRateEstimate: savedProv?.hourlyRateEstimate || 80,
-        pixKeyType: savedProv?.pixKeyType || 'phone',
-        pixKey: savedProv?.pixKey || foundUser!.phone,
-        averageRating: 5.0,
-        totalReviews: 0,
-        totalCompletedOrders: 0,
-        isAvailable: true,
-        categories: [categories[0]],
-        portfolio: [],
-      };
-      return [newProv, ...prev];
-    });
 
     sendInAppNotification({
       title: `👋 Bem-vindo(a), ${foundUser.fullName.split(' ')[0]}!`,
@@ -794,8 +632,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, error: `Falha ao criar perfil: ${profileInsertError.message}` };
     }
 
-    localStorage.setItem(`rooserv_profile_${cleanEmail}`, JSON.stringify(newUser));
-
     if (newUser.role === 'provider') {
       const provData = {
         bio: 'Professor de Matemática & Especialista em Ensino e Reforço em Rondonópolis.',
@@ -818,7 +654,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         totalReviews: 0,
         totalCompletedOrders: 0,
         isAvailable: true,
-        categories: [categories[0]],
+        categories: categories[0] ? [categories[0]] : [],
         portfolio: [],
       };
       try {
@@ -838,14 +674,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ]);
         if (providerInsertError) throw providerInsertError;
       } catch (error) {
+        await supabase.from('profiles').delete().eq('id', newUser.id);
+        await supabase.auth.signOut();
         return {
           success: false,
           error: error instanceof Error ? error.message : 'Falha ao criar perfil de prestador.',
         };
       }
 
-      localStorage.setItem(`rooserv_provider_data_${newUser.id}`, JSON.stringify(provData));
-      localStorage.setItem(`rooserv_provider_data_${cleanEmail}`, JSON.stringify(provData));
       setProviders((prev) => [newProv, ...prev]);
     }
 
@@ -877,8 +713,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       
       const { data: profile } = await supabase
         .from('profiles')
-        .select('role')
-        .eq('email', adminEmail.trim().toLowerCase())
+        .select('*')
+        .eq('user_id', data.user.id)
         .single();
       
       if (profile?.role !== 'admin') {
@@ -886,14 +722,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return { success: false, error: 'Acesso administrativo não autorizado.' };
       }
       
-      setCurrentUser(ADMIN_PROFILE);
+      const adminProfile = mapDbProfile(profile, profile.id);
+      setCurrentUser(adminProfile);
       setCurrentRole('admin');
       sendInAppNotification({
         title: '🛡️ Gestão RooServ',
         message: 'Acesso liberado às métricas e conciliação financeira.',
         type: 'system',
       });
-      return { success: true, user: ADMIN_PROFILE };
+      return { success: true, user: adminProfile };
     } catch {
       return { success: false, error: 'Erro ao verificar credenciais administrativas.' };
     }
@@ -901,110 +738,56 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Logout
   const logout = async () => {
-    try {
-      await supabase.auth.signOut();
-    } catch {
-      // Ignora
-    }
-
-    if (currentUser?.email) {
-      const cleanEmail = currentUser.email.toLowerCase();
-      localStorage.removeItem(`rooserv_profile_${cleanEmail}`);
-      localStorage.removeItem(`rooserv_avatar_${cleanEmail}`);
-      if (currentUser.id) {
-        localStorage.removeItem(`rooserv_avatar_${currentUser.id}`);
-      }
-    }
+    const { error } = await supabase.auth.signOut();
+    if (error) throw new Error(`Não foi possível encerrar a sessão: ${error.message}`);
 
     setCurrentUser(null);
     setCurrentRole('client');
-    localStorage.removeItem(AUTH_STORAGE_KEY);
+    setOrders([]);
   };
 
   const deleteAccount = async (): Promise<boolean> => {
-    if (!currentUser?.email) return false;
-    const cleanEmail = currentUser.email.toLowerCase();
-
-    try {
-      // 1. Attempt admin user deletion
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore
-      await supabase.auth.admin.deleteUser(currentUser.id);
-    } catch {
-      // Ignore if it fails from frontend
+    if (!currentUser) throw new Error('Nenhuma conta autenticada.');
+    const { data, error } = await supabase.functions.invoke('delete-account', { body: {} });
+    if (error || data?.deleted !== true) {
+      throw new Error(`Não foi possível excluir a conta: ${error?.message || 'confirmação ausente'}`);
     }
 
-    try {
-      // 2. Delete from profiles table
-      await supabase.from('profiles').delete().eq('email', cleanEmail);
-    } catch {
-      // Ignore
-    }
-
-    // 3. Clear localStorage keys starting with rooserv_
-    const keysToRemove = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith('rooserv_')) {
-        keysToRemove.push(key);
-      }
-    }
-    keysToRemove.forEach(k => localStorage.removeItem(k));
-
-    // 4. Logout
-    await logout();
-    
-    sendInAppNotification({
-      title: 'Conta Excluída',
-      message: 'Sua conta e dados foram removidos com sucesso.',
-      type: 'system',
-    });
-
+    await supabase.auth.signOut({ scope: 'local' });
+    setCurrentUser(null);
+    setCurrentRole('client');
+    setOrders([]);
     return true;
   };
 
   const updateUserProfile = async (data: Partial<UserProfile>) => {
-    if (!currentUser) return;
-    const updatedUser: UserProfile = {
-      ...currentUser,
-      ...data,
-      updatedAt: new Date().toISOString(),
+    if (!currentUser) throw new Error('Faça login para atualizar o perfil.');
+    const updates = {
+      full_name: data.fullName ?? currentUser.fullName,
+      phone: data.phone ?? currentUser.phone,
+      document_cpf: data.documentCpf ?? currentUser.documentCpf,
+      neighborhood: data.neighborhood ?? currentUser.neighborhood,
+      city: data.city ?? currentUser.city,
+      state: data.state ?? currentUser.state,
+      avatar_url: data.avatarUrl ?? currentUser.avatarUrl,
+      updated_at: new Date().toISOString(),
     };
+    const { data: savedProfile, error } = await supabase
+      .from('profiles')
+      .update(updates)
+      .eq('id', currentUser.id)
+      .select('*')
+      .single();
+    if (error || !savedProfile) {
+      throw new Error(`Não foi possível salvar o perfil: ${error?.message || 'resposta vazia'}`);
+    }
+
+    const updatedUser = mapDbProfile(savedProfile, currentUser.id);
     setCurrentUser(updatedUser);
-    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updatedUser));
-    if (updatedUser.email) {
-      localStorage.setItem(`rooserv_profile_${updatedUser.email.toLowerCase()}`, JSON.stringify(updatedUser));
-    }
-    if (updatedUser.avatarUrl) {
-      if (updatedUser.email) {
-        localStorage.setItem(`rooserv_avatar_${updatedUser.email.toLowerCase()}`, updatedUser.avatarUrl);
-      }
-      if (updatedUser.id) {
-        localStorage.setItem(`rooserv_avatar_${updatedUser.id}`, updatedUser.avatarUrl);
-      }
-    }
-
-    setProviders((prev) =>
-      prev.map((p) => (p.profileId === updatedUser.id ? { ...p, profile: updatedUser } : p))
-    );
-
-    try {
-      await supabase.from('profiles').upsert([
-        {
-          id: updatedUser.id,
-          role: updatedUser.role,
-          full_name: updatedUser.fullName,
-          email: updatedUser.email,
-          phone: updatedUser.phone,
-          neighborhood: updatedUser.neighborhood,
-          city: updatedUser.city,
-          state: updatedUser.state,
-          avatar_url: updatedUser.avatarUrl,
-        },
-      ]);
-    } catch {
-      // Ignora
-    }
+    setCurrentRole(updatedUser.role);
+    setProviders((prev) => prev.map((p) =>
+      p.profileId === updatedUser.id ? { ...p, profile: updatedUser } : p
+    ));
 
     sendInAppNotification({
       title: '✓ Perfil Atualizado com Sucesso!',
@@ -1021,88 +804,51 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     pixKeyType?: string;
     categories?: ServiceCategory[];
   }) => {
-    if (!currentUser) return;
+    if (!currentUser) throw new Error('Faça login para atualizar o perfil profissional.');
+    const myProvider = providers.find((p) => p.profileId === currentUser.id);
+    if (!myProvider) throw new Error('Perfil profissional não encontrado.');
 
-    // 1. Persiste imediatamente no localStorage
-    const storageKey = `rooserv_provider_data_${currentUser.id}`;
-    let existingSaved = {};
-    try {
-      const item = localStorage.getItem(storageKey);
-      if (item) existingSaved = JSON.parse(item);
-    } catch {
-      // Ignora
+    const { data: savedProvider, error } = await supabase
+      .from('provider_profiles')
+      .update({
+        bio: data.bio ?? myProvider.bio,
+        hourly_rate_estimate: data.hourlyRateEstimate ?? myProvider.hourlyRateEstimate,
+        experience_years: data.experienceYears ?? myProvider.experienceYears,
+        pix_key: data.pixKey ?? myProvider.pixKey,
+        pix_key_type: data.pixKeyType ?? myProvider.pixKeyType,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', myProvider.id)
+      .select('*')
+      .single();
+    if (error || !savedProvider) {
+      throw new Error(`Não foi possível salvar o perfil profissional: ${error?.message || 'resposta vazia'}`);
     }
 
-    const mergedProviderData = {
-      ...existingSaved,
-      ...data,
-    };
-    localStorage.setItem(storageKey, JSON.stringify(mergedProviderData));
-    if (currentUser.email) {
-      localStorage.setItem(`rooserv_provider_data_${currentUser.email.toLowerCase()}`, JSON.stringify(mergedProviderData));
-    }
+    if (data.categories) {
+      const { error: deleteCategoriesError } = await supabase
+        .from('provider_categories')
+        .delete()
+        .eq('provider_id', myProvider.id);
+      if (deleteCategoriesError) throw new Error(`Falha ao atualizar categorias: ${deleteCategoriesError.message}`);
 
-    // 2. Atualiza ou insere no estado providers
-    setProviders((prev) => {
-      const exists = prev.some((p) => p.profileId === currentUser.id);
-      if (exists) {
-        return prev.map((p) => {
-          if (p.profileId === currentUser.id) {
-            return {
-              ...p,
-              bio: data.bio ?? p.bio,
-              hourlyRateEstimate: data.hourlyRateEstimate ?? p.hourlyRateEstimate,
-              experienceYears: data.experienceYears ?? p.experienceYears,
-              pixKey: data.pixKey ?? p.pixKey,
-              pixKeyType: data.pixKeyType ?? p.pixKeyType,
-              categories: data.categories ?? p.categories,
-            };
-          }
-          return p;
-        });
+      if (data.categories.length > 0) {
+        const { error: insertCategoriesError } = await supabase.from('provider_categories').insert(
+          data.categories.map((category) => ({ provider_id: myProvider.id, category_id: category.id }))
+        );
+        if (insertCategoriesError) throw new Error(`Falha ao atualizar categorias: ${insertCategoriesError.message}`);
       }
-
-      const newProv: ProviderProfile = {
-        id: `prv-${currentUser.id}`,
-        profileId: currentUser.id,
-        profile: currentUser,
-        verificationStatus: 'verified',
-        bio: data.bio || 'Professor de Matemática & Reforço Escolar especializado em Rondonópolis.',
-        experienceYears: data.experienceYears || 5,
-        hourlyRateEstimate: data.hourlyRateEstimate || 80,
-        pixKeyType: data.pixKeyType || 'phone',
-        pixKey: data.pixKey || currentUser.phone || '',
-        averageRating: 5.0,
-        totalReviews: 0,
-        totalCompletedOrders: 0,
-        isAvailable: true,
-        categories: data.categories || [categories[0]],
-        portfolio: [],
-      };
-      return [newProv, ...prev];
-    });
-
-    // 3. Persiste no Supabase
-    try {
-      const provUuid = getOrCreateDeterministicUuid(currentUser.id || currentUser.email || 'provider');
-      const myProv = providers.find((p) => p.profileId === currentUser.id);
-      await supabase.from('provider_profiles').upsert([
-        {
-          id: provUuid,
-          profile_id: provUuid,
-          bio: data.bio || myProv?.bio || 'Profissional em Rondonópolis',
-          hourly_rate_estimate: data.hourlyRateEstimate || myProv?.hourlyRateEstimate || 80,
-          experience_years: data.experienceYears || myProv?.experienceYears || 5,
-          pix_key: data.pixKey || myProv?.pixKey || currentUser.phone || '',
-          pix_key_type: data.pixKeyType || myProv?.pixKeyType || 'phone',
-          verification_status: myProv?.verificationStatus || 'verified',
-          average_rating: myProv?.averageRating || 5.0,
-          is_available: true,
-        },
-      ]);
-    } catch {
-      // Ignora erro de rede
     }
+
+    setProviders((prev) => prev.map((provider) => provider.id === myProvider.id ? {
+      ...provider,
+      bio: savedProvider.bio || '',
+      hourlyRateEstimate: Number(savedProvider.hourly_rate_estimate) || undefined,
+      experienceYears: Number(savedProvider.experience_years) || 0,
+      pixKey: savedProvider.pix_key || '',
+      pixKeyType: (savedProvider.pix_key_type || undefined) as ProviderProfile['pixKeyType'],
+      categories: data.categories ?? provider.categories,
+    } : provider));
 
     sendInAppNotification({
       title: '✓ Chave Pix e Perfil Salvos!',
@@ -1120,17 +866,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     budget?: number;
     photos?: string[];
   }) => {
-    const category = categories.find((c) => c.id === data.categoryId) || categories[0];
-    const client = currentUser || INITIAL_CLIENT;
+    if (!currentUser) throw new Error('Faça login para publicar uma solicitação.');
+    const category = categories.find((c) => c.id === data.categoryId);
+    if (!category) throw new Error('Categoria de serviço inválida.');
+    const client = currentUser;
     const reqUuid = generateUuid();
-    const clientUuid = getOrCreateDeterministicUuid(client.id || client.email || 'guest-visitor');
-    const catUuid = getOrCreateDeterministicUuid(category.id);
 
     const newReq: ServiceRequest = {
       id: reqUuid,
-      clientId: clientUuid,
+      clientId: client.id,
       client,
-      categoryId: catUuid,
+      categoryId: category.id,
       category,
       title: data.title,
       description: data.description,
@@ -1142,24 +888,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString(),
     };
 
-    setRequests((prev) => [newReq, ...prev]);
-
-    // Persiste no Supabase
-    try {
-      await supabase.from('service_requests').upsert([{
+    const { data: savedRequest, error } = await supabase.from('service_requests').insert([{
         id: reqUuid,
-        client_id: clientUuid,
-        category_id: catUuid,
+        client_id: client.id,
+        category_id: category.id,
         title: newReq.title,
         description: newReq.description,
         urgency: newReq.urgency,
         address_neighborhood: newReq.addressNeighborhood,
         budget_estimate: newReq.budgetEstimate,
+        photos: newReq.photos,
         status: 'open',
-      }]);
-    } catch {
-      // Fallback resiliente
+      }]).select('*').single();
+    if (error || !savedRequest) {
+      throw new Error(`Não foi possível publicar a solicitação: ${error?.message || 'resposta vazia'}`);
     }
+
+    setRequests((prev) => [newReq, ...prev]);
 
     // Dispara Notificação In-App (Estilo Uber)
     sendInAppNotification({
@@ -1347,10 +1092,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  const verifyProviderByAdmin = (providerId: string, status: VerificationStatus) => {
-    setProviders((prev) =>
-      prev.map((p) => (p.id === providerId ? { ...p, verificationStatus: status } : p))
-    );
+  const verifyProviderByAdmin = async (providerId: string, status: VerificationStatus) => {
+    if (status !== 'verified' && status !== 'rejected') {
+      throw new Error('Decisão de verificação inválida.');
+    }
+    const { error } = await supabase.rpc('review_provider_kyc', {
+      p_provider_id: providerId,
+      p_decision: status,
+      p_rejection_reason: status === 'rejected' ? 'Documentação recusada pela gestão' : null,
+    });
+    if (error) throw new Error(`Não foi possível revisar o KYC: ${error.message}`);
+
+    setProviders((prev) => prev.map((provider) => provider.id === providerId ? {
+      ...provider,
+      verificationStatus: status,
+      verifiedAt: status === 'verified' ? new Date().toISOString() : undefined,
+      isAvailable: status === 'verified',
+    } : provider));
   };
 
   const requestProviderPayout = (providerId: string, amount: number): boolean => {

@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { CITY_CONFIG } from '@servicos/shared';
 import { supabase } from '../lib/supabase';
+import { RooServStorageService } from '../services/storageService';
 import { 
   User, 
   CheckCircle, 
@@ -20,7 +21,7 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
   onSuccess,
   onCancel,
 }) => {
-  const { categories, signup, updateProviderProfile } = useApp();
+  const { categories, signup, currentUser } = useApp();
   const [step, setStep] = useState<number>(1);
   const totalSteps = 4;
 
@@ -28,12 +29,12 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [cpf, setCpf] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [baseNeighborhood, setBaseNeighborhood] = useState(CITY_CONFIG.defaultNeighborhoods[0]);
 
   // Formulário Step 2: Categoria & Preço
-  const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([
-    categories[0]?.id || 'cat-1',
-  ]);
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
   const [hourlyRate, setHourlyRate] = useState('80');
   const [experienceYears, setExperienceYears] = useState(5);
 
@@ -42,12 +43,22 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
   const [pixKey, setPixKey] = useState('');
 
   // Formulário Step 4: Documentos / KYC
-  const [idFrontUploaded, setIdFrontUploaded] = useState(true);
-  const [idBackUploaded, setIdBackUploaded] = useState(true);
-  const [selfieUploaded, setSelfieUploaded] = useState(true);
+  const [idFrontFile, setIdFrontFile] = useState<File | null>(null);
+  const [idBackFile, setIdBackFile] = useState<File | null>(null);
+  const [selfieFile, setSelfieFile] = useState<File | null>(null);
+  const idFrontUploaded = Boolean(idFrontFile);
+  const idBackUploaded = Boolean(idBackFile);
+  const selfieUploaded = Boolean(selfieFile);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionComplete, setSubmissionComplete] = useState(false);
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (selectedCategoryIds.length === 0 && categories[0]) {
+      setSelectedCategoryIds([categories[0].id]);
+    }
+  }, [categories, selectedCategoryIds.length]);
 
   const handleToggleCategory = (catId: string) => {
     setSelectedCategoryIds((prev) => {
@@ -60,41 +71,86 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
 
   const handleSubmitApplication = async () => {
     setIsSubmitting(true);
+    setSubmissionError(null);
 
     try {
-      const cleanName = (fullName || 'Professor de Matemática').trim();
-      const cleanPhone = (phone || '(66) 99909-7398').trim();
-      const profEmail = `${cleanName.toLowerCase().replace(/[^a-z0-9]/g, '')}@email.com`;
+      const cleanName = fullName.trim();
+      const cleanPhone = phone.trim();
+      if (!cleanName || !cleanPhone || cpf.replace(/\D/g, '').length !== 11) {
+        throw new Error('Preencha nome, telefone e um CPF válido.');
+      }
+      if (!idFrontFile || !idBackFile || !selfieFile) {
+        throw new Error('Anexe a frente, o verso do documento e a selfie.');
+      }
+      if (selectedCategoryIds.length === 0) throw new Error('Selecione pelo menos uma categoria.');
 
-      await signup({
-        role: 'provider',
-        fullName: cleanName,
-        email: profEmail,
-        phone: cleanPhone,
-        neighborhood: baseNeighborhood,
-        documentCpf: cpf || '000.000.000-00',
-        avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200',
-      });
+      let providerUser = currentUser;
+      if (!providerUser) {
+        if (!email.trim() || password.length < 8) {
+          throw new Error('Informe um e-mail e uma senha com pelo menos 8 caracteres.');
+        }
+        const signupResult = await signup({
+          role: 'provider',
+          fullName: cleanName,
+          email: email.trim(),
+          password,
+          phone: cleanPhone,
+          neighborhood: baseNeighborhood,
+          documentCpf: cpf,
+          avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200',
+        });
+        if (!signupResult.success || !signupResult.user) {
+          throw new Error(signupResult.error || 'Não foi possível criar a conta profissional.');
+        }
+        providerUser = signupResult.user;
+      }
+      if (providerUser.role !== 'provider') {
+        throw new Error('Esta conta não é uma conta de prestador.');
+      }
 
-      await updateProviderProfile({
-        bio: bio || 'Professor de Matemática & Reforço Escolar especializado em Rondonópolis.',
-        hourlyRateEstimate: Number(hourlyRate) || 80,
-        experienceYears,
-        pixKey: pixKey || cleanPhone,
-        pixKeyType: 'phone',
-      });
+      const [idFrontPath, idBackPath, selfiePath] = await Promise.all([
+        RooServStorageService.uploadKycDocument(idFrontFile, 'id-front'),
+        RooServStorageService.uploadKycDocument(idBackFile, 'id-back'),
+        RooServStorageService.uploadKycDocument(selfieFile, 'selfie'),
+      ]);
 
-      setIsSubmitting(false);
+      const { data: providerProfile, error: providerLookupError } = await supabase
+        .from('provider_profiles')
+        .select('id')
+        .eq('profile_id', providerUser.id)
+        .single();
+      if (providerLookupError || !providerProfile) throw new Error('Perfil profissional não encontrado.');
+
+      const { error: providerUpdateError } = await supabase.from('provider_profiles').update({
+        bio: bio.trim(),
+        hourly_rate_estimate: Number(hourlyRate) || 80,
+        experience_years: experienceYears,
+        pix_key: pixKey.trim() || cleanPhone,
+        pix_key_type: 'phone',
+        document_id_front_url: idFrontPath,
+        document_id_back_url: idBackPath,
+        selfie_with_id_url: selfiePath,
+      }).eq('id', providerProfile.id);
+      if (providerUpdateError) throw providerUpdateError;
+
+      const { error: clearCategoriesError } = await supabase
+        .from('provider_categories')
+        .delete()
+        .eq('provider_id', providerProfile.id);
+      if (clearCategoriesError) throw clearCategoriesError;
+      const { error: categoriesError } = await supabase.from('provider_categories').insert(
+        selectedCategoryIds.map((categoryId) => ({ provider_id: providerProfile.id, category_id: categoryId }))
+      );
+      if (categoriesError) throw categoriesError;
+
       setSubmissionComplete(true);
       setTimeout(() => {
         onSuccess();
       }, 1500);
-    } catch {
+    } catch (error) {
+      setSubmissionError(error instanceof Error ? error.message : 'Não foi possível enviar o cadastro.');
+    } finally {
       setIsSubmitting(false);
-      setSubmissionComplete(true);
-      setTimeout(() => {
-        onSuccess();
-      }, 1500);
     }
   };
 
@@ -115,6 +171,31 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
           className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none focus:border-amber-500 font-medium"
         />
       </div>
+      {!currentUser && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div>
+            <label htmlFor="provider-email" className="block text-xs font-bold text-slate-700 mb-1">E-mail</label>
+            <input
+              id="provider-email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none focus:border-amber-500"
+            />
+          </div>
+          <div>
+            <label htmlFor="provider-password" className="block text-xs font-bold text-slate-700 mb-1">Senha</label>
+            <input
+              id="provider-password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Mínimo 8 caracteres"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none focus:border-amber-500"
+            />
+          </div>
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-2">
         <div>
           <label htmlFor="provider-phone" className="block text-xs font-bold text-slate-700 mb-1">WhatsApp (DDD 66)</label>
@@ -155,7 +236,7 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
       <button
         type="button"
         onClick={() => setStep(2)}
-        disabled={!fullName.trim()}
+        disabled={!fullName.trim() || (!currentUser && (!email.trim() || password.length < 8))}
         className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs py-3 rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 active:scale-95 disabled:opacity-50 mt-2"
       >
         <span>Avançar para Especialidades</span>
@@ -246,7 +327,7 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
       <div className="space-y-2">
         <button
           type="button"
-          onClick={() => setIdFrontUploaded(!idFrontUploaded)}
+          onClick={() => document.getElementById('provider-id-front')?.click()}
           className={`w-full text-left p-3 rounded-xl border-2 border-dashed flex items-center justify-between cursor-pointer transition-all ${
             idFrontUploaded ? 'bg-emerald-50 border-emerald-500 text-emerald-900' : 'bg-slate-50 border-slate-300 text-slate-600 hover:bg-slate-100'
           }`}
@@ -259,9 +340,10 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
             {idFrontUploaded ? '✓ Anexado' : 'Clique p/ Anexar'}
           </span>
         </button>
+        <input id="provider-id-front" type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => setIdFrontFile(e.target.files?.[0] || null)} />
         <button
           type="button"
-          onClick={() => setIdBackUploaded(!idBackUploaded)}
+          onClick={() => document.getElementById('provider-id-back')?.click()}
           className={`w-full text-left p-3 rounded-xl border-2 border-dashed flex items-center justify-between cursor-pointer transition-all ${
             idBackUploaded ? 'bg-emerald-50 border-emerald-500 text-emerald-900' : 'bg-slate-50 border-slate-300 text-slate-600 hover:bg-slate-100'
           }`}
@@ -274,9 +356,10 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
             {idBackUploaded ? '✓ Anexado' : 'Clique p/ Anexar'}
           </span>
         </button>
+        <input id="provider-id-back" type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => setIdBackFile(e.target.files?.[0] || null)} />
         <button
           type="button"
-          onClick={() => setSelfieUploaded(!selfieUploaded)}
+          onClick={() => document.getElementById('provider-selfie')?.click()}
           className={`w-full text-left p-3 rounded-xl border-2 border-dashed flex items-center justify-between cursor-pointer transition-all ${
             selfieUploaded ? 'bg-emerald-50 border-emerald-500 text-emerald-900' : 'bg-slate-50 border-slate-300 text-slate-600 hover:bg-slate-100'
           }`}
@@ -289,6 +372,7 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
             {selfieUploaded ? '✓ Anexado' : 'Clique p/ Anexar'}
           </span>
         </button>
+        <input id="provider-selfie" type="file" accept="image/jpeg,image/png,image/webp" capture="user" className="hidden" onChange={(e) => setSelfieFile(e.target.files?.[0] || null)} />
       </div>
       <div className="bg-amber-50/60 p-3 rounded-2xl border border-amber-200/80 space-y-2">
         <div className="flex items-center gap-1.5 text-xs font-bold text-amber-950">
@@ -307,9 +391,10 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
       <button
         type="button"
         onClick={() => setStep(4)}
+        disabled={!idFrontUploaded || !idBackUploaded || !selfieUploaded || !pixKey.trim()}
         className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs py-3 rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 active:scale-95 mt-2"
       >
-        <span>Avançar para Portfólio</span>
+        <span>Revisar e Enviar</span>
         <ArrowRight className="w-4 h-4" />
       </button>
     </div>
@@ -318,38 +403,21 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
   const renderStep4 = () => (
     <div className="space-y-3.5">
       <div className="border-b border-slate-100 pb-2.5">
-        <h3 className="text-sm font-bold text-slate-900">Portfólio Inicial de Trabalhos</h3>
-        <p className="text-[11px] text-slate-500">Fotos de serviços bem feitos atraem 4x mais contratações</p>
+        <h3 className="text-sm font-bold text-slate-900">Revisão do Cadastro</h3>
+        <p className="text-[11px] text-slate-500">Seu perfil ficará pendente até a análise dos documentos.</p>
       </div>
-      <div>
-        <label htmlFor="portfolio-title" className="block text-xs font-bold text-slate-700 mb-1">Título do Trabalho Realizado</label>
-        <input
-          id="portfolio-title"
-          type="text"
-          value={portfolioTitle}
-          onChange={(e) => setPortfolioTitle(e.target.value)}
-          className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-500"
-        />
+      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs text-slate-700 space-y-2">
+        <p><strong>Profissional:</strong> {fullName}</p>
+        <p><strong>Categorias:</strong> {selectedCategoryIds.length}</p>
+        <p><strong>Experiência:</strong> {experienceYears} anos</p>
+        <p><strong>Documentos:</strong> frente, verso e selfie anexados</p>
+        <p><strong>Status inicial:</strong> pendente de verificação</p>
       </div>
-      <div>
-        <p className="block text-xs font-bold text-slate-700 mb-1">Foto do Serviço Concluído</p>
-        <div className="relative rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
-          <img src={portfolioAfterImage} alt="Portfólio" className="w-full h-36 object-cover" />
-          <span className="absolute bottom-2 right-2 bg-black/60 text-white text-[10px] font-bold px-2 py-1 rounded-lg backdrop-blur-sm">
-            Foto de Destaque
-          </span>
+      {submissionError && (
+        <div role="alert" className="bg-red-50 border border-red-200 text-red-800 rounded-xl px-3 py-2 text-xs font-semibold">
+          {submissionError}
         </div>
-      </div>
-      <div>
-        <label htmlFor="portfolio-desc" className="block text-xs font-bold text-slate-700 mb-1">Descrição Rápida</label>
-        <textarea
-          id="portfolio-desc"
-          rows={2}
-          value={portfolioDesc}
-          onChange={(e) => setPortfolioDesc(e.target.value)}
-          className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none focus:border-amber-500"
-        />
-      </div>
+      )}
       <button
         type="button"
         onClick={handleSubmitApplication}

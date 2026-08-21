@@ -7,3 +7,9 @@ verify_jwt = true
 # O Asaas não envia JWT do Supabase. Esta função exige o token próprio no
 # header asaas-access-token e valida o pagamento novamente na API do Asaas.
 verify_jwt = false
+
+[functions.delete-account]
+verify_jwt = true
+
+[functions.get-kyc-review]
+verify_jwt = true
