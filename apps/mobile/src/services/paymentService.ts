@@ -1,28 +1,88 @@
-import { 
-  AsaasPixQrCodeResponse, 
-  generateMockPixQrCode 
-} from '@servicos/shared';
+import { supabase } from '../lib/supabase';
+
+export interface PixChargeResult {
+  success: boolean;
+  paymentId?: string;
+  pixQrCode?: {
+    encodedImage: string; // Base64 da imagem do QR Code
+    payload: string;      // Código copia-e-cola do Pix
+    expirationDate: string;
+  };
+  amount?: number;
+  dueDate?: string;
+  error?: string;
+}
 
 export interface PaymentProcessingState {
   status: 'idle' | 'generating_pix' | 'awaiting_payment' | 'confirmed' | 'failed';
-  pixData?: AsaasPixQrCodeResponse;
+  pixData?: PixChargeResult;
   expiresInSeconds: number;
   errorMessage?: string;
 }
 
 export class RooServPaymentService {
   /**
-   * Inicia o fluxo de pagamento Pix via Asaas / Custódia RooServ
+   * Inicia o fluxo de pagamento Pix via Edge Function (Asaas real)
+   * A chave de API fica segura no backend (Edge Function), nunca no frontend.
    */
   public static async initiatePixCheckout(order: {
     id: string;
     orderNumber: string;
     totalAmount: number;
     providerWalletId?: string;
-  }): Promise<AsaasPixQrCodeResponse> {
-    // 1. Gera código Pix dinâmico padronizado com identificador do pedido
-    const pixResponse = generateMockPixQrCode(order.orderNumber, order.totalAmount);
-    return pixResponse;
+    customerName?: string;
+    customerEmail?: string;
+    customerCpf?: string;
+  }): Promise<PixChargeResult> {
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+
+      if (!token) {
+        return { success: false, error: 'Usuário não autenticado.' };
+      }
+
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const response = await fetch(`${supabaseUrl}/functions/v1/create-pix-charge`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          orderId: order.id,
+          orderNumber: order.orderNumber,
+          totalAmount: order.totalAmount,
+          customerName: order.customerName || 'Cliente RooServ',
+          customerEmail: order.customerEmail || '',
+          customerCpf: order.customerCpf || '',
+          description: `RooServ - Pedido ${order.orderNumber}`,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        return {
+          success: false,
+          error: result.error || 'Erro ao gerar cobrança Pix.',
+        };
+      }
+
+      return {
+        success: true,
+        paymentId: result.paymentId,
+        pixQrCode: result.pixQrCode,
+        amount: result.amount,
+        dueDate: result.dueDate,
+      };
+    } catch (err) {
+      console.error('[RooServPaymentService] Erro:', err);
+      return {
+        success: false,
+        error: 'Erro de comunicação com o servidor de pagamentos.',
+      };
+    }
   }
 
   /**

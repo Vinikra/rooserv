@@ -3,7 +3,6 @@ import { useApp } from '../context/AppContext';
 import { 
   ProviderProfile, 
   CITY_CONFIG, 
-  generateMockPixQrCode, 
   AsaasPixQrCodeResponse,
   calculateInstallments, 
   calculateCheckoutPricing,
@@ -34,7 +33,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   onClose,
   onSuccess,
 }) => {
-  const { hireProviderWithEscrow } = useApp();
+  const { hireProviderWithEscrow, currentUser } = useApp();
   
   const [serviceAmount, setServiceAmount] = useState<number>(250);
   const [paymentMethod, setPaymentMethod] = useState<'pix' | 'credit_card'>('pix');
@@ -42,6 +41,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [isCopied, setIsCopied] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [pixData, setPixData] = useState<AsaasPixQrCodeResponse | null>(null);
+  const [pixLoading, setPixLoading] = useState(false);
+  const [pixError, setPixError] = useState<string | null>(null);
   const [timeLeft, setTimeLeft] = useState<number>(900); // 15 minutos
 
   // Card Form State
@@ -50,17 +51,51 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [cardExpiry, setCardExpiry] = useState('');
   const [cardCvv, setCardCvv] = useState('');
 
-  // Gera código Pix dinâmico com identificador do prestador e valor
+  // Gera código Pix real via Edge Function quando o método for Pix
   useEffect(() => {
-    if (!provider) return;
-    const rnd = typeof crypto !== 'undefined' && crypto.getRandomValues
-      ? (1000 + (crypto.getRandomValues(new Uint32Array(1))[0] % 9000))
-      : 7789;
-    const orderTempNumber = `SRV-ROO-${rnd}`;
-    const generated = generateMockPixQrCode(orderTempNumber, serviceAmount);
-    setPixData(generated);
-    setTimeLeft(900);
-  }, [serviceAmount, provider]);
+    if (!provider || paymentMethod !== 'pix') return;
+    
+    const generatePix = async () => {
+      setPixLoading(true);
+      setPixError(null);
+
+      const rnd = typeof crypto !== 'undefined' && crypto.getRandomValues
+        ? (1000 + (crypto.getRandomValues(new Uint32Array(1))[0] % 9000))
+        : 7789;
+      const orderTempNumber = `SRV-ROO-${rnd}`;
+
+      const result = await RooServPaymentService.initiatePixCheckout({
+        id: `temp-${orderTempNumber}`,
+        orderNumber: orderTempNumber,
+        totalAmount: serviceAmount,
+        customerName: currentUser?.fullName || 'Cliente',
+        customerEmail: currentUser?.email || '',
+        customerCpf: currentUser?.documentCpf || '',
+      });
+
+      if (result.success && result.pixQrCode) {
+        setPixData({
+          encodedImage: result.pixQrCode.encodedImage,
+          payload: result.pixQrCode.payload,
+          expirationDate: result.pixQrCode.expirationDate,
+          success: true,
+        });
+        setTimeLeft(900);
+      } else {
+        setPixError(result.error || 'Erro ao gerar QR Code Pix.');
+        // Fallback: mostrar código placeholder para demonstração
+        setPixData({
+          encodedImage: '',
+          payload: `PIX-ROOSERV-${orderTempNumber}-${serviceAmount}`,
+          expirationDate: new Date(Date.now() + 900000).toISOString(),
+          success: false,
+        });
+      }
+      setPixLoading(false);
+    };
+
+    generatePix();
+  }, [serviceAmount, provider, paymentMethod]);
 
   // Contador regressivo de 15 minutos
   useEffect(() => {
