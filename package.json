@@ -14,7 +14,8 @@
     "dev": "npm --workspace=@servicos/mobile run dev",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "test:payments:sandbox": "node scripts/abacatepay-sandbox-smoke.mjs --simulate"
+    "test:payments:sandbox": "node scripts/abacatepay-sandbox-smoke.mjs --simulate",
+    "test:staging:financial": "node scripts/staging-financial-e2e.mjs --confirm-staging"
   },
   "keywords": [
     "servicos",

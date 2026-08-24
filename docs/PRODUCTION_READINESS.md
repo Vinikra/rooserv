@@ -14,7 +14,9 @@ Revisão executada em 23/08/2026 sobre React/PWA, autenticação, Supabase RLS/R
 - Staging Supabase atualizado em 24/08/2026: migrations `202608230001`, `202608230002` e `202608230003` aplicadas e registradas no histórico.
 - As oito Edge Functions foram publicadas; as sete funções privadas rejeitaram chamadas anônimas com HTTP 401.
 - Cinco secrets de runtime foram configurados, o webhook sandbox foi cadastrado para seis eventos e o health check assinado retornou HTTP 200; chamadas sem secret retornaram HTTP 401.
-- O aplicativo público carregou conectado ao staging endurecido, e as tabelas financeiras permaneceram vazias após os testes de infraestrutura.
+- O aplicativo público carregou conectado ao staging endurecido.
+- O E2E financeiro autenticado foi aprovado no staging com cliente, prestador e admin de teste: proposta/aceite, cobrança Pix, simulação `PAID`, conciliação, idempotência, autorização, webhook duplicado/divergente, disputa, estorno contábil, conclusão do serviço, liberação da custódia e saque recusado com restauração integral da carteira.
+- O sandbox recusou o reembolso externo e a transferência Pix. O E2E registrou essas limitações sem tratá-las como sucesso do gateway: aplicou evento controlado apenas para validar o estorno local e comprovou que o saque terminou `failed`, com motivo seguro, R$ 52,80 disponíveis e zero em custódia.
 
 ## Correções implementadas
 
@@ -59,12 +61,13 @@ Revisão executada em 23/08/2026 sobre React/PWA, autenticação, Supabase RLS/R
 2. Oito Edge Functions publicadas, incluindo consulta/simulação Pix e processamento de reembolso.
 3. Secrets de origem, API AbacatePay, URL do webhook, HMAC e trava de simulação configurados. A trava continua devendo ser `false` em produção.
 4. Webhook HTTPS sandbox cadastrado com secret de URL, HMAC e os eventos de pagamento/transferência usados pelo app.
+5. E2E financeiro reproduzível disponível em `npm run test:staging:financial`, com travas para o projeto de staging e chave `abc_dev_`; execução de 24/08/2026 aprovada em todos os invariantes locais.
 
 ## Bloqueadores restantes antes de dinheiro real
 
 1. **Revogar o token Sonar exposto.** Gere outro, configure `SONAR_TOKEN` no CI e reescreva o histórico Git. Colaboradores devem reclonar depois da limpeza.
 2. **Migrar mídia legada.** `rooserv-media` continua público para preservar URLs. Copie `requests/` e `proofs/` ao bucket privado, converta as referências, valide e desative o legado.
-3. **Executar E2E financeiro integrado em Dev mode.** O smoke test direto da API já cobre criação, simulação e consulta `PAID`; ainda é necessário validar no staging o fluxo completo com Supabase, expiração/cancelamento, webhook duplicado, divergência, disputa, reembolso e saque concluído/falho.
+3. **Homologar reembolso e saque no gateway antes de dinheiro real.** O E2E integrado já validou cobrança, pagamento, idempotência, autorização, eventos duplicados/divergentes, disputa, estorno local e recuperação de saldo no saque falho. A AbacatePay Dev recusou tanto `POST /v2/transparents/refund` quanto a transferência Pix; repetir com credenciais/ambiente de homologação que suportem essas operações e obter evidência de reembolso externo, webhook real e transferência concluída/falha pelo gateway.
 4. **Revisão jurídica/LGPD.** Publicar textos integrais, controlador/encarregado, canal do titular, bases legais, retenção, descarte, garantia, mediação e estorno.
 5. **Configurar Supabase Auth.** Confirmação de e-mail, senhas vazadas, limites de Auth, redirects restritos e MFA obrigatório para admins.
 6. **Backups/observabilidade.** Ativar PITR, testar restauração e alertar falhas de webhook, reembolso e saque sem registrar dados sensíveis.
@@ -80,5 +83,6 @@ Revisão executada em 23/08/2026 sobre React/PWA, autenticação, Supabase RLS/R
 - Logs das Edge Functions ainda usam `console`; falta correlação estruturada e alertas.
 - O manifesto ainda precisa de ícones PNG 192/512 e `apple-touch-icon` validados em iOS real.
 - Fazer DAST e teste manual de autorização com anônimo, cliente, prestador e admin.
+- As fixtures E2E identificadas permanecem no staging para auditoria até uma limpeza explicitamente autorizada.
 
 Produção com dinheiro real deve ser liberada somente quando os nove bloqueadores restantes tiverem evidência em staging.
