@@ -62,11 +62,11 @@ O **RooServ** conecta moradores de Rondonópolis a prestadores verificados, com 
 
 ## 💳 Pagamentos com AbacatePay
 
-O checkout Pix usa a API v2 da AbacatePay exclusivamente pelas Supabase Edge Functions. A chave privada nunca é enviada ao navegador.
+O checkout Pix e os reembolsos usam os endpoints transparentes da API v2; os saques Pix usam os endpoints oficiais `/v1/withdraw/create` e `/v1/withdraw/get`. Toda comunicação passa exclusivamente pelas Supabase Edge Functions, e a chave privada nunca é enviada ao navegador.
 
 1. Crie uma chave Dev mode com as permissões `CHECKOUT:CREATE`, `CHECKOUT:READ`, `WITHDRAW:CREATE` e `WITHDRAW:READ`.
 2. Configure `APP_ORIGIN`, `ABACATEPAY_API_KEY`, `ABACATEPAY_WEBHOOK_SECRET` e `ABACATEPAY_WEBHOOK_HMAC_KEY` conforme `supabase/functions/.env.example`.
-3. Aplique, em ordem, as migrations `202608230001_abacatepay_integration.sql`, `202608230002_production_security_hardening.sql` e `202608230003_abacatepay_sandbox_and_status.sql`.
+3. Aplique todas as migrations incrementais de `supabase/migrations` em ordem, até `202608240009_strict_payout_review_inputs.sql`.
 4. Publique as Edge Functions de pagamento: `create-pix-charge`, `check-pix-payment`, `simulate-pix-payment`, `payment-webhook`, `process-payment-refund` e `process-provider-payout`.
 5. Cadastre na AbacatePay o endpoint HTTPS:
 
@@ -94,6 +94,8 @@ npm run test:payments:sandbox
 ```
 
 O script exige confirmação explícita embutida no comando do npm, recusa cobranças que não sejam `devMode` e testa criação, simulação e consulta final. Webhooks continuam sendo a fonte autoritativa em produção; a consulta periódica do checkout serve como fallback visual e nunca credita o ledger.
+
+Cada saque usa o UUID local como `externalId` no gateway. Antes de criar uma transferência, o backend procura esse identificador na AbacatePay. Timeout, resposta 5xx ou resposta inválida colocam o saque em revisão manual e nunca provocam reenvio automático, evitando uma transferência Pix duplicada. O procedimento de conciliação e decisão administrativa está em [docs/PAYOUT_OPERATIONS.md](docs/PAYOUT_OPERATIONS.md).
 
 Antes de habilitar transações reais, conclua o checklist em [docs/PRODUCTION_READINESS.md](docs/PRODUCTION_READINESS.md).
 

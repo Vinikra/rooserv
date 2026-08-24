@@ -110,6 +110,7 @@ interface AppContextType {
   requestProviderPayout: (amount: number) => Promise<PayoutRequest>;
   openDispute: (orderId: string, reason: string, details: string) => Promise<void>;
   resolveDisputeByAdmin: (orderId: string, decision: 'refund_client' | 'release_provider') => Promise<void>;
+  refreshAdminData: () => Promise<void>;
   getAdminStats: () => {
     totalVolumeTransacted: number;
     platformRevenue: number;
@@ -121,6 +122,7 @@ interface AppContextType {
     lastWebhookReceivedAt?: string;
     failedPayouts24h: number;
     staleProcessingPayoutsCount: number;
+    manualReviewPayoutsCount: number;
     refundErrors24h: number;
     staleRefundsCount: number;
   };
@@ -279,6 +281,10 @@ function mapDbPayoutRequest(request: any): PayoutRequest {
     transactionReceiptUrl: request.transaction_receipt_url || undefined,
     processingStartedAt: request.processing_started_at || undefined,
     processedAt: request.processed_at || undefined,
+    requiresManualReview: request.requires_manual_review === true,
+    uncertainSince: request.uncertain_since || undefined,
+    lastReconciliationAt: request.last_reconciliation_at || undefined,
+    reconciliationAttempts: Number(request.reconciliation_attempts) || 0,
     createdAt: request.created_at,
   };
 }
@@ -340,6 +346,7 @@ function computeAdminStats(orders: Order[], providers: ProviderProfile[]) {
     lastWebhookReceivedAt: undefined,
     failedPayouts24h: 0,
     staleProcessingPayoutsCount: 0,
+    manualReviewPayoutsCount: 0,
     refundErrors24h: 0,
     staleRefundsCount: 0,
   };
@@ -361,6 +368,7 @@ function mapDbAdminStats(data: any): AdminStats {
       : undefined,
     failedPayouts24h: Number(data?.failed_payouts_24h) || 0,
     staleProcessingPayoutsCount: Number(data?.stale_processing_payouts_count) || 0,
+    manualReviewPayoutsCount: Number(data?.manual_review_payouts_count) || 0,
     refundErrors24h: Number(data?.refund_errors_24h) || 0,
     staleRefundsCount: Number(data?.stale_refunds_count) || 0,
   };
@@ -629,7 +637,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             setPayoutRequests(mappedPayouts);
 
             const payoutsToReconcile = mappedPayouts
-              .filter((payout: PayoutRequest) => payout.status === 'processing' && payout.gatewayTransferId)
+              .filter((payout: PayoutRequest) => payout.status === 'processing' && payout.gatewayTransferId && !payout.requiresManualReview)
               .slice(0, 5);
             if (payoutsToReconcile.length > 0) {
               await Promise.allSettled(payoutsToReconcile.map((payout: PayoutRequest) => (
@@ -1336,6 +1344,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     requestProviderPayout,
     openDispute,
     resolveDisputeByAdmin,
+    refreshAdminData,
     getAdminStats,
   }), [
     currentRole,

@@ -42,6 +42,9 @@ export const ProviderDashboardScreen: React.FC<ProviderDashboardScreenProps> = (
   // Cálculos da Carteira
   const availableBalance = providerWallet?.balanceAvailable || 0;
   const escrowBalance = providerWallet?.balanceInEscrow || 0;
+  const hasOpenPayout = payoutRequests.some((payout) => (
+    payout.status === 'pending' || payout.status === 'processing' || payout.requiresManualReview
+  ));
 
   const [payoutSuccess, setPayoutSuccess] = useState(false);
   const [payoutError, setPayoutError] = useState<string | null>(null);
@@ -57,7 +60,7 @@ export const ProviderDashboardScreen: React.FC<ProviderDashboardScreenProps> = (
   const [isSendingProposal, setIsSendingProposal] = useState(false);
 
   const handleRequestPayout = async () => {
-    if (availableBalance <= 0) return;
+    if (availableBalance <= 0 || hasOpenPayout) return;
     setIsRequestingPayout(true);
     setPayoutError(null);
     try {
@@ -212,11 +215,15 @@ export const ProviderDashboardScreen: React.FC<ProviderDashboardScreenProps> = (
             <button
               type="button"
               onClick={handleRequestPayout}
-              disabled={availableBalance <= 0 || isRequestingPayout}
+              disabled={availableBalance <= 0 || hasOpenPayout || isRequestingPayout}
               className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-sm sm:text-base py-4 rounded-2xl transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
             >
               {isRequestingPayout ? <LoaderCircle className="w-5 h-5 animate-spin" /> : <ArrowUpRight className="w-5 h-5" />}
-              <span>{isRequestingPayout ? 'Registrando saque...' : `Solicitar Saque Pix (${formatCurrencyBRL(availableBalance)})`}</span>
+              <span>{isRequestingPayout
+                ? 'Registrando saque...'
+                : hasOpenPayout
+                ? 'Saque em andamento'
+                : `Solicitar Saque Pix (${formatCurrencyBRL(availableBalance)})`}</span>
             </button>
 
             {payoutSuccess && (
@@ -235,11 +242,26 @@ export const ProviderDashboardScreen: React.FC<ProviderDashboardScreenProps> = (
               <div className="border-t border-slate-700 pt-4 space-y-2">
                 <span className="text-[11px] uppercase tracking-wider text-slate-400 font-extrabold">Últimos saques</span>
                 {payoutRequests.slice(0, 3).map((payout) => (
-                  <div key={payout.id} className="flex items-center justify-between text-xs bg-slate-800/80 rounded-xl px-3 py-2.5">
-                    <strong className="text-white">{formatCurrencyBRL(payout.amount)}</strong>
-                    <span className={`font-bold ${payout.status === 'completed' ? 'text-emerald-400' : payout.status === 'failed' ? 'text-red-400' : 'text-amber-400'}`}>
-                      {payout.status === 'completed' ? 'Concluído' : payout.status === 'failed' ? 'Falhou' : payout.status === 'processing' ? 'Processando' : 'Pendente'}
-                    </span>
+                  <div key={payout.id} className="text-xs bg-slate-800/80 rounded-xl px-3 py-2.5 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <strong className="text-white">{formatCurrencyBRL(payout.amount)}</strong>
+                      <span className={`font-bold ${payout.status === 'completed' ? 'text-emerald-400' : payout.status === 'failed' ? 'text-red-400' : 'text-amber-400'}`}>
+                        {payout.requiresManualReview
+                          ? 'Em análise'
+                          : payout.status === 'completed'
+                          ? 'Concluído'
+                          : payout.status === 'failed'
+                          ? 'Falhou'
+                          : payout.status === 'processing'
+                          ? 'Processando'
+                          : 'Pendente'}
+                      </span>
+                    </div>
+                    {payout.requiresManualReview && (
+                      <p className="text-[11px] leading-snug text-amber-200">
+                        A confirmação do gateway está em revisão. O valor continua reservado.
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>

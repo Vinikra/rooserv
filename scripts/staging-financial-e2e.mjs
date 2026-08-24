@@ -479,6 +479,79 @@ async function main() {
     p_tags: ['e2e', 'sandbox'],
   }, 'Liberar saldo E2E');
 
+  const uncertainPayoutAmount = 5;
+  const uncertainRequest = await requireRpc(providerAuth.client, 'request_provider_payout', {
+    p_amount: uncertainPayoutAmount,
+  }, 'Criar saque incerto controlado');
+  const uncertainPayoutId = uncertainRequest.payout_request?.id;
+  assert(uncertainPayoutId, 'Saque incerto controlado não retornou ID.');
+  const uncertainClaim = await requireRpc(admin, 'claim_provider_payout', {
+    p_payout_request_id: uncertainPayoutId,
+  }, 'Reivindicar saque incerto controlado');
+  assert(uncertainClaim.claimed === true, 'Servidor não reivindicou o saque incerto controlado.');
+  await requireRpc(admin, 'mark_provider_payout_uncertain', {
+    p_payout_request_id: uncertainPayoutId,
+    p_reason_code: 'network_error',
+  }, 'Marcar saque incerto controlado');
+
+  const uncertainFinances = await requireRpc(providerAuth.client, 'get_my_provider_finances', {}, 'Consultar saque incerto como prestador');
+  const ownerUncertainPayout = uncertainFinances.payout_requests.find((item) => item.id === uncertainPayoutId);
+  assert(ownerUncertainPayout?.requires_manual_review === true, 'Prestador não recebeu o estado de revisão do saque.');
+  assertClose(
+    uncertainFinances.wallet.balance_available,
+    (60 * 0.88) - uncertainPayoutAmount,
+    'Saldo deve permanecer reservado durante revisão',
+  );
+
+  const concurrentPayout = await providerAuth.client.rpc('request_provider_payout', { p_amount: 1 });
+  assert(concurrentPayout.error, 'Prestador conseguiu abrir um segundo saque durante revisão.');
+  const unauthorizedReview = await clientAuth.client.rpc('resolve_provider_payout_review', {
+    p_payout_request_id: uncertainPayoutId,
+    p_decision: 'mark_failed',
+  });
+  assert(unauthorizedReview.error, 'Cliente conseguiu resolver revisão financeira administrativa.');
+
+  const adminReviews = await requireRpc(adminAuth.client, 'list_admin_payout_reviews', {}, 'Listar saques em revisão como admin AAL2');
+  assert(adminReviews.some((item) => item.payout_id === uncertainPayoutId), 'Saque incerto não apareceu na fila administrativa.');
+
+  const nullReviewDecision = await adminAuth.client.rpc('resolve_provider_payout_review', {
+    p_payout_request_id: uncertainPayoutId,
+    p_decision: null,
+  });
+  assert(!nullReviewDecision.error, `Decisão nula deveria ser inerte: ${nullReviewDecision.error?.message}`);
+  const afterNullDecision = await requireData(
+    admin.from('payout_requests').select('status,requires_manual_review').eq('id', uncertainPayoutId).single(),
+    'Validar decisão administrativa nula',
+  );
+  assert(
+    afterNullDecision.status === 'processing' && afterNullDecision.requires_manual_review === true,
+    'Decisão administrativa nula alterou o saque em revisão.',
+  );
+
+  await requireRpc(adminAuth.client, 'resolve_provider_payout_review', {
+    p_payout_request_id: uncertainPayoutId,
+    p_decision: 'mark_failed',
+  }, 'Confirmar falha do saque incerto controlado');
+  const resolvedUncertainPayout = await requireData(
+    admin.from('payout_requests').select('status,requires_manual_review').eq('id', uncertainPayoutId).single(),
+    'Validar resolução do saque incerto',
+  );
+  assert(
+    resolvedUncertainPayout.status === 'failed' && resolvedUncertainPayout.requires_manual_review === false,
+    'Resolução administrativa não fechou o saque incerto.',
+  );
+  const reviewAudit = await requireData(
+    admin.from('admin_financial_audit_log').select('action').eq('payout_request_id', uncertainPayoutId),
+    'Validar auditoria da revisão financeira',
+  );
+  assert(reviewAudit.some((entry) => entry.action === 'payout_review_mark_failed'), 'Revisão financeira não gerou trilha de auditoria.');
+
+  const restoredWallet = await requireData(
+    admin.from('provider_wallets').select('balance_available').eq('provider_id', provider.id).single(),
+    'Validar devolução do saque incerto',
+  );
+  assertClose(restoredWallet.balance_available, 60 * 0.88, 'Saldo após falha administrativa confirmada');
+
   const payoutAmount = 10;
   const payoutRequestResult = await requireRpc(providerAuth.client, 'request_provider_payout', {
     p_amount: payoutAmount,
@@ -497,34 +570,41 @@ async function main() {
     && payoutCall.payload?.success === false
     && typeof payoutCall.payload?.error === 'string';
   assert(
-    payoutCall.status === 200 || payoutGatewayRejectedInDevMode,
+    payoutCall.status === 200 || payoutCall.status === 202 || payoutGatewayRejectedInDevMode,
     `Processamento de saque retornou estado inesperado (HTTP ${payoutCall.status}).`,
   );
   let payoutState;
   for (let attempt = 0; attempt < 10; attempt += 1) {
     payoutState = await requireData(
-      admin.from('payout_requests').select('status,gateway_transfer_id,fail_reason').eq('id', payoutRequestId).single(),
+      admin.from('payout_requests').select('status,gateway_transfer_id,fail_reason,requires_manual_review').eq('id', payoutRequestId).single(),
       'Consultar saque E2E',
     );
-    if (['completed', 'failed'].includes(payoutState.status)) break;
+    if (['completed', 'failed'].includes(payoutState.status) || payoutState.requires_manual_review) break;
     await delay(2_000);
     payoutCall = await invokeEdge(supabaseUrl, anonKey, providerAuth.token, 'process-provider-payout', {
       payoutRequestId,
     });
     assert(
-      payoutCall.status === 200 || (payoutCall.status === 422 && payoutCall.payload?.success === false),
+      payoutCall.status === 200 || payoutCall.status === 202 || (payoutCall.status === 422 && payoutCall.payload?.success === false),
       `Reconciliação do saque retornou estado inesperado (HTTP ${payoutCall.status}).`,
     );
   }
   payoutState = await requireData(
-    admin.from('payout_requests').select('status,gateway_transfer_id,fail_reason').eq('id', payoutRequestId).single(),
+    admin.from('payout_requests').select('status,gateway_transfer_id,fail_reason,requires_manual_review').eq('id', payoutRequestId).single(),
     'Validar estado final do saque E2E',
   );
-  assert(['completed', 'failed'].includes(payoutState.status), `Saque não chegou a estado terminal: ${payoutState.status}`);
+  const payoutIsSafelyTracked = ['completed', 'failed'].includes(payoutState.status)
+    || (payoutState.status === 'processing' && Boolean(payoutState.gateway_transfer_id))
+    || payoutState.requires_manual_review === true;
+  assert(payoutIsSafelyTracked, `Saque não chegou a um estado rastreável seguro: ${payoutState.status}`);
   if (payoutState.status === 'completed') {
     assert(payoutState.gateway_transfer_id, 'Gateway não retornou ID de transferência para o saque concluído.');
-  } else {
+  } else if (payoutState.status === 'failed') {
     assert(payoutState.fail_reason, 'Saque recusado não registrou um motivo seguro.');
+  } else if (payoutState.requires_manual_review) {
+    assert(payoutState.fail_reason, 'Saque em revisão não registrou um motivo seguro.');
+  } else {
+    assert(payoutState.gateway_transfer_id, 'Saque em processamento não possui ID rastreável no gateway.');
   }
 
   const wallet = await requireData(
@@ -552,6 +632,7 @@ async function main() {
     'webhook_events_24h',
     'failed_payouts_24h',
     'stale_processing_payouts_count',
+    'manual_review_payouts_count',
     'refund_errors_24h',
     'stale_refunds_count',
   ]) {
@@ -600,11 +681,20 @@ async function main() {
       gatewayRejectedInDevMode: payoutGatewayRejectedInDevMode,
       terminalStatus: payoutState.status,
       failedTransferRestoredBalance: payoutState.status === 'failed',
+      uncertainRecovery: {
+        duplicateRequestBlocked: true,
+        unauthorizedReviewBlocked: true,
+        adminAal2ReviewListed: true,
+        nullDecisionNoop: true,
+        restoredOnlyAfterAdminConfirmation: true,
+        auditLogRecorded: true,
+      },
     },
     operationalHealth: {
       webhookEvents24h: Number(operationalHealth.webhook_events_24h),
       failedPayouts24h: Number(operationalHealth.failed_payouts_24h),
       staleProcessingPayouts: Number(operationalHealth.stale_processing_payouts_count),
+      manualReviewPayouts: Number(operationalHealth.manual_review_payouts_count),
       refundErrors24h: Number(operationalHealth.refund_errors_24h),
       staleRefunds: Number(operationalHealth.stale_refunds_count),
     },

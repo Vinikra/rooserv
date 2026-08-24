@@ -4,6 +4,8 @@
 
 export const ABACATEPAY_BASE_URL = 'https://api.abacatepay.com/v2';
 
+export const ABACATEPAY_WITHDRAW_BASE_URL = 'https://api.abacatepay.com/v1/withdraw';
+
 export const ABACATEPAY_API_KEY = Deno.env.get('ABACATEPAY_API_KEY') || '';
 
 export const ABACATEPAY_WEBHOOK_SECRET = Deno.env.get('ABACATEPAY_WEBHOOK_SECRET') || '';

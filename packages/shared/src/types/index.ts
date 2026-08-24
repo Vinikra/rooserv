@@ -125,6 +125,10 @@ export interface PayoutRequest {
   transactionReceiptUrl?: string;
   processingStartedAt?: string;
   processedAt?: string;
+  requiresManualReview: boolean;
+  uncertainSince?: string;
+  lastReconciliationAt?: string;
+  reconciliationAttempts: number;
   createdAt: string;
 }
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { 
   Building2, 
@@ -18,6 +18,19 @@ import {
 import { supabase } from '../lib/supabase';
 import { formatCurrencyBRL, CITY_CONFIG } from '@servicos/shared';
 
+interface AdminPayoutReview {
+  payout_id: string;
+  provider_name: string;
+  amount: number;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  gateway_transfer_id?: string | null;
+  fail_reason?: string | null;
+  uncertain_since?: string | null;
+  last_reconciliation_at?: string | null;
+  reconciliation_attempts: number;
+  created_at: string;
+}
+
 export const AdminScreen: React.FC = () => {
   const { 
     adminProviders,
@@ -27,6 +40,7 @@ export const AdminScreen: React.FC = () => {
     getAdminStats,
     isAdmin,
     isAdminMfaVerified,
+    refreshAdminData,
     setCurrentRole
   } = useApp();
 
@@ -40,6 +54,28 @@ export const AdminScreen: React.FC = () => {
     selfie: string;
   }>>({});
   const [operationError, setOperationError] = useState<string | null>(null);
+  const [payoutReviews, setPayoutReviews] = useState<AdminPayoutReview[]>([]);
+  const [pendingPayoutReviewId, setPendingPayoutReviewId] = useState<string | null>(null);
+
+  const loadPayoutReviews = useCallback(async () => {
+    if (!isAdmin || !isAdminMfaVerified) {
+      setPayoutReviews([]);
+      return;
+    }
+    const { data, error } = await supabase.rpc('list_admin_payout_reviews');
+    if (error) throw error;
+    setPayoutReviews((data || []).map((review: AdminPayoutReview) => ({
+      ...review,
+      amount: Number(review.amount) || 0,
+      reconciliation_attempts: Number(review.reconciliation_attempts) || 0,
+    })));
+  }, [isAdmin, isAdminMfaVerified]);
+
+  useEffect(() => {
+    loadPayoutReviews().catch((error) => {
+      setOperationError(error instanceof Error ? error.message : 'Não foi possível carregar os saques em revisão.');
+    });
+  }, [loadPayoutReviews]);
 
   const handleResolveDispute = async (
     orderId: string,
@@ -98,6 +134,62 @@ export const AdminScreen: React.FC = () => {
     }
   };
 
+  const refreshPayoutOperations = async () => {
+    await Promise.all([loadPayoutReviews(), refreshAdminData()]);
+  };
+
+  const handleReconcilePayout = async (payoutId: string) => {
+    setPendingPayoutReviewId(payoutId);
+    setOperationError(null);
+    try {
+      const { error } = await supabase.functions.invoke('process-provider-payout', {
+        body: { payoutRequestId: payoutId },
+      });
+      if (error) throw error;
+      await refreshPayoutOperations();
+    } catch (error) {
+      await refreshPayoutOperations().catch(() => undefined);
+      setOperationError(error instanceof Error ? error.message : 'Não foi possível consultar o saque.');
+    } finally {
+      setPendingPayoutReviewId(null);
+    }
+  };
+
+  const handleResolvePayoutReview = async (
+    payoutId: string,
+    decision: 'retry' | 'mark_failed' | 'settle_completed',
+  ) => {
+    const confirmation = decision === 'retry'
+      ? 'Confirme primeiro no painel ou suporte da AbacatePay que este externalId não existe. Liberar uma nova tentativa sem essa confirmação pode duplicar o Pix. Deseja continuar?'
+      : decision === 'mark_failed'
+      ? 'Confirme primeiro no painel ou suporte da AbacatePay que nenhum Pix foi enviado. Deseja devolver o valor reservado ao prestador?'
+      : 'Esta ação debitará novamente o saldo disponível para compensar um Pix que foi concluído tardiamente. Deseja continuar?';
+    if (!window.confirm(confirmation)) return;
+
+    setPendingPayoutReviewId(payoutId);
+    setOperationError(null);
+    try {
+      const { error } = await supabase.rpc('resolve_provider_payout_review', {
+        p_payout_request_id: payoutId,
+        p_decision: decision,
+      });
+      if (error) throw error;
+
+      if (decision === 'retry') {
+        const { error: processingError } = await supabase.functions.invoke('process-provider-payout', {
+          body: { payoutRequestId: payoutId },
+        });
+        if (processingError) throw processingError;
+      }
+      await refreshPayoutOperations();
+    } catch (error) {
+      await refreshPayoutOperations().catch(() => undefined);
+      setOperationError(error instanceof Error ? error.message : 'Não foi possível concluir a revisão do saque.');
+    } finally {
+      setPendingPayoutReviewId(null);
+    }
+  };
+
   // Se o usuário não for administrador, exibe barreira de segurança
   if (!isAdmin || !isAdminMfaVerified) {
     return (
@@ -138,12 +230,14 @@ export const AdminScreen: React.FC = () => {
 
   const operationalAlertCount = stats.failedPayouts24h
     + stats.staleProcessingPayoutsCount
+    + stats.manualReviewPayoutsCount
     + stats.refundErrors24h
     + stats.staleRefundsCount;
   const operationalMetrics = [
     { label: 'Webhooks em 24h', value: stats.webhookEvents24h, alert: false },
     { label: 'Saques falhos em 24h', value: stats.failedPayouts24h, alert: stats.failedPayouts24h > 0 },
     { label: 'Saques parados há 15 min', value: stats.staleProcessingPayoutsCount, alert: stats.staleProcessingPayoutsCount > 0 },
+    { label: 'Saques em revisão', value: stats.manualReviewPayoutsCount, alert: stats.manualReviewPayoutsCount > 0 },
     { label: 'Erros de reembolso em 24h', value: stats.refundErrors24h, alert: stats.refundErrors24h > 0 },
     { label: 'Reembolsos parados há 5 min', value: stats.staleRefundsCount, alert: stats.staleRefundsCount > 0 },
   ];
@@ -247,7 +341,7 @@ export const AdminScreen: React.FC = () => {
           </span>
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
           {operationalMetrics.map((metric) => (
             <div
               key={metric.label}
@@ -267,6 +361,86 @@ export const AdminScreen: React.FC = () => {
           Contadores sinalizam triagem manual; confirme o estado no gateway antes de repetir reembolso ou saque.
         </p>
       </section>
+
+      {payoutReviews.length > 0 && (
+        <section className="bg-amber-50 rounded-3xl p-5 sm:p-6 border border-amber-200 shadow-sm space-y-4" aria-labelledby="payout-review-title">
+          <div className="flex items-start gap-2 border-b border-amber-200 pb-3">
+            <AlertTriangle className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
+            <div>
+              <h3 id="payout-review-title" className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">
+                Revisão financeira de saques ({payoutReviews.length})
+              </h3>
+              <p className="text-xs text-slate-600 mt-1">
+                Consulte o mesmo externalId na AbacatePay antes de reenviar ou devolver saldo. Nenhuma ação automática repete um Pix incerto.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            {payoutReviews.map((review) => {
+              const isPending = pendingPayoutReviewId === review.payout_id;
+              const reference = review.payout_id.slice(0, 8);
+              const reviewDate = review.uncertain_since || review.created_at;
+              return (
+                <article key={review.payout_id} className="bg-white border border-amber-200 rounded-2xl p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h4 className="text-sm font-black text-slate-900">{review.provider_name}</h4>
+                      <p className="text-xs text-slate-500">Referência {reference} · {new Date(reviewDate).toLocaleString('pt-BR')}</p>
+                    </div>
+                    <strong className="text-sm font-black text-slate-950">{formatCurrencyBRL(review.amount)}</strong>
+                  </div>
+
+                  <div className="bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 text-xs text-amber-950 space-y-1">
+                    <p><strong>Motivo:</strong> {review.fail_reason || 'Confirmação pendente.'}</p>
+                    <p><strong>Tentativas de reconciliação:</strong> {review.reconciliation_attempts}</p>
+                    {review.gateway_transfer_id && <p><strong>ID do gateway:</strong> {review.gateway_transfer_id}</p>}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleReconcilePayout(review.payout_id)}
+                    disabled={isPending}
+                    className="w-full bg-slate-900 hover:bg-slate-800 disabled:opacity-60 text-white font-bold text-xs py-2.5 rounded-xl"
+                  >
+                    {isPending ? 'Consultando...' : 'Reconsultar gateway com segurança'}
+                  </button>
+
+                  {!review.gateway_transfer_id && review.status === 'processing' ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleResolvePayoutReview(review.payout_id, 'retry')}
+                        disabled={isPending}
+                        className="bg-white hover:bg-amber-50 disabled:opacity-60 text-amber-900 border border-amber-300 font-bold text-xs py-2.5 rounded-xl"
+                      >
+                        Confirmar ausência e tentar novamente
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleResolvePayoutReview(review.payout_id, 'mark_failed')}
+                        disabled={isPending}
+                        className="bg-white hover:bg-red-50 disabled:opacity-60 text-red-700 border border-red-300 font-bold text-xs py-2.5 rounded-xl"
+                      >
+                        Confirmar falha e devolver saldo
+                      </button>
+                    </div>
+                  ) : review.status === 'failed' && review.gateway_transfer_id ? (
+                    <button
+                      type="button"
+                      onClick={() => handleResolvePayoutReview(review.payout_id, 'settle_completed')}
+                      disabled={isPending}
+                      className="w-full bg-emerald-700 hover:bg-emerald-800 disabled:opacity-60 text-white font-bold text-xs py-2.5 rounded-xl"
+                    >
+                      Compensar saldo e concluir saque tardio
+                    </button>
+                  ) : null}
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {/* Grid de Operações: Disputas & KYC */}
       {operationError && (
