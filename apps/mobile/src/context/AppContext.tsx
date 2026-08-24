@@ -33,6 +33,9 @@ interface AppContextType {
   deleteAccount: () => Promise<boolean>;
   categories: ServiceCategory[];
   providers: ProviderProfile[];
+  isPublicCatalogLoading: boolean;
+  publicCatalogError: string | null;
+  refreshPublicCatalog: () => Promise<void>;
   adminProviders: ProviderProfile[];
   orders: Order[];
   reviews: Review[];
@@ -379,6 +382,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [currentRole, setCurrentRole] = useState<UserRole>('client');
   const [categories, setCategories] = useState<ServiceCategory[]>([]);
   const [providers, setProviders] = useState<ProviderProfile[]>([]);
+  const [isPublicCatalogLoading, setIsPublicCatalogLoading] = useState(true);
+  const [publicCatalogError, setPublicCatalogError] = useState<string | null>(null);
   const [adminProviders, setAdminProviders] = useState<ProviderProfile[]>([]);
   const [adminDashboardStats, setAdminDashboardStats] = useState<AdminStats | null>(null);
   const [hasAdminAccess, setHasAdminAccess] = useState(false);
@@ -428,6 +433,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setAdminProviders((dbAdminProviders || []).map(mapDbProvider));
     setAdminDashboardStats(mapDbAdminStats(dbStats));
   };
+
+  const refreshPublicCatalog = useCallback(async () => {
+    setIsPublicCatalogLoading(true);
+    setPublicCatalogError(null);
+    try {
+      const [categoriesResult, providersResult, reviewsResult] = await Promise.all([
+        supabase.from('service_categories').select('*').order('sort_order', { ascending: true }),
+        supabase.rpc('list_provider_directory'),
+        supabase.rpc('list_public_reviews'),
+      ]);
+
+      if (categoriesResult.error) throw categoriesResult.error;
+      if (providersResult.error) throw providersResult.error;
+      if (reviewsResult.error) throw reviewsResult.error;
+
+      setCategories((categoriesResult.data || []).map(mapDbCategory));
+      setProviders((providersResult.data || []).map(mapDbProvider));
+      setReviews((reviewsResult.data || []).map((review: any) => ({
+        id: review.id,
+        orderId: review.order_id,
+        clientId: review.client_id || '',
+        client: review.client ? mapDbProfile(review.client, review.client_id || '') : undefined,
+        providerId: review.provider_id,
+        rating: Number(review.rating) || 5,
+        comment: review.comment || '',
+        tags: review.tags || [],
+        photos: review.photos || [],
+        createdAt: review.created_at,
+      })));
+    } catch (error) {
+      setPublicCatalogError('Não foi possível atualizar o catálogo agora. Verifique sua conexão e tente novamente.');
+      throw error;
+    } finally {
+      setIsPublicCatalogLoading(false);
+    }
+  }, []);
 
   const refreshProviderDirectory = async () => {
     const { data, error } = await supabase.rpc('list_provider_directory');
@@ -571,41 +612,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, []);
 
-  // Sincronização inicial com o Supabase
+  useEffect(() => {
+    void refreshPublicCatalog().catch((error) => {
+      console.error('[RooServ] Falha ao carregar o catálogo público:', error instanceof Error ? error.message : 'Erro desconhecido');
+    });
+  }, [refreshPublicCatalog]);
+
+  // Sincronização dos dados privados com o Supabase
   useEffect(() => {
     async function loadFromSupabase() {
       try {
-        const { data: dbCategories, error: catError } = await supabase
-          .from('service_categories')
-          .select('*')
-          .order('sort_order', { ascending: true });
-
-        if (catError) throw catError;
-        setCategories((dbCategories || []).map(mapDbCategory));
-
-        const { data: dbProviders, error: provError } = await supabase
-          .rpc('list_provider_directory');
-
-        if (provError) throw provError;
-        setProviders((dbProviders || []).map(mapDbProvider));
-
-        const { data: dbReviews, error: reviewsError } = await supabase
-          .rpc('list_public_reviews');
-        if (reviewsError) throw reviewsError;
-        const mappedReviews: Review[] = (dbReviews || []).map((r: any) => ({
-          id: r.id,
-          orderId: r.order_id,
-          clientId: r.client_id || '',
-          client: r.client ? mapDbProfile(r.client, r.client_id || '') : undefined,
-          providerId: r.provider_id,
-          rating: Number(r.rating) || 5,
-          comment: r.comment || '',
-          tags: r.tags || [],
-          photos: r.photos || [],
-          createdAt: r.created_at,
-        }));
-        setReviews(mappedReviews);
-
         // Carrega pedidos do Supabase
         if (currentUser?.id) {
           const { data: dbOrders, error: ordersError } = await supabase
@@ -1312,8 +1328,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     updateUserProfile,
     updateProviderProfile,
     refreshProviderDirectory,
+    refreshPublicCatalog,
     categories,
     providers,
+    isPublicCatalogLoading,
+    publicCatalogError,
     adminProviders,
     orders,
     reviews,
@@ -1354,6 +1373,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     isAdminMfaVerified,
     categories,
     providers,
+    isPublicCatalogLoading,
+    publicCatalogError,
+    refreshPublicCatalog,
     adminProviders,
     adminDashboardStats,
     hasAdminAccess,

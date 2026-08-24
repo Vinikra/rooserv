@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { formatCurrencyBRL, CITY_CONFIG } from '@servicos/shared';
+import { ConfirmationDialog } from '../components/ConfirmationDialog';
 
 interface AdminPayoutReview {
   payout_id: string;
@@ -29,6 +30,14 @@ interface AdminPayoutReview {
   last_reconciliation_at?: string | null;
   reconciliation_attempts: number;
   created_at: string;
+}
+
+type PayoutReviewDecision = 'retry' | 'mark_failed' | 'settle_completed';
+
+interface PendingPayoutConfirmation {
+  payoutId: string;
+  decision: PayoutReviewDecision;
+  description: string;
 }
 
 export const AdminScreen: React.FC = () => {
@@ -56,6 +65,7 @@ export const AdminScreen: React.FC = () => {
   const [operationError, setOperationError] = useState<string | null>(null);
   const [payoutReviews, setPayoutReviews] = useState<AdminPayoutReview[]>([]);
   const [pendingPayoutReviewId, setPendingPayoutReviewId] = useState<string | null>(null);
+  const [payoutConfirmation, setPayoutConfirmation] = useState<PendingPayoutConfirmation | null>(null);
 
   const loadPayoutReviews = useCallback(async () => {
     if (!isAdmin || !isAdminMfaVerified) {
@@ -155,16 +165,21 @@ export const AdminScreen: React.FC = () => {
     }
   };
 
-  const handleResolvePayoutReview = async (
+  const handleResolvePayoutReview = (
     payoutId: string,
-    decision: 'retry' | 'mark_failed' | 'settle_completed',
+    decision: PayoutReviewDecision,
   ) => {
-    const confirmation = decision === 'retry'
+    const description = decision === 'retry'
       ? 'Confirme primeiro no painel ou suporte da AbacatePay que este externalId não existe. Liberar uma nova tentativa sem essa confirmação pode duplicar o Pix. Deseja continuar?'
       : decision === 'mark_failed'
       ? 'Confirme primeiro no painel ou suporte da AbacatePay que nenhum Pix foi enviado. Deseja devolver o valor reservado ao prestador?'
       : 'Esta ação debitará novamente o saldo disponível para compensar um Pix que foi concluído tardiamente. Deseja continuar?';
-    if (!window.confirm(confirmation)) return;
+    setPayoutConfirmation({ payoutId, decision, description });
+  };
+
+  const confirmResolvePayoutReview = async () => {
+    if (!payoutConfirmation) return;
+    const { payoutId, decision } = payoutConfirmation;
 
     setPendingPayoutReviewId(payoutId);
     setOperationError(null);
@@ -187,6 +202,7 @@ export const AdminScreen: React.FC = () => {
       setOperationError(error instanceof Error ? error.message : 'Não foi possível concluir a revisão do saque.');
     } finally {
       setPendingPayoutReviewId(null);
+      setPayoutConfirmation(null);
     }
   };
 
@@ -200,9 +216,9 @@ export const AdminScreen: React.FC = () => {
           </div>
 
           <div>
-            <h3 className="text-base font-extrabold text-slate-900">
+            <h1 className="text-base font-extrabold text-slate-900">
               Painel de Gestão RooServ
-            </h3>
+            </h1>
             <p className="text-xs text-slate-500 mt-1">
               Entre pela conta autorizada e confirme o autenticador para acessar esta área.
             </p>
@@ -247,6 +263,7 @@ export const AdminScreen: React.FC = () => {
     : 'Nenhum evento registrado';
 
   return (
+    <>
     <div className="pb-24 pt-4 px-4 sm:px-6 lg:px-8 space-y-6 max-w-7xl mx-auto w-full">
       {/* Header do Painel */}
       <div className="flex items-center justify-between border-b border-slate-200/80 pb-4">
@@ -255,9 +272,9 @@ export const AdminScreen: React.FC = () => {
             <Building2 className="w-4 h-4" />
             <span>Painel do Dono da Plataforma</span>
           </div>
-          <h2 className="text-lg sm:text-2xl font-black text-slate-900 leading-tight">
+          <h1 className="text-lg sm:text-2xl font-black text-slate-900 leading-tight">
             {`${CITY_CONFIG.name} (${CITY_CONFIG.estimatedPopulation.toLocaleString('pt-BR')} hab)`}
-          </h2>
+          </h1>
         </div>
 
         <span className="bg-emerald-100 text-emerald-800 text-xs sm:text-sm font-bold px-3.5 py-1.5 rounded-full border border-emerald-300">
@@ -275,9 +292,9 @@ export const AdminScreen: React.FC = () => {
               <TrendingUp className="w-5 h-5" />
             </div>
           </div>
-          <h3 className="text-2xl sm:text-3xl font-black text-emerald-600">
+          <p className="text-2xl sm:text-3xl font-black text-emerald-600">
             {formatCurrencyBRL(stats.platformRevenue)}
-          </h3>
+          </p>
           <span className="text-xs text-slate-400 block font-medium">Taxas de 12%, antes de gateway, tributos e estornos</span>
         </div>
 
@@ -289,9 +306,9 @@ export const AdminScreen: React.FC = () => {
               <DollarSign className="w-5 h-5" />
             </div>
           </div>
-          <h3 className="text-2xl sm:text-3xl font-black text-slate-900">
+          <p className="text-2xl sm:text-3xl font-black text-slate-900">
             {formatCurrencyBRL(stats.totalVolumeTransacted)}
-          </h3>
+          </p>
           <span className="text-xs text-slate-400 block font-medium">Serviços contratados</span>
         </div>
 
@@ -303,9 +320,9 @@ export const AdminScreen: React.FC = () => {
               <Clock className="w-5 h-5" />
             </div>
           </div>
-          <h3 className="text-2xl sm:text-3xl font-black text-amber-600">
+          <p className="text-2xl sm:text-3xl font-black text-amber-600">
             {formatCurrencyBRL(stats.inEscrowAmount)}
-          </h3>
+          </p>
           <span className="text-xs text-slate-400 block font-medium">Aguardando aprovação do morador</span>
         </div>
       </div>
@@ -326,9 +343,9 @@ export const AdminScreen: React.FC = () => {
               <Activity className="w-5 h-5 text-emerald-600" />
             )}
             <div>
-              <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">
+              <h2 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">
                 Saúde operacional
-              </h3>
+              </h2>
               <p className="text-xs text-slate-500 mt-0.5">Último webhook: {lastWebhookLabel}</p>
             </div>
           </div>
@@ -367,9 +384,9 @@ export const AdminScreen: React.FC = () => {
           <div className="flex items-start gap-2 border-b border-amber-200 pb-3">
             <AlertTriangle className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
             <div>
-              <h3 id="payout-review-title" className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">
+              <h2 id="payout-review-title" className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">
                 Revisão financeira de saques ({payoutReviews.length})
-              </h3>
+              </h2>
               <p className="text-xs text-slate-600 mt-1">
                 Consulte o mesmo externalId na AbacatePay antes de reenviar ou devolver saldo. Nenhuma ação automática repete um Pix incerto.
               </p>
@@ -385,7 +402,7 @@ export const AdminScreen: React.FC = () => {
                 <article key={review.payout_id} className="bg-white border border-amber-200 rounded-2xl p-4 space-y-3">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <h4 className="text-sm font-black text-slate-900">{review.provider_name}</h4>
+                      <h3 className="text-sm font-black text-slate-900">{review.provider_name}</h3>
                       <p className="text-xs text-slate-500">Referência {reference} · {new Date(reviewDate).toLocaleString('pt-BR')}</p>
                     </div>
                     <strong className="text-sm font-black text-slate-950">{formatCurrencyBRL(review.amount)}</strong>
@@ -455,9 +472,9 @@ export const AdminScreen: React.FC = () => {
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div className="flex items-center gap-2">
               <Scale className="w-5 h-5 text-brand-600" />
-              <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">
+              <h2 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">
                 Arbitragem de Disputas ({disputedOrders.length})
-              </h3>
+              </h2>
             </div>
             <span className="text-xs text-slate-400 font-medium">Poder de decisão final</span>
           </div>
@@ -478,9 +495,9 @@ export const AdminScreen: React.FC = () => {
                     <span className="text-xs font-black text-red-700 block">
                       {order.orderNumber}
                     </span>
-                    <h4 className="text-sm font-bold text-slate-900">
+                    <h3 className="text-sm font-bold text-slate-900">
                       {`Cliente: ${order.client?.fullName} vs Prestador: ${order.provider?.profile?.fullName}`}
-                    </h4>
+                    </h3>
                   </div>
                   <strong className="text-sm font-black text-slate-900">{formatCurrencyBRL(order.totalAmount)}</strong>
                 </div>
@@ -507,7 +524,7 @@ export const AdminScreen: React.FC = () => {
                     type="button"
                     onClick={() => handleResolveDispute(order.id, 'refund_client')}
                     disabled={pendingDisputeId === order.id}
-                    className="bg-white hover:bg-slate-50 disabled:opacity-60 text-red-600 border border-red-300 font-bold text-xs py-2 rounded-xl transition-all shadow-xs flex items-center justify-center gap-1 cursor-pointer"
+                    className="bg-white hover:bg-slate-50 disabled:opacity-60 text-red-600 border border-red-300 font-bold text-xs py-2 rounded-xl transition-all shadow-sm flex items-center justify-center gap-1 cursor-pointer"
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
                     <span>Reembolsar Cliente</span>
@@ -517,7 +534,7 @@ export const AdminScreen: React.FC = () => {
                     type="button"
                     onClick={() => handleResolveDispute(order.id, 'release_provider')}
                     disabled={pendingDisputeId === order.id}
-                    className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-bold text-xs py-2 rounded-xl transition-all shadow-xs flex items-center justify-center gap-1 cursor-pointer"
+                    className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-bold text-xs py-2 rounded-xl transition-all shadow-sm flex items-center justify-center gap-1 cursor-pointer"
                   >
                     <CheckCircle className="w-3.5 h-3.5" />
                     <span>Liberar Prestador</span>
@@ -534,9 +551,9 @@ export const AdminScreen: React.FC = () => {
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div className="flex items-center gap-2">
               <ShieldCheck className="w-5 h-5 text-emerald-600" />
-              <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">
+              <h2 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">
                 Fila de Verificação KYC ({pendingProviders.length})
-              </h3>
+              </h2>
             </div>
             <span className="text-xs text-slate-400 font-medium">Validação de identidade</span>
           </div>
@@ -560,9 +577,9 @@ export const AdminScreen: React.FC = () => {
                       className="w-12 h-12 rounded-xl object-cover border border-slate-200"
                     />
                     <div>
-                      <h4 className="text-sm font-extrabold text-slate-900">
+                      <h3 className="text-sm font-extrabold text-slate-900">
                         {prov.profile?.fullName}
-                      </h4>
+                      </h3>
                       <p className="text-xs text-slate-500">
                         {prov.profile?.neighborhood} • {prov.experienceYears} anos exp.
                       </p>
@@ -645,5 +662,20 @@ export const AdminScreen: React.FC = () => {
         </div>
       </div>
     </div>
+    <ConfirmationDialog
+      isOpen={Boolean(payoutConfirmation)}
+      title="Confirmar revisão financeira"
+      description={payoutConfirmation?.description || ''}
+      confirmLabel={payoutConfirmation?.decision === 'retry'
+        ? 'Liberar nova tentativa'
+        : payoutConfirmation?.decision === 'mark_failed'
+          ? 'Devolver saldo reservado'
+          : 'Compensar saldo disponível'}
+      isBusy={Boolean(pendingPayoutReviewId)}
+      tone="warning"
+      onCancel={() => setPayoutConfirmation(null)}
+      onConfirm={() => void confirmResolvePayoutReview()}
+    />
+    </>
   );
 };

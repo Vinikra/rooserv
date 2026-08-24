@@ -64,6 +64,9 @@ export const InAppToast: React.FC<InAppToastProps> = ({
 
   return (
     <div
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
       className={`fixed top-safe left-0 right-0 max-w-md mx-auto px-4 z-50 transition-all duration-300 transform pointer-events-auto ${
         isVisible ? 'translate-y-0 opacity-100' : '-translate-y-8 opacity-0 pointer-events-none'
       }`}
@@ -75,6 +78,7 @@ export const InAppToast: React.FC<InAppToastProps> = ({
 
         <button
           type="button"
+          aria-label={notification.actionTab ? `Abrir: ${notification.title}` : notification.title}
           onClick={handleClick}
           className="flex-1 min-w-0 text-left cursor-pointer"
         >
@@ -85,9 +89,9 @@ export const InAppToast: React.FC<InAppToastProps> = ({
             </span>
           </div>
 
-          <h4 className="text-sm font-black text-white leading-tight truncate">
+          <p className="text-sm font-black text-white leading-tight truncate">
             {notification.title}
-          </h4>
+          </p>
 
           <p className="text-xs text-slate-300 leading-snug line-clamp-2 mt-0.5 font-medium">
             {notification.message}
@@ -103,6 +107,7 @@ export const InAppToast: React.FC<InAppToastProps> = ({
 
         <button
           type="button"
+          aria-label="Dispensar notificação"
           onClick={() => {
             setIsVisible(false);
             setTimeout(onClose, 200);

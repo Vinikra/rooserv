@@ -49,7 +49,7 @@ export const PWAInstallBanner: React.FC = () => {
     } else if (isIOS) {
       setShowIOSInstructions(true);
     } else {
-      alert('Para instalar: clique nos três pontinhos do navegador e selecione "Instalar Aplicativo" ou "Adicionar à Tela Inicial".');
+      setShowIOSInstructions(true);
     }
   };
 
@@ -68,9 +68,9 @@ export const PWAInstallBanner: React.FC = () => {
             <Smartphone className="w-4 h-4 text-white" />
           </div>
           <div className="min-w-0">
-            <h4 className="text-xs font-bold text-white truncate leading-tight">
+            <p className="text-xs font-bold text-white truncate leading-tight">
               Instale o RooServ no Celular
-            </h4>
+            </p>
             <p className="text-[10px] text-slate-400 truncate">
               Acesso rápido sem ocupar espaço
             </p>
@@ -89,6 +89,7 @@ export const PWAInstallBanner: React.FC = () => {
           <button
             type="button"
             onClick={handleDismiss}
+            aria-label="Dispensar convite para instalar o aplicativo"
             className="p-1 text-slate-400 hover:text-white rounded-lg"
           >
             <X className="w-4 h-4" />
@@ -104,30 +105,37 @@ export const PWAInstallBanner: React.FC = () => {
               <Smartphone className="w-6 h-6" />
             </div>
             <div>
-              <h3 id="ios-install-title" className="text-sm font-extrabold">Como instalar no iPhone:</h3>
+              <h2 id="ios-install-title" className="text-sm font-extrabold">
+                {isIOS ? 'Como instalar no iPhone:' : 'Como instalar o RooServ:'}
+              </h2>
               <p className="text-xs text-slate-600 mt-1">
-                Siga estes 2 passos simples no Safari:
+                {isIOS ? 'Siga estes 2 passos simples no Safari:' : 'Use o menu de instalação do seu navegador:'}
               </p>
             </div>
 
             <div className="bg-slate-50 p-3.5 rounded-2xl border text-left text-xs space-y-2.5 text-slate-700">
-              <div className="flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-brand-600 text-white flex items-center justify-center font-bold text-[10px] shrink-0">
-                  1
-                </span>
-                <span>Toque no botão de <strong>Compartilhar</strong> (<Share className="w-3.5 h-3.5 inline text-brand-600" />) na barra inferior do Safari.</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-brand-600 text-white flex items-center justify-center font-bold text-[10px] shrink-0">
-                  2
-                </span>
-                <span>Role para baixo e selecione <strong>Adicionar à Tela de Início</strong> (<PlusSquare className="w-3.5 h-3.5 inline text-brand-600" />).</span>
-              </div>
+              {isIOS ? (
+                <>
+                  <div className="flex items-center gap-2">
+                    <span className="w-5 h-5 rounded-full bg-brand-600 text-white flex items-center justify-center font-bold text-[10px] shrink-0">1</span>
+                    <span>Toque no botão de <strong>Compartilhar</strong> (<Share className="w-3.5 h-3.5 inline text-brand-600" />) na barra inferior do Safari.</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-5 h-5 rounded-full bg-brand-600 text-white flex items-center justify-center font-bold text-[10px] shrink-0">2</span>
+                    <span>Role para baixo e selecione <strong>Adicionar à Tela de Início</strong> (<PlusSquare className="w-3.5 h-3.5 inline text-brand-600" />).</span>
+                  </div>
+                </>
+              ) : (
+                <p>
+                  Abra o menu do navegador e escolha <strong>Instalar aplicativo</strong> ou <strong>Adicionar à tela inicial</strong>.
+                </p>
+              )}
             </div>
 
             <button
               type="button"
               onClick={() => setShowIOSInstructions(false)}
+              aria-label="Fechar instruções de instalação"
               className="w-full bg-brand-600 text-white font-bold text-xs py-2.5 rounded-xl shadow"
             >
               Entendi

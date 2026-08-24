@@ -38,9 +38,9 @@ export const ReferralModal: React.FC<ReferralModalProps> = ({ onClose }) => {
               <Gift className="w-5 h-5" />
             </div>
             <div>
-              <h3 id="referral-title" className="text-sm font-extrabold text-slate-900">
+              <h2 id="referral-title" className="text-sm font-extrabold text-slate-900">
                 Indique um Vizinho em Rondonópolis
-              </h3>
+              </h2>
               <p className="text-[11px] text-slate-500">
                 Compartilhe o acesso ao aplicativo
               </p>
@@ -61,9 +61,9 @@ export const ReferralModal: React.FC<ReferralModalProps> = ({ onClose }) => {
           <span className="text-[10px] font-black uppercase tracking-wider bg-black/15 px-2.5 py-0.5 rounded-full inline-block">
             Rede local de serviços
           </span>
-          <h4 className="text-sm font-black">
+          <h3 className="text-sm font-black">
             Ajude um vizinho a encontrar profissionais locais
-          </h4>
+          </h3>
           <p className="text-xs text-amber-950/80 font-medium leading-tight">
             Compartilhe o link do RooServ por mensagem ou WhatsApp.
           </p>

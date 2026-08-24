@@ -4,6 +4,7 @@ import { Header } from './components/Header';
 import { BottomTabs } from './components/BottomTabs';
 import { NotificationModal } from './components/NotificationModal';
 import { PWAInstallBanner } from './components/PWAInstallBanner';
+import { PWAUpdatePrompt } from './components/PWAUpdatePrompt';
 import { InAppToast } from './components/InAppToast';
 import type { ProviderProfile } from '@servicos/shared';
 import { supabase } from './lib/supabase';
@@ -46,6 +47,7 @@ export const App: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<string>('explore');
   const [pendingAuthenticatedTab, setPendingAuthenticatedTab] = useState<string | null>(null);
+  const [pendingChatProvider, setPendingChatProvider] = useState<ProviderProfile | null>(null);
   const [selectedProvider, setSelectedProvider] = useState<ProviderProfile | null>(null);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
@@ -80,12 +82,24 @@ export const App: React.FC = () => {
 
   const closeAuth = () => {
     setPendingAuthenticatedTab(null);
+    setPendingChatProvider(null);
     setIsAuthOpen(false);
   };
 
   const completeAuthentication = () => {
-    if (pendingAuthenticatedTab) setActiveTab(pendingAuthenticatedTab);
+    if (pendingChatProvider) {
+      setActiveChatPartner({
+        id: pendingChatProvider.profileId,
+        name: pendingChatProvider.profile?.fullName || 'Profissional',
+        avatarUrl: pendingChatProvider.profile?.avatarUrl,
+        role: 'provider',
+        subtitle: `${pendingChatProvider.categories[0]?.name || 'Serviços'} • ${pendingChatProvider.profile?.neighborhood || 'Rondonópolis'}`,
+      });
+    } else if (pendingAuthenticatedTab) {
+      setActiveTab(pendingAuthenticatedTab);
+    }
     setPendingAuthenticatedTab(null);
+    setPendingChatProvider(null);
     setIsAuthOpen(false);
   };
 
@@ -116,6 +130,16 @@ export const App: React.FC = () => {
     role: 'client' | 'provider';
     subtitle: string;
   } | null>(null);
+
+  const openProviderChat = (provider: ProviderProfile) => {
+    setActiveChatPartner({
+      id: provider.profileId,
+      name: provider.profile?.fullName || 'Profissional',
+      avatarUrl: provider.profile?.avatarUrl,
+      role: 'provider',
+      subtitle: `${provider.categories[0]?.name || 'Serviços'} • ${provider.profile?.neighborhood || 'Rondonópolis'}`,
+    });
+  };
 
   const renderClientContent = () => {
     switch (activeTab) {
@@ -198,7 +222,14 @@ export const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-100/70 flex flex-col text-slate-900">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[70] focus:rounded-xl focus:bg-white focus:px-4 focus:py-3 focus:font-bold focus:text-brand-700 focus:shadow-xl"
+      >
+        Pular para o conteúdo principal
+      </a>
       <PWAInstallBanner />
+      <PWAUpdatePrompt />
 
       {/* Real-time In-App Notification Toast */}
       <InAppToast
@@ -226,7 +257,7 @@ export const App: React.FC = () => {
       )}
 
       {/* Container Principal Fluido e Responsivo */}
-      <main className="flex-1 w-full flex flex-col">
+      <main id="main-content" tabIndex={-1} className="flex-1 w-full flex flex-col">
         <Suspense fallback={<ScreenFallback />}>
           {renderMainContent()}
         </Suspense>
@@ -246,16 +277,12 @@ export const App: React.FC = () => {
           onOpenChat={(p) => {
             setSelectedProvider(null);
             if (!currentUser) {
+              setPendingChatProvider(p);
+              setPendingAuthenticatedTab(null);
               setIsAuthOpen(true);
               return;
             }
-            setActiveChatPartner({
-              id: p.id,
-              name: p.profile?.fullName || 'Profissional',
-              avatarUrl: p.profile?.avatarUrl,
-              role: 'provider',
-              subtitle: `${p.categories[0]?.name || 'Serviços'} • ${p.profile?.neighborhood || 'Roo'}`,
-            });
+            openProviderChat(p);
           }}
         />
         )}
@@ -264,6 +291,7 @@ export const App: React.FC = () => {
         <AuthModal
           onClose={closeAuth}
           onSuccess={completeAuthentication}
+          onOpenTerms={() => setIsTermsOpen(true)}
         />
       )}
 

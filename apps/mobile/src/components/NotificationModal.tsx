@@ -66,9 +66,9 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
               <Bell className="w-6 h-6" />
             </div>
             <div>
-              <h3 id="notifications-title" className="text-base sm:text-lg font-black text-slate-900 leading-tight">
+              <h2 id="notifications-title" className="text-base sm:text-lg font-black text-slate-900 leading-tight">
                 Notificações no App
-              </h3>
+              </h2>
               <p className="text-xs text-slate-500 font-medium">
                 Avisos em tempo real de chamados, propostas e pagamentos
               </p>
@@ -131,15 +131,15 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
                     : 'bg-indigo-50/50 border-indigo-200 shadow-sm ring-1 ring-indigo-200'
                 }`}
               >
-                <div className="p-2.5 bg-white rounded-2xl shadow-xs shrink-0 border border-slate-100 mt-0.5">
+                <div className="p-2.5 bg-white rounded-2xl shadow-sm shrink-0 border border-slate-100 mt-0.5">
                   {getIcon(item.type)}
                 </div>
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-1">
-                    <h4 className="text-sm font-extrabold text-slate-900 truncate">
+                    <h3 className="text-sm font-extrabold text-slate-900 truncate">
                       {item.title}
-                    </h4>
+                    </h3>
                     <span className="text-xs text-slate-400 shrink-0 font-medium">
                       {item.time}
                     </span>

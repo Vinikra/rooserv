@@ -224,9 +224,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             <span>Pagamento RooServ • Taxa da plataforma 12%</span>
           </div>
 
-          <h3 id="checkout-title" className="text-base sm:text-lg font-black leading-tight">
+          <h2 id="checkout-title" className="text-base sm:text-lg font-black leading-tight">
             {`Pagamento do pedido ${existingOrder.orderNumber}`}
-          </h3>
+          </h2>
           <p className="text-xs sm:text-sm text-slate-300 font-medium">
             {`${provider.profile?.neighborhood} • ${CITY_CONFIG.name} - ${CITY_CONFIG.state}`}
           </p>

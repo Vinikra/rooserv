@@ -49,10 +49,10 @@ export const ProviderProfileModal: React.FC<ProviderProfileModalProps> = ({
                 <img
                   src={provider.profile.avatarUrl}
                   alt={provider.profile.fullName || 'Profissional'}
-                  className="w-18 h-18 rounded-2xl object-cover border-2 border-white shadow-lg"
+                  className="w-[72px] h-[72px] rounded-2xl object-cover border-2 border-white shadow-lg"
                 />
               ) : (
-                <div aria-hidden="true" className="w-18 h-18 rounded-2xl bg-brand-100 text-brand-900 border-2 border-white shadow-lg flex items-center justify-center text-2xl font-black">
+                <div aria-hidden="true" className="w-[72px] h-[72px] rounded-2xl bg-brand-100 text-brand-900 border-2 border-white shadow-lg flex items-center justify-center text-2xl font-black">
                   {(provider.profile?.fullName || 'P').trim().charAt(0).toUpperCase()}
                 </div>
               )}
@@ -62,9 +62,9 @@ export const ProviderProfileModal: React.FC<ProviderProfileModalProps> = ({
             </div>
 
             <div className="flex-1 min-w-0">
-              <h3 id="provider-profile-title" className="text-base sm:text-lg font-black leading-tight truncate">
+              <h2 id="provider-profile-title" className="text-base sm:text-lg font-black leading-tight truncate">
                 {provider.profile?.fullName}
-              </h3>
+              </h2>
               <p className="text-xs sm:text-sm text-brand-200 flex items-center gap-1.5 mt-1 font-medium">
                 <MapPin className="w-4 h-4 text-brand-400 shrink-0" />
                 <span>
@@ -135,9 +135,9 @@ export const ProviderProfileModal: React.FC<ProviderProfileModalProps> = ({
           {activeTab === 'sobre' && (
             <div className="space-y-4">
               <div>
-                <h4 className="text-xs sm:text-sm font-black text-slate-900 uppercase tracking-wider mb-2">
+                <h3 className="text-xs sm:text-sm font-black text-slate-900 uppercase tracking-wider mb-2">
                   Biografia & Especialidades
-                </h4>
+                </h3>
                 <p className="text-sm text-slate-700 leading-relaxed bg-slate-50 p-4 rounded-2xl border border-slate-200 font-medium">
                   {provider.bio || 'Biografia ainda não cadastrada.'}
                 </p>
@@ -147,9 +147,9 @@ export const ProviderProfileModal: React.FC<ProviderProfileModalProps> = ({
               <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex items-start gap-3">
                 <ShieldCheck className="w-6 h-6 text-emerald-600 shrink-0 mt-0.5" />
                 <div>
-                  <h5 className="text-sm font-black text-emerald-950">
+                  <h4 className="text-sm font-black text-emerald-950">
                     Contratação com pagamento pela RooServ
-                  </h5>
+                  </h4>
                   <p className="text-xs text-emerald-800 leading-relaxed mt-1 font-medium">
                     O pagamento é feito via Pix e permanece registrado na plataforma. O repasse segue o fluxo de aprovação do serviço e de resolução de eventuais disputas.
                   </p>
@@ -181,7 +181,7 @@ export const ProviderProfileModal: React.FC<ProviderProfileModalProps> = ({
               ) : (
                 (provider.portfolio || []).map((item) => (
                   <div key={item.id} className="bg-slate-50 rounded-2xl border border-slate-200 p-4 space-y-2.5">
-                    <h5 className="text-sm font-extrabold text-slate-900">{item.title}</h5>
+                    <h4 className="text-sm font-extrabold text-slate-900">{item.title}</h4>
                     <p className="text-xs text-slate-600 font-medium">{item.description}</p>
                     
                     <div className="grid grid-cols-2 gap-2.5 pt-1">

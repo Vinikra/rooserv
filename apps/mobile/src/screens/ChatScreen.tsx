@@ -147,6 +147,7 @@ const ChatMessageBubble: React.FC<{
             <button
               type="button"
               onClick={() => onPlayAudio(msg.id, msg.audioUrl!)}
+              aria-label={playingAudioId === msg.id ? 'Pausar mensagem de áudio' : 'Reproduzir mensagem de áudio'}
               className={`w-10 h-10 rounded-full flex items-center justify-center transition-transform active:scale-95 cursor-pointer shrink-0 ${
                 isMe ? 'bg-white text-brand-700 shadow' : 'bg-brand-600 text-white shadow'
               }`}
@@ -381,6 +382,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
           <button
             type="button"
             onClick={onBack}
+            aria-label="Voltar para conversas"
             className="p-2 text-slate-300 hover:text-white rounded-xl active:scale-95 transition-transform"
           >
             <ArrowLeft className="w-6 h-6" />
@@ -395,9 +397,9 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
           </div>
 
           <div>
-            <h3 className="text-sm sm:text-base font-extrabold text-white leading-tight">
+            <h1 className="text-sm sm:text-base font-extrabold text-white leading-tight">
               {recipientUser.name}
-            </h3>
+            </h1>
             <span className="text-xs text-brand-300 font-medium block">
               {recipientUser.subtitle}
             </span>
@@ -414,7 +416,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
 
       {/* Alerta de Segurança e Anti-Vazamento */}
       {securityAlert && (
-        <div className="bg-amber-500 text-slate-950 px-4 py-2.5 text-xs font-black flex items-center justify-between gap-2 shadow-sm animate-in slide-in-from-top-2">
+        <div role="alert" aria-live="assertive" className="bg-amber-500 text-slate-950 px-4 py-2.5 text-xs font-black flex items-center justify-between gap-2 shadow-sm animate-in slide-in-from-top-2">
           <div className="flex items-center gap-2">
             <ShieldAlert className="w-4 h-4 shrink-0" />
             <span>{securityAlert}</span>
@@ -422,6 +424,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
           <button
             type="button"
             onClick={() => setSecurityAlert(null)}
+            aria-label="Fechar alerta de segurança"
             className="p-1 hover:bg-black/10 rounded-lg"
           >
             <X className="w-4 h-4" />
@@ -436,9 +439,9 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
             <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto">
               <Sparkles className="w-6 h-6" />
             </div>
-            <h4 className="text-sm font-extrabold text-slate-900">
+            <h2 className="text-sm font-extrabold text-slate-900">
               Início da conversa com {recipientUser.name}
-            </h4>
+            </h2>
             <p className="text-xs text-slate-500 leading-relaxed">
               Tire dúvidas, envie detalhes do serviço ou solicite um orçamento formal com pagamento pela plataforma.
             </p>
@@ -496,8 +499,11 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
       {/* Input de mensagem. Áudio permanece indisponível até existir storage privado persistente. */}
       <div className="bg-white p-3.5 border-t border-slate-200">
         <div className="flex items-center gap-2.5">
+          <label htmlFor="chat-message" className="sr-only">Mensagem</label>
           <input
+            id="chat-message"
             type="text"
+            aria-label="Mensagem"
             placeholder="Digite sua mensagem..."
             value={inputText}
             disabled={isPersisting}
@@ -509,6 +515,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
             type="button"
             disabled={!inputText.trim() || isPersisting}
             onClick={() => handleSendMessage()}
+            aria-label={isPersisting ? 'Enviando mensagem' : 'Enviar mensagem'}
             className="bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white w-12 h-12 rounded-2xl flex items-center justify-center transition-all shadow-md active:scale-95 shrink-0 cursor-pointer"
           >
             <Send className="w-5 h-5" />

@@ -60,10 +60,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const { 
     categories, 
     providers, 
+    isPublicCatalogLoading,
+    publicCatalogError,
+    refreshPublicCatalog,
     selectedCategorySlug, 
     setSelectedCategorySlug 
   } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
+  const hasActiveFilters = Boolean(selectedCategorySlug || searchTerm.trim());
 
   // Filtragem limpa por categoria e termo de busca para Rondonópolis
   const filteredProviders = (providers || []).filter((p) => {
@@ -79,6 +83,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
         <input
           type="text"
+          aria-label="Buscar profissionais e serviços"
           placeholder="O que você precisa consertar, instalar ou reformar hoje em Rondonópolis?"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
@@ -95,9 +100,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               <ShieldCheck className="w-5 h-5 text-emerald-400" />
               <span>Pagamento e repasse acompanhados</span>
             </div>
-            <h2 className="text-lg sm:text-2xl font-black leading-snug">
+            <h1 className="text-lg sm:text-2xl font-black leading-snug">
               Contrate profissionais verificados com pagamento e histórico na plataforma.
-            </h2>
+            </h1>
             <p className="text-xs sm:text-sm text-brand-100/90 leading-relaxed">
               O pagamento fica registrado na plataforma e o repasse ao prestador ocorre após sua aprovação final ou a resolução de uma disputa.
             </p>
@@ -163,9 +168,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       {/* Categorias de Serviços com Grid Fluido Desktop (6 Colunas) */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm sm:text-base font-extrabold text-slate-800 uppercase tracking-wider">
+          <h2 className="text-sm sm:text-base font-extrabold text-slate-800 uppercase tracking-wider">
             Categorias de Serviços
-          </h3>
+          </h2>
           {selectedCategorySlug && (
             <button
               type="button"
@@ -177,7 +182,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           )}
         </div>
 
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3 sm:gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
+          {isPublicCatalogLoading && categories.length === 0 && Array.from({ length: 8 }).map((_, index) => (
+            <div
+              key={`category-skeleton-${index}`}
+              aria-hidden="true"
+              className="h-28 animate-pulse rounded-2xl border border-slate-200 bg-white"
+            />
+          ))}
           {categories.map((cat) => {
             const isSelected = selectedCategorySlug === cat.slug;
             return (
@@ -185,10 +197,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 type="button"
                 key={cat.id}
                 onClick={() => setSelectedCategorySlug(isSelected ? null : cat.slug)}
+                aria-pressed={isSelected}
                 className={`p-4 rounded-2xl border flex flex-col items-center text-center gap-2.5 transition-all active:scale-95 cursor-pointer ${
                   isSelected
                     ? 'bg-brand-50 border-brand-500 text-brand-800 shadow-md ring-2 ring-brand-500/20'
-                    : 'bg-white border-slate-200 text-slate-700 hover:border-brand-300 hover:bg-slate-50/80 shadow-xs'
+                    : 'bg-white border-slate-200 text-slate-700 hover:border-brand-300 hover:bg-slate-50/80 shadow-sm'
                 }`}
               >
                 <div className="p-3 rounded-2xl bg-slate-100 flex items-center justify-center">
@@ -205,16 +218,53 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
       {/* Lista de Prestadores Verificados em Grid Desktop (2 a 3 Colunas) */}
       <div className="space-y-4 pt-2">
+        {publicCatalogError && providers.length > 0 && (
+          <div role="status" className="flex flex-col gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-950 sm:flex-row sm:items-center sm:justify-between">
+            <span>Estamos exibindo os dados já carregados porque a atualização do catálogo falhou.</span>
+            <button
+              type="button"
+              onClick={() => void refreshPublicCatalog().catch(() => undefined)}
+              className="self-start font-extrabold text-amber-900 underline underline-offset-2 sm:self-auto"
+            >
+              Tentar novamente
+            </button>
+          </div>
+        )}
         <div className="flex items-center justify-between">
-          <h3 className="text-sm sm:text-base font-extrabold text-slate-800 uppercase tracking-wider">
-            Profissionais Disponíveis em Rondonópolis ({filteredProviders.length})
-          </h3>
+          <h2 className="text-sm sm:text-base font-extrabold text-slate-800 uppercase tracking-wider">
+            {isPublicCatalogLoading && providers.length === 0
+              ? 'Carregando profissionais em Rondonópolis'
+              : `Profissionais disponíveis em Rondonópolis (${filteredProviders.length})`}
+          </h2>
           <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-xl border border-emerald-200/60">
-            Disponíveis no catálogo
+            {isPublicCatalogLoading
+              ? 'Atualizando catálogo'
+              : filteredProviders.length > 0
+                ? 'Disponíveis no catálogo'
+                : 'Novos profissionais em breve'}
           </span>
         </div>
 
-        {filteredProviders.length === 0 ? (
+        {isPublicCatalogLoading && providers.length === 0 ? (
+          <div role="status" aria-live="polite" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            <span className="sr-only">Carregando catálogo de profissionais</span>
+            {Array.from({ length: 3 }).map((_, index) => (
+              <div key={`provider-skeleton-${index}`} aria-hidden="true" className="h-64 animate-pulse rounded-3xl border border-slate-200 bg-white" />
+            ))}
+          </div>
+        ) : publicCatalogError && providers.length === 0 ? (
+          <div role="alert" className="bg-white rounded-3xl p-8 sm:p-12 text-center border border-red-200 space-y-3">
+            <p className="text-base sm:text-lg font-bold text-slate-800">Não foi possível carregar o catálogo</p>
+            <p className="text-xs sm:text-sm text-slate-500">{publicCatalogError}</p>
+            <button
+              type="button"
+              onClick={() => void refreshPublicCatalog().catch(() => undefined)}
+              className="text-xs sm:text-sm font-extrabold text-white bg-brand-600 hover:bg-brand-700 px-5 py-2.5 rounded-xl cursor-pointer"
+            >
+              Tentar novamente
+            </button>
+          </div>
+        ) : filteredProviders.length === 0 && hasActiveFilters ? (
           <div className="bg-white rounded-3xl p-12 text-center border border-slate-200 space-y-3">
             <p className="text-base sm:text-lg font-bold text-slate-800">Nenhum profissional encontrado nesta busca</p>
             <p className="text-xs sm:text-sm text-slate-500">
@@ -229,6 +279,20 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               className="text-xs sm:text-sm font-extrabold text-brand-600 bg-brand-50 px-5 py-2.5 rounded-xl border border-brand-200 cursor-pointer"
             >
               Limpar Filtros
+            </button>
+          </div>
+        ) : filteredProviders.length === 0 ? (
+          <div className="bg-white rounded-3xl p-8 sm:p-12 text-center border border-slate-200 space-y-3">
+            <p className="text-base sm:text-lg font-bold text-slate-800">Nosso catálogo está em preparação</p>
+            <p className="text-xs sm:text-sm text-slate-500 max-w-lg mx-auto">
+              Publique seu pedido gratuitamente. Profissionais verificados poderão enviar propostas assim que estiverem disponíveis.
+            </p>
+            <button
+              type="button"
+              onClick={onOpenNewRequest}
+              className="text-xs sm:text-sm font-extrabold text-white bg-brand-600 hover:bg-brand-700 px-5 py-2.5 rounded-xl cursor-pointer"
+            >
+              Publicar um pedido
             </button>
           </div>
         ) : (
@@ -247,10 +311,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                         <img
                           src={provider.profile.avatarUrl}
                           alt={provider.profile.fullName || 'Profissional'}
-                          className="w-16 h-16 rounded-2xl object-cover border-2 border-slate-100 shadow-xs"
+                          className="w-16 h-16 rounded-2xl object-cover border-2 border-slate-100 shadow-sm"
                         />
                       ) : (
-                        <div aria-hidden="true" className="w-16 h-16 rounded-2xl bg-brand-100 text-brand-800 border-2 border-slate-100 shadow-xs flex items-center justify-center text-xl font-black">
+                        <div aria-hidden="true" className="w-16 h-16 rounded-2xl bg-brand-100 text-brand-800 border-2 border-slate-100 shadow-sm flex items-center justify-center text-xl font-black">
                           {(provider.profile?.fullName || 'P').trim().charAt(0).toUpperCase()}
                         </div>
                       )}
@@ -261,9 +325,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-1 mb-0.5">
-                        <h4 className="text-sm sm:text-base font-extrabold text-slate-900 truncate group-hover:text-brand-600 transition-colors">
+                        <h3 className="text-sm sm:text-base font-extrabold text-slate-900 truncate group-hover:text-brand-600 transition-colors">
                           {provider.profile?.fullName || 'Profissional'}
-                        </h4>
+                        </h3>
                         <div className="flex items-center gap-1 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200 shrink-0">
                           <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
                           <span className="text-xs font-black text-amber-950">
@@ -328,9 +392,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             <span className="text-[11px] font-black uppercase tracking-wider bg-black/10 px-2.5 py-0.5 rounded-full inline-block">
               Trabalhe Conosco em Rondonópolis
             </span>
-            <h4 className="text-base font-black leading-tight">
+            <h2 className="text-base font-black leading-tight">
               Você é prestador de serviços na cidade?
-            </h4>
+            </h2>
             <p className="text-xs sm:text-sm text-amber-950 font-medium">
               Cadastre-se para receber solicitações publicadas por moradores de Rondonópolis.
             </p>

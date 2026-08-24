@@ -38,14 +38,15 @@ const DesktopNav: React.FC<{
 }> = ({ currentRole, activeTab, setActiveTab, activeOrdersCount, requestsCount }) => {
   if (currentRole === 'client') {
     return (
-      <nav className="hidden md:flex items-center gap-1 bg-slate-800/80 p-1 rounded-2xl border border-slate-700/60">
+      <nav aria-label="Navegação principal" className="hidden md:flex items-center gap-1 bg-slate-800/80 p-1 rounded-2xl border border-slate-700/60">
         <button
           type="button"
           onClick={() => setActiveTab('explore')}
+          aria-current={activeTab === 'explore' ? 'page' : undefined}
           className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
             activeTab === 'explore'
               ? 'bg-brand-600 text-white shadow-sm font-black'
-              : 'text-slate-300 hover:text-white hover:bg-slate-750'
+              : 'text-slate-300 hover:text-white hover:bg-slate-700'
           }`}
         >
           <MapPin className="w-4 h-4" />
@@ -55,10 +56,11 @@ const DesktopNav: React.FC<{
         <button
           type="button"
           onClick={() => setActiveTab('new_request')}
+          aria-current={activeTab === 'new_request' ? 'page' : undefined}
           className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
             activeTab === 'new_request'
               ? 'bg-brand-600 text-white shadow-sm font-black'
-              : 'text-slate-300 hover:text-white hover:bg-slate-750'
+              : 'text-slate-300 hover:text-white hover:bg-slate-700'
           }`}
         >
           <PlusCircle className="w-4 h-4 text-emerald-400" />
@@ -68,16 +70,17 @@ const DesktopNav: React.FC<{
         <button
           type="button"
           onClick={() => setActiveTab('orders')}
+          aria-current={activeTab === 'orders' ? 'page' : undefined}
           className={`px-3.5 py-2 rounded-xl text-xs font-bold relative transition-all flex items-center gap-1.5 cursor-pointer ${
             activeTab === 'orders'
               ? 'bg-brand-600 text-white shadow-sm font-black'
-              : 'text-slate-300 hover:text-white hover:bg-slate-750'
+              : 'text-slate-300 hover:text-white hover:bg-slate-700'
           }`}
         >
           <FileText className="w-4 h-4" />
           <span>Meus Pedidos</span>
           {activeOrdersCount > 0 && (
-            <span className="bg-brand-500 text-white text-[10px] px-1.5 py-0.2 rounded-full font-black">
+            <span className="bg-brand-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-black">
               {activeOrdersCount}
             </span>
           )}
@@ -86,10 +89,11 @@ const DesktopNav: React.FC<{
         <button
           type="button"
           onClick={() => setActiveTab('messages')}
+          aria-current={activeTab === 'messages' ? 'page' : undefined}
           className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
             activeTab === 'messages'
               ? 'bg-brand-600 text-white shadow-sm font-black'
-              : 'text-slate-300 hover:text-white hover:bg-slate-750'
+              : 'text-slate-300 hover:text-white hover:bg-slate-700'
           }`}
         >
           <MessageSquare className="w-4 h-4" />
@@ -100,14 +104,15 @@ const DesktopNav: React.FC<{
   }
 
   return (
-    <nav className="hidden md:flex items-center gap-1 bg-slate-800/80 p-1 rounded-2xl border border-slate-700/60">
+    <nav aria-label="Navegação do prestador" className="hidden md:flex items-center gap-1 bg-slate-800/80 p-1 rounded-2xl border border-slate-700/60">
       <button
         type="button"
         onClick={() => setActiveTab('provider_dashboard')}
+        aria-current={activeTab === 'provider_dashboard' ? 'page' : undefined}
         className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
           activeTab === 'provider_dashboard'
             ? 'bg-amber-600 text-white shadow-sm font-black'
-            : 'text-slate-300 hover:text-white hover:bg-slate-750'
+            : 'text-slate-300 hover:text-white hover:bg-slate-700'
         }`}
       >
         <Wallet className="w-4 h-4" />
@@ -117,16 +122,17 @@ const DesktopNav: React.FC<{
       <button
         type="button"
         onClick={() => setActiveTab('provider_leads')}
+        aria-current={activeTab === 'provider_leads' ? 'page' : undefined}
         className={`px-3.5 py-2 rounded-xl text-xs font-bold relative transition-all flex items-center gap-1.5 cursor-pointer ${
           activeTab === 'provider_leads'
             ? 'bg-amber-600 text-white shadow-sm font-black'
-            : 'text-slate-300 hover:text-white hover:bg-slate-750'
+            : 'text-slate-300 hover:text-white hover:bg-slate-700'
         }`}
       >
         <Inbox className="w-4 h-4" />
         <span>Oportunidades</span>
         {requestsCount > 0 && (
-          <span className="bg-amber-500 text-slate-950 text-[10px] px-1.5 py-0.2 rounded-full font-black">
+          <span className="bg-amber-500 text-slate-950 text-[10px] px-1.5 py-0.5 rounded-full font-black">
             {requestsCount}
           </span>
         )}
@@ -135,16 +141,17 @@ const DesktopNav: React.FC<{
       <button
         type="button"
         onClick={() => setActiveTab('orders')}
+        aria-current={activeTab === 'orders' ? 'page' : undefined}
         className={`px-3.5 py-2 rounded-xl text-xs font-bold relative transition-all flex items-center gap-1.5 cursor-pointer ${
           activeTab === 'orders'
             ? 'bg-amber-600 text-white shadow-sm font-black'
-            : 'text-slate-300 hover:text-white hover:bg-slate-750'
+            : 'text-slate-300 hover:text-white hover:bg-slate-700'
         }`}
       >
         <FileText className="w-4 h-4" />
         <span>Serviços</span>
         {activeOrdersCount > 0 && (
-          <span className="bg-amber-500 text-slate-950 text-[10px] px-1.5 py-0.2 rounded-full font-black">
+          <span className="bg-amber-500 text-slate-950 text-[10px] px-1.5 py-0.5 rounded-full font-black">
             {activeOrdersCount}
           </span>
         )}
@@ -153,10 +160,11 @@ const DesktopNav: React.FC<{
       <button
         type="button"
         onClick={() => setActiveTab('messages')}
+        aria-current={activeTab === 'messages' ? 'page' : undefined}
         className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
           activeTab === 'messages'
             ? 'bg-amber-600 text-white shadow-sm font-black'
-            : 'text-slate-300 hover:text-white hover:bg-slate-750'
+            : 'text-slate-300 hover:text-white hover:bg-slate-700'
         }`}
       >
         <MessageSquare className="w-4 h-4" />
@@ -179,7 +187,7 @@ const UserDropdownMenu: React.FC<{
   roleLabel: string;
 }> = ({ currentUser, currentRole, setCurrentRole, isAdmin, onLogout, onClose, onOpenProfile, onRequestAdminMode, roleLabel }) => {
   return (
-    <div className="absolute right-0 mt-2 w-72 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-3.5 z-50 animate-in fade-in space-y-3">
+    <div id="user-menu" role="menu" aria-label="Menu da conta" className="absolute right-0 mt-2 w-72 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-3.5 z-50 animate-in fade-in space-y-3">
       <div className="border-b border-slate-800 pb-3">
         <div className="flex items-center gap-2.5">
           <UserAvatar
@@ -212,6 +220,7 @@ const UserDropdownMenu: React.FC<{
         <div>
           <button
             type="button"
+            role="menuitem"
             onClick={() => {
               onOpenProfile();
               onClose();
@@ -230,6 +239,8 @@ const UserDropdownMenu: React.FC<{
           <div className="grid grid-cols-2 gap-1.5">
             <button
               type="button"
+              role="menuitemradio"
+              aria-checked={currentRole === 'provider'}
               onClick={() => {
                 setCurrentRole('provider');
                 onClose();
@@ -245,6 +256,8 @@ const UserDropdownMenu: React.FC<{
             </button>
             <button
               type="button"
+              role="menuitemradio"
+              aria-checked={currentRole === 'client'}
               onClick={() => {
                 setCurrentRole('client');
                 onClose();
@@ -266,6 +279,7 @@ const UserDropdownMenu: React.FC<{
         <div className="pt-1">
           <button
             type="button"
+            role="menuitem"
             onClick={() => {
               onRequestAdminMode();
               onClose();
@@ -288,6 +302,7 @@ const UserDropdownMenu: React.FC<{
       <div className="pt-1.5 border-t border-slate-800">
         <button
           type="button"
+          role="menuitem"
           onClick={onLogout}
           className="w-full flex items-center gap-2 py-2.5 px-3 text-xs font-bold text-red-400 hover:text-red-300 hover:bg-red-950/40 rounded-xl transition-colors cursor-pointer"
         >
@@ -322,6 +337,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
 
   const activeOrdersCount = orders.filter(
     (o) => o.status === 'payment_in_escrow' || o.status === 'completed_by_provider'
@@ -338,6 +354,17 @@ export const Header: React.FC<HeaderProps> = ({
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
+
+  useEffect(() => {
+    if (!isMenuOpen) return;
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      setIsMenuOpen(false);
+      menuButtonRef.current?.focus();
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [isMenuOpen]);
 
   const handleLogout = async () => {
     setIsMenuOpen(false);
@@ -389,6 +416,9 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               type="button"
               onClick={onOpenNotifications}
+              aria-label={unreadNotificationsCount > 0
+                ? `Notificações, ${unreadNotificationsCount} não lidas`
+                : 'Notificações'}
               className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl border border-slate-700 transition-colors relative active:scale-95 cursor-pointer"
               title="Notificações"
             >
@@ -404,8 +434,12 @@ export const Header: React.FC<HeaderProps> = ({
           {isAuthenticated && currentUser ? (
             <div className="relative">
               <button
+                ref={menuButtonRef}
                 type="button"
                 onClick={() => setIsMenuOpen((prev) => !prev)}
+                aria-expanded={isMenuOpen}
+                aria-haspopup="menu"
+                aria-controls="user-menu"
                 className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 rounded-xl transition-all active:scale-95 text-left cursor-pointer"
               >
                 <UserAvatar

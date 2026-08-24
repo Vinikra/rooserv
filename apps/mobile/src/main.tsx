@@ -10,7 +10,9 @@ import { registerSW } from 'virtual:pwa-register';
 // Registra o Service Worker e lida com atualizações automáticas
 const updateSW = registerSW({
   onNeedRefresh() {
-    // Pode mostrar um aviso para recarregar
+    window.dispatchEvent(new CustomEvent('rooserv:pwa-update', {
+      detail: { update: () => updateSW(true) },
+    }));
   },
   onOfflineReady() {
     console.log('[PWA] Pronto para funcionar offline');

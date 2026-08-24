@@ -106,9 +106,9 @@ export const OrdersScreen: React.FC = () => {
     <div className="pb-24 pt-4 px-4 sm:px-6 lg:px-8 space-y-6 max-w-7xl mx-auto w-full">
       <div className="flex items-center justify-between border-b border-slate-200/80 pb-4">
         <div>
-          <h2 className="text-lg sm:text-2xl font-black text-slate-900 leading-tight">
+          <h1 className="text-lg sm:text-2xl font-black text-slate-900 leading-tight">
             {currentRole === 'provider' ? 'Serviços em Andamento' : 'Meus Pedidos & Contratos'}
-          </h2>
+          </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
             Acompanhe o status do serviço, do pagamento e do repasse
           </p>
@@ -151,11 +151,11 @@ export const OrdersScreen: React.FC = () => {
                       <span className="text-xs font-black text-slate-400 uppercase tracking-wider block">
                         {order.orderNumber}
                       </span>
-                      <h4 className="text-sm sm:text-base font-extrabold text-slate-900">
+                      <h2 className="text-sm sm:text-base font-extrabold text-slate-900">
                         {currentRole === 'provider' 
                           ? `Cliente: ${order.client?.fullName}` 
                           : `Profissional: ${order.provider?.profile?.fullName}`}
-                      </h4>
+                      </h2>
                     </div>
 
                     <div 
@@ -257,7 +257,7 @@ export const OrdersScreen: React.FC = () => {
                             key={photo.slice(0, 40) + pIdx}
                             src={photo}
                             alt={`Anexo ${pIdx + 1}`}
-                            className="w-14 h-14 rounded-xl object-cover border border-slate-200 shrink-0 shadow-xs"
+                            className="w-14 h-14 rounded-xl object-cover border border-slate-200 shrink-0 shadow-sm"
                           />
                         ))}
                       </div>
@@ -333,9 +333,9 @@ export const OrdersScreen: React.FC = () => {
           <div role="dialog" aria-modal="true" aria-labelledby="review-modal-title" className="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
               <div>
-                <h3 id="review-modal-title" className="text-base sm:text-lg font-black text-slate-900">
+                <h2 id="review-modal-title" className="text-base sm:text-lg font-black text-slate-900">
                   Avaliar e Liberar Pagamento
-                </h3>
+                </h2>
                 <p className="text-xs text-slate-500 font-medium">
                   {`Profissional: ${selectedOrderForReview.provider?.profile?.fullName}`}
                 </p>
@@ -450,9 +450,9 @@ export const OrdersScreen: React.FC = () => {
                   <ShieldAlert className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 id="dispute-modal-title" className="text-base sm:text-lg font-black text-slate-900">
+                  <h2 id="dispute-modal-title" className="text-base sm:text-lg font-black text-slate-900">
                     Reportar Problema no Serviço
-                  </h3>
+                  </h2>
                   <p className="text-xs text-slate-500 font-medium">
                     {`Pedido: ${selectedOrderForDispute.orderNumber}`}
                   </p>

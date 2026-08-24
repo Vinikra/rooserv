@@ -18,9 +18,9 @@ export const TermsModal: React.FC<TermsModalProps> = ({ onClose }) => {
               <FileText className="w-5 h-5" />
             </div>
             <div>
-              <h3 id="terms-title" className="text-sm font-bold text-slate-900">
+              <h2 id="terms-title" className="text-sm font-bold text-slate-900">
                 Termos de Uso RooServ
-              </h3>
+              </h2>
               <p className="text-[11px] text-slate-500">
                 Resumo v{LEGAL_TERMS_VERSION} • {CITY_CONFIG.name} - {CITY_CONFIG.state}
               </p>
@@ -46,40 +46,40 @@ export const TermsModal: React.FC<TermsModalProps> = ({ onClose }) => {
           </div>
 
           <div className="space-y-1">
-            <h4 className="font-bold text-slate-900 flex items-center gap-1.5">
+            <h3 className="font-bold text-slate-900 flex items-center gap-1.5">
               <Lock className="w-3.5 h-3.5 text-brand-600" />
               1. Política Anti-Vazamento e Segurança
-            </h4>
+            </h3>
             <p>
               Para preservar o histórico da contratação, tratativas de preço e orçamentos devem ocorrer dentro do Chat do RooServ. Negociações externas não ficam registradas e podem limitar a análise de suporte, disputa ou reembolso.
             </p>
           </div>
 
           <div className="space-y-1">
-            <h4 className="font-bold text-slate-900 flex items-center gap-1.5">
+            <h3 className="font-bold text-slate-900 flex items-center gap-1.5">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
               2. Cobertura do Serviço
-            </h4>
+            </h3>
             <p>
               O prazo e as condições de eventual retrabalho devem constar na proposta aceita e nos Termos de Uso vigentes. O selo verificado confirma a análise cadastral; ele não substitui as obrigações combinadas entre cliente e prestador.
             </p>
           </div>
 
           <div className="space-y-1">
-            <h4 className="font-bold text-slate-900 flex items-center gap-1.5">
+            <h3 className="font-bold text-slate-900 flex items-center gap-1.5">
               <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
               3. Resolução de Disputas & Mediação
-            </h4>
+            </h3>
             <p>
               Caso o prestador não compareça ou haja desacordo na entrega, o morador pode usar “Reportar Problema”. A equipe analisará as evidências e decidirá a providência cabível, inclusive eventual estorno, conforme os termos e o estado do pagamento.
             </p>
           </div>
 
           <div className="space-y-1">
-            <h4 className="font-bold text-slate-900 flex items-center gap-1.5">
+            <h3 className="font-bold text-slate-900 flex items-center gap-1.5">
               <CheckCircle className="w-3.5 h-3.5 text-blue-600" />
               4. Privacidade e LGPD
-            </h4>
+            </h3>
             <p>
               Documentos de identidade ficam em armazenamento privado com acesso temporário e restrito à equipe autorizada. Os dados são usados para cadastro, prevenção a fraude, pagamento e cumprimento de obrigações legais.
             </p>

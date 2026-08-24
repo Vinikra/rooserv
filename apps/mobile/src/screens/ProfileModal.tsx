@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { RooServStorageService } from '../services/storageService';
 import { UserAvatar } from '../components/UserAvatar';
+import { ConfirmationDialog } from '../components/ConfirmationDialog';
 
 interface ProfileModalProps {
   onClose: () => void;
@@ -27,16 +28,20 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
   const { currentUser, providers, updateUserProfile, updateProviderProfile, deleteAccount } = useApp();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleDeleteAccount = async () => {
-    if (window.confirm('TEM CERTEZA? Esta ação encerra o acesso, anonimiza seus dados pessoais e não pode ser desfeita.')) {
-      setSaveError(null);
-      try {
-        const success = await deleteAccount();
-        if (success) onClose();
-        else setSaveError('Não foi possível excluir a conta. Tente novamente.');
-      } catch (error) {
-        setSaveError(error instanceof Error ? error.message : 'Não foi possível excluir a conta.');
-      }
+  const handleDeleteAccount = () => setIsDeleteConfirmationOpen(true);
+
+  const confirmDeleteAccount = async () => {
+    setIsDeletingAccount(true);
+    setSaveError(null);
+    try {
+      const success = await deleteAccount();
+      if (success) onClose();
+      else setSaveError('Não foi possível excluir a conta. Tente novamente.');
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Não foi possível excluir a conta.');
+    } finally {
+      setIsDeletingAccount(false);
+      setIsDeleteConfirmationOpen(false);
     }
   };
 
@@ -68,6 +73,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [isDeleteConfirmationOpen, setIsDeleteConfirmationOpen] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -147,6 +154,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
   };
 
   return (
+    <>
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-200">
       <div role="dialog" aria-modal="true" aria-labelledby="profile-modal-title" className="bg-white w-full max-w-xl rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
@@ -156,9 +164,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
               <User className="w-5 h-5 text-brand-400" />
             </div>
             <div>
-              <h3 id="profile-modal-title" className="text-base sm:text-lg font-black leading-tight">
+              <h2 id="profile-modal-title" className="text-base sm:text-lg font-black leading-tight">
                 Meu Perfil & Customização
-              </h3>
+              </h2>
               <p className="text-xs text-slate-400">
                 {currentUser?.role === 'provider'
                   ? 'Altere sua foto, dados de contato e chave Pix'
@@ -190,6 +198,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
+                aria-label="Trocar foto do perfil"
                 className="absolute bottom-0 right-0 bg-brand-600 hover:bg-brand-500 text-white p-2.5 rounded-full shadow-lg border-2 border-white transition-transform active:scale-95 cursor-pointer"
                 title="Trocar Foto"
               >
@@ -230,9 +239,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
 
           {/* Dados Pessoais */}
           <div className="space-y-4">
-            <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">
+            <h3 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">
               Informações Cadastrais
-            </h4>
+            </h3>
 
             <div>
               <label htmlFor="input-fullname" className="block text-xs font-bold text-slate-700 mb-1.5">
@@ -295,10 +304,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
           {currentUser?.role === 'provider' && (
           <div className="space-y-4 pt-4 border-t border-slate-100">
             <div className="flex items-center justify-between">
-              <h4 className="text-xs font-extrabold text-amber-800 uppercase tracking-wider flex items-center gap-1.5">
+              <h3 className="text-xs font-extrabold text-amber-800 uppercase tracking-wider flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5" />
                 <span>Configurações do Profissional & Chave Pix</span>
-              </h4>
+              </h3>
               <span className="text-[10px] bg-amber-100 text-amber-900 font-bold px-2 py-0.5 rounded">
                 Recebimento & Clientes
               </span>
@@ -428,6 +437,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
               <button
                 type="button"
                 onClick={handleDeleteAccount}
+                disabled={isDeletingAccount}
                 className="w-full bg-white text-red-600 hover:bg-red-100 font-bold text-sm py-2.5 rounded-xl border border-red-200 transition-colors cursor-pointer"
               >
                 Excluir e Anonimizar Minha Conta
@@ -454,5 +464,16 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
         </form>
       </div>
     </div>
+    <ConfirmationDialog
+      isOpen={isDeleteConfirmationOpen}
+      title="Excluir e anonimizar sua conta?"
+      description="Seu acesso será encerrado e seus dados pessoais serão anonimizados. Esta ação não pode ser desfeita. Registros que precisem ser preservados por obrigação legal permanecerão sem identificação pública."
+      confirmLabel="Excluir minha conta"
+      isBusy={isDeletingAccount}
+      tone="danger"
+      onCancel={() => setIsDeleteConfirmationOpen(false)}
+      onConfirm={() => void confirmDeleteAccount()}
+    />
+    </>
   );
 };

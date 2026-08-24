@@ -22,9 +22,10 @@ import { supabase } from '../lib/supabase';
 interface AuthModalProps {
   onClose: () => void;
   onSuccess: () => void;
+  onOpenTerms?: () => void;
 }
 
-export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
+export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, onOpenTerms }) => {
   const { login, signup } = useApp();
   const [authMode, setAuthMode] = useState<'login' | 'signup' | 'forgot'>('login');
   const [userRole, setUserRole] = useState<'client' | 'provider'>('client');
@@ -170,10 +171,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
 
   const renderSignupFields = () => (
     <>
-      <div className="grid grid-cols-2 gap-2.5">
+      <div className="grid grid-cols-2 gap-2.5" role="group" aria-label="Tipo de conta">
         <button
           type="button"
           onClick={() => setUserRole('client')}
+          aria-pressed={userRole === 'client'}
           className={`p-3.5 rounded-2xl border flex items-center justify-center gap-2 text-xs sm:text-sm font-extrabold transition-all active:scale-95 ${
             userRole === 'client'
               ? 'bg-brand-50 border-brand-500 text-brand-900 ring-2 ring-brand-500/20 shadow-sm'
@@ -187,6 +189,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
         <button
           type="button"
           onClick={() => setUserRole('provider')}
+          aria-pressed={userRole === 'provider'}
           className={`p-3.5 rounded-2xl border flex items-center justify-center gap-2 text-xs sm:text-sm font-extrabold transition-all active:scale-95 ${
             userRole === 'provider'
               ? 'bg-amber-50 border-amber-500 text-amber-900 ring-2 ring-amber-500/20 shadow-sm'
@@ -205,6 +208,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
         <input
           id="auth-name"
           type="text"
+          autoComplete="name"
           required
           placeholder="Ex: Mariana Alcantara ou João Silva"
           value={name}
@@ -220,7 +224,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
           </label>
           <input
             id="auth-phone"
-            type="text"
+            type="tel"
+            autoComplete="tel"
+            inputMode="tel"
             required
             placeholder="(66) 99999-0000"
             value={phone}
@@ -252,6 +258,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
           <input
             id="auth-cpf"
             type="text"
+            autoComplete="off"
+            inputMode="numeric"
             required
             placeholder="000.000.000-00"
             value={cpf}
@@ -272,11 +280,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
               {authMode === 'forgot' ? <Mail className="w-6 h-6 text-blue-600" /> : <Lock className="w-6 h-6 text-brand-600" />}
             </div>
             <div>
-              <h3 id="auth-title" className="text-base sm:text-lg font-black text-slate-900 leading-tight">
+              <h2 id="auth-title" className="text-base sm:text-lg font-black text-slate-900 leading-tight">
                 {authMode === 'login' && 'Entrar no RooServ'}
                 {authMode === 'signup' && 'Criar Conta no RooServ'}
                 {authMode === 'forgot' && 'Recuperar Senha'}
-              </h3>
+              </h2>
               <p className="text-xs text-slate-500">
                 {authMode === 'forgot'
                   ? 'Enviaremos um link de redefinição por e-mail'
@@ -295,11 +303,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
         </div>
 
         {isSuccess ? (
-          <div className="py-8 text-center space-y-3 animate-in fade-in">
+          <div role="status" aria-live="polite" className="py-8 text-center space-y-3 animate-in fade-in">
             <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
               <CheckCircle className="w-9 h-9" />
             </div>
-            <h4 className="text-base sm:text-lg font-black text-slate-900">{successMessage}</h4>
+            <h2 className="text-base sm:text-lg font-black text-slate-900">{successMessage}</h2>
             <p className="text-xs sm:text-sm text-slate-500">Conectado ao ecossistema RooServ Rondonópolis</p>
           </div>
         ) : (
@@ -312,6 +320,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
                   setAuthMode('login');
                   setErrorMessage(null);
                 }}
+                aria-pressed={authMode === 'login'}
                 className={`flex-1 py-2.5 rounded-xl transition-all ${
                   authMode === 'login' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'
                 }`}
@@ -324,6 +333,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
                   setAuthMode('signup');
                   setErrorMessage(null);
                 }}
+                aria-pressed={authMode === 'signup'}
                 className={`flex-1 py-2.5 rounded-xl transition-all ${
                   authMode === 'signup' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'
                 }`}
@@ -342,6 +352,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
                   <input
                     id="auth-login-email"
                     type="email"
+                    data-dialog-initial-focus
                     autoComplete="email"
                     required
                     placeholder="seu.email@exemplo.com"
@@ -376,7 +387,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
                 </button>
 
                 {errorMessage && (
-                  <div className="p-3 bg-red-50 border border-red-200 rounded-2xl text-xs sm:text-sm text-red-600 font-medium">
+                  <div role="alert" aria-live="polite" className="p-3 bg-red-50 border border-red-200 rounded-2xl text-xs sm:text-sm text-red-600 font-medium">
                     {errorMessage}
                   </div>
                 )}
@@ -429,12 +440,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
                     autoComplete="new-password"
                     required
                     minLength={8}
+                    aria-describedby="auth-password-help"
                     placeholder="Mínimo 8 caracteres"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-3.5 text-sm sm:text-base text-slate-900 focus:outline-none focus:border-brand-500"
                   />
-                  <p className="text-[10px] text-slate-400 mt-1 ml-1">Maiúscula + minúscula + número, mínimo 8 caracteres</p>
+                  <p id="auth-password-help" className="text-[11px] text-slate-500 mt-1 ml-1">Maiúscula + minúscula + número, mínimo 8 caracteres</p>
                 </div>
 
                 <div>
@@ -455,21 +467,30 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
                   />
                 </div>
 
-                <label className="flex items-start gap-2.5 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700 cursor-pointer">
+                <div className="flex items-start gap-2.5 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
                   <input
+                    id="auth-terms"
                     type="checkbox"
+                    aria-label={`Li e aceito os Termos de Uso e a Política de Privacidade, versão ${LEGAL_TERMS_VERSION}`}
                     checked={acceptedTerms}
                     onChange={(event) => setAcceptedTerms(event.target.checked)}
                     className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600"
                   />
                   <span>
-                    Li e aceito os <strong>Termos de Uso</strong> e a <strong>Política de Privacidade</strong>,
-                    versão {LEGAL_TERMS_VERSION}. O resumo pode ser consultado na tela inicial.
+                    <label htmlFor="auth-terms" className="cursor-pointer">Li e aceito os </label>
+                    {onOpenTerms ? (
+                      <button type="button" onClick={onOpenTerms} className="font-extrabold text-brand-700 underline underline-offset-2">
+                        Termos de Uso e a Política de Privacidade
+                      </button>
+                    ) : (
+                      <strong>Termos de Uso e a Política de Privacidade</strong>
+                    )}
+                    <label htmlFor="auth-terms" className="cursor-pointer">, versão {LEGAL_TERMS_VERSION}.</label>
                   </span>
-                </label>
+                </div>
 
                 {errorMessage && (
-                  <div className="p-3 bg-red-50 border border-red-200 rounded-2xl text-xs sm:text-sm text-red-600 font-medium">
+                  <div role="alert" aria-live="polite" className="p-3 bg-red-50 border border-red-200 rounded-2xl text-xs sm:text-sm text-red-600 font-medium">
                     {errorMessage}
                   </div>
                 )}
@@ -520,7 +541,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
                 </div>
 
                 {errorMessage && (
-                  <div className="p-3 bg-red-50 border border-red-200 rounded-2xl text-xs sm:text-sm text-red-600 font-medium">
+                  <div role="alert" aria-live="polite" className="p-3 bg-red-50 border border-red-200 rounded-2xl text-xs sm:text-sm text-red-600 font-medium">
                     {errorMessage}
                   </div>
                 )}

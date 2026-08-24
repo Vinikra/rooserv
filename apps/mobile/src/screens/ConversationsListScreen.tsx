@@ -100,9 +100,9 @@ export const ConversationsListScreen: React.FC<ConversationsListScreenProps> = (
       {/* Header */}
       <div className="flex items-center justify-between border-b border-slate-200/80 pb-4">
         <div>
-          <h2 className="text-lg sm:text-2xl font-black text-slate-900 leading-tight">
+          <h1 className="text-lg sm:text-2xl font-black text-slate-900 leading-tight">
             Mensagens & Chat em Tempo Real
-          </h2>
+          </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
             Converse com segurança, envie propostas e tire dúvidas sem expor seu telefone
           </p>
@@ -122,9 +122,9 @@ export const ConversationsListScreen: React.FC<ConversationsListScreenProps> = (
           </div>
 
           <div className="space-y-1.5">
-            <h3 className="text-base sm:text-lg font-black text-slate-900">
+            <h2 className="text-base sm:text-lg font-black text-slate-900">
               Nenhuma conversa iniciada
-            </h3>
+            </h2>
             <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">
               {currentRole === 'provider'
                 ? 'Suas conversas com clientes em Rondonópolis aparecerão aqui assim que você responder a uma oportunidade ou receber uma solicitação.'
@@ -177,7 +177,7 @@ export const ConversationsListScreen: React.FC<ConversationsListScreenProps> = (
                 <UserAvatar
                   src={conv.avatarUrl}
                   name={conv.name}
-                  className="w-14 h-14 rounded-2xl object-cover border border-slate-100 shadow-xs"
+                  className="w-14 h-14 rounded-2xl object-cover border border-slate-100 shadow-sm"
                 />
                 {conv.unreadCount > 0 && (
                   <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-brand-600 rounded-full border-2 border-white" />
@@ -186,9 +186,9 @@ export const ConversationsListScreen: React.FC<ConversationsListScreenProps> = (
 
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-1 mb-0.5">
-                  <h4 className="text-sm sm:text-base font-extrabold text-slate-900 truncate">
+                  <h2 className="text-sm sm:text-base font-extrabold text-slate-900 truncate">
                     {conv.name}
-                  </h4>
+                  </h2>
                   <span className="text-xs text-slate-400 font-medium shrink-0">
                     {conv.time}
                   </span>

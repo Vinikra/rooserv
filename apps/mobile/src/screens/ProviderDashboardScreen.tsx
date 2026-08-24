@@ -120,9 +120,9 @@ export const ProviderDashboardScreen: React.FC<ProviderDashboardScreenProps> = (
       <div className="max-w-2xl mx-auto w-full px-4 py-12">
         <div className="bg-white rounded-3xl border border-amber-200 shadow-sm p-8 text-center space-y-4">
           <AlertCircle className="w-12 h-12 text-amber-600 mx-auto" />
-          <h2 className="text-xl font-black text-slate-900">
+          <h1 className="text-xl font-black text-slate-900">
             {isUnderReview ? 'Documentos em análise' : isRejected ? 'Cadastro precisa de ajustes' : 'Complete seu cadastro profissional'}
-          </h2>
+          </h1>
           <p className="text-sm text-slate-600">
             {isUnderReview
               ? 'Seu cadastro foi enviado e está aguardando a validação da gestão RooServ.'
@@ -154,9 +154,9 @@ export const ProviderDashboardScreen: React.FC<ProviderDashboardScreenProps> = (
           <span className="text-xs font-black text-amber-600 uppercase tracking-wider block">
             Painel do Profissional
           </span>
-          <h2 className="text-lg sm:text-2xl font-black text-slate-900 leading-tight">
+          <h1 className="text-lg sm:text-2xl font-black text-slate-900 leading-tight">
             {currentProvider.profile?.fullName}
-          </h2>
+          </h1>
         </div>
 
         <div className="flex items-center gap-3">
@@ -180,7 +180,7 @@ export const ProviderDashboardScreen: React.FC<ProviderDashboardScreenProps> = (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Coluna 1: Cartão da Carteira Digital */}
         <div className="lg:col-span-1 space-y-4">
-          <div className="bg-gradient-to-br from-slate-900 via-slate-850 to-slate-900 rounded-3xl p-6 text-white shadow-xl space-y-5 sticky top-24">
+          <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-3xl p-6 text-white shadow-xl space-y-5 sticky top-24">
             <div className="flex items-center justify-between">
               <span className="text-xs sm:text-sm font-semibold text-slate-300">Saldo Disponível para Saque</span>
               <div className="p-2.5 bg-amber-500/20 text-amber-400 rounded-2xl">
@@ -189,9 +189,9 @@ export const ProviderDashboardScreen: React.FC<ProviderDashboardScreenProps> = (
             </div>
 
             <div>
-              <h3 className="text-3xl sm:text-4xl font-black tracking-tight text-white">
+              <p className="text-3xl sm:text-4xl font-black tracking-tight text-white">
                 {formatCurrencyBRL(availableBalance)}
-              </h3>
+              </p>
               <p className="text-xs text-slate-300 mt-1.5 font-medium">
                 Chave Pix cadastrada: <strong className="text-amber-400 font-bold">{currentProvider.pixKey}</strong>
               </p>
@@ -272,9 +272,9 @@ export const ProviderDashboardScreen: React.FC<ProviderDashboardScreenProps> = (
         {/* Coluna 2: Oportunidades e Chamados na Cidade */}
         <div className="lg:col-span-2 space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm sm:text-base font-black text-slate-800 uppercase tracking-wider">
+            <h2 className="text-sm sm:text-base font-black text-slate-800 uppercase tracking-wider">
               Pedidos Recentes na Cidade ({requests.length})
-            </h3>
+            </h2>
             <span className="text-xs text-slate-500 font-medium">
               Moradores aguardando orçamento em Rondonópolis
             </span>
@@ -286,9 +286,9 @@ export const ProviderDashboardScreen: React.FC<ProviderDashboardScreenProps> = (
                 <div className="w-14 h-14 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center mx-auto">
                   <Inbox className="w-7 h-7" />
                 </div>
-                <h4 className="text-base font-extrabold text-slate-900">
+                <h3 className="text-base font-extrabold text-slate-900">
                   Nenhuma oportunidade aberta no momento
-                </h4>
+                </h3>
                 <p className="text-xs sm:text-sm text-slate-500 max-w-sm mx-auto leading-relaxed">
                   Assim que um morador de Rondonópolis publicar um pedido de orçamento, ele aparecerá aqui instantaneamente com notificação sonora e no app.
                 </p>
@@ -315,9 +315,9 @@ export const ProviderDashboardScreen: React.FC<ProviderDashboardScreenProps> = (
                           </span>
                         )}
                       </div>
-                      <h4 className="text-base sm:text-lg font-extrabold text-slate-900 leading-tight">
+                      <h3 className="text-base sm:text-lg font-extrabold text-slate-900 leading-tight">
                         {req.title}
-                      </h4>
+                      </h3>
                     </div>
 
                     <div className="text-right shrink-0">

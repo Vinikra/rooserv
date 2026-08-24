@@ -27,10 +27,11 @@ export const BottomTabs: React.FC<BottomTabsProps> = ({ activeTab, setActiveTab 
 
   if (currentRole === 'provider') {
     return (
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white border-t border-slate-200/90 pt-2 pb-safe px-3 flex items-center justify-around z-30 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">
+      <nav aria-label="Navegação do prestador" className="md:hidden fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white border-t border-slate-200/90 pt-2 pb-safe px-3 flex items-center justify-around z-30 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">
         <button
           type="button"
           onClick={() => setActiveTab('provider_dashboard')}
+          aria-current={activeTab === 'provider_dashboard' ? 'page' : undefined}
           className={`flex-1 py-1.5 flex flex-col items-center gap-1 text-xs font-bold transition-all active:scale-95 ${
             activeTab === 'provider_dashboard' ? 'text-amber-600 font-extrabold' : 'text-slate-500 hover:text-slate-800'
           }`}
@@ -42,6 +43,7 @@ export const BottomTabs: React.FC<BottomTabsProps> = ({ activeTab, setActiveTab 
         <button
           type="button"
           onClick={() => setActiveTab('provider_leads')}
+          aria-current={activeTab === 'provider_leads' ? 'page' : undefined}
           className={`flex-1 py-1.5 flex flex-col items-center gap-1 text-xs font-bold relative transition-all active:scale-95 ${
             activeTab === 'provider_leads' ? 'text-amber-600 font-extrabold' : 'text-slate-500 hover:text-slate-800'
           }`}
@@ -49,7 +51,7 @@ export const BottomTabs: React.FC<BottomTabsProps> = ({ activeTab, setActiveTab 
           <Inbox className="w-6 h-6" />
           <span>Oportunidades</span>
           {requests.length > 0 && (
-            <span className="absolute top-0 right-4 bg-amber-500 text-slate-950 text-[10px] w-4.5 h-4.5 rounded-full flex items-center justify-center font-black shadow-xs">
+            <span className="absolute top-0 right-4 bg-amber-500 text-slate-950 text-[10px] w-[18px] h-[18px] rounded-full flex items-center justify-center font-black shadow-sm">
               {requests.length}
             </span>
           )}
@@ -58,6 +60,7 @@ export const BottomTabs: React.FC<BottomTabsProps> = ({ activeTab, setActiveTab 
         <button
           type="button"
           onClick={() => setActiveTab('messages')}
+          aria-current={activeTab === 'messages' ? 'page' : undefined}
           className={`flex-1 py-1.5 flex flex-col items-center gap-1 text-xs font-bold relative transition-all active:scale-95 ${
             activeTab === 'messages' ? 'text-amber-600 font-extrabold' : 'text-slate-500 hover:text-slate-800'
           }`}
@@ -69,6 +72,7 @@ export const BottomTabs: React.FC<BottomTabsProps> = ({ activeTab, setActiveTab 
         <button
           type="button"
           onClick={() => setActiveTab('orders')}
+          aria-current={activeTab === 'orders' ? 'page' : undefined}
           className={`flex-1 py-1.5 flex flex-col items-center gap-1 text-xs font-bold relative transition-all active:scale-95 ${
             activeTab === 'orders' ? 'text-amber-600 font-extrabold' : 'text-slate-500 hover:text-slate-800'
           }`}
@@ -76,7 +80,7 @@ export const BottomTabs: React.FC<BottomTabsProps> = ({ activeTab, setActiveTab 
           <FileText className="w-6 h-6" />
           <span>Serviços</span>
           {activeOrdersCount > 0 && (
-            <span className="absolute top-0 right-4 bg-brand-600 text-white text-[10px] w-4.5 h-4.5 rounded-full flex items-center justify-center font-black">
+            <span className="absolute top-0 right-4 bg-brand-600 text-white text-[10px] w-[18px] h-[18px] rounded-full flex items-center justify-center font-black">
               {activeOrdersCount}
             </span>
           )}
@@ -86,10 +90,11 @@ export const BottomTabs: React.FC<BottomTabsProps> = ({ activeTab, setActiveTab 
   }
 
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white border-t border-slate-200/90 pt-2 pb-safe px-3 flex items-center justify-around z-30 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">
+    <nav aria-label="Navegação principal" className="md:hidden fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white border-t border-slate-200/90 pt-2 pb-safe px-3 flex items-center justify-around z-30 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">
       <button
         type="button"
         onClick={() => setActiveTab('explore')}
+        aria-current={activeTab === 'explore' ? 'page' : undefined}
         className={`flex-1 py-1.5 flex flex-col items-center gap-1 text-xs font-bold transition-all active:scale-95 ${
           activeTab === 'explore' ? 'text-brand-600 font-extrabold' : 'text-slate-500 hover:text-slate-800'
         }`}
@@ -101,6 +106,7 @@ export const BottomTabs: React.FC<BottomTabsProps> = ({ activeTab, setActiveTab 
       <button
         type="button"
         onClick={() => setActiveTab('messages')}
+        aria-current={activeTab === 'messages' ? 'page' : undefined}
         className={`flex-1 py-1.5 flex flex-col items-center gap-1 text-xs font-bold relative transition-all active:scale-95 ${
           activeTab === 'messages' ? 'text-brand-600 font-extrabold' : 'text-slate-500 hover:text-slate-800'
         }`}
@@ -113,9 +119,12 @@ export const BottomTabs: React.FC<BottomTabsProps> = ({ activeTab, setActiveTab 
       <button
         type="button"
         onClick={() => setActiveTab('new_request')}
-        className="flex-1 flex flex-col items-center gap-0.5 -mt-6 active:scale-90 transition-transform"
+        aria-current={activeTab === 'new_request' ? 'page' : undefined}
+        className={`flex-1 flex flex-col items-center gap-0.5 -mt-6 active:scale-90 transition-transform ${
+          activeTab === 'new_request' ? 'text-brand-700' : 'text-brand-600'
+        }`}
       >
-        <div className="w-13 h-13 rounded-2xl bg-gradient-to-tr from-brand-600 to-indigo-600 text-white flex items-center justify-center shadow-lg shadow-brand-500/40 border-2 border-white">
+        <div className="w-[52px] h-[52px] rounded-2xl bg-gradient-to-tr from-brand-600 to-indigo-600 text-white flex items-center justify-center shadow-lg shadow-brand-500/40 border-2 border-white">
           <PlusCircle className="w-7 h-7" />
         </div>
         <span className="text-xs font-black text-brand-600">Pedir</span>
@@ -124,6 +133,7 @@ export const BottomTabs: React.FC<BottomTabsProps> = ({ activeTab, setActiveTab 
       <button
         type="button"
         onClick={() => setActiveTab('orders')}
+        aria-current={activeTab === 'orders' ? 'page' : undefined}
         className={`flex-1 py-1.5 flex flex-col items-center gap-1 text-xs font-bold relative transition-all active:scale-95 ${
           activeTab === 'orders' ? 'text-brand-600 font-extrabold' : 'text-slate-500 hover:text-slate-800'
         }`}
@@ -131,7 +141,7 @@ export const BottomTabs: React.FC<BottomTabsProps> = ({ activeTab, setActiveTab 
         <FileText className="w-6 h-6" />
         <span>Meus Pedidos</span>
         {activeOrdersCount > 0 && (
-          <span className="absolute top-0 right-4 bg-brand-600 text-white text-[10px] w-4.5 h-4.5 rounded-full flex items-center justify-center font-black">
+          <span className="absolute top-0 right-4 bg-brand-600 text-white text-[10px] w-[18px] h-[18px] rounded-full flex items-center justify-center font-black">
             {activeOrdersCount}
           </span>
         )}

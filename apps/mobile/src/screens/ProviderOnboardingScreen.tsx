@@ -193,7 +193,7 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
   const renderStep1 = () => (
     <div className="space-y-3.5">
       <div className="border-b border-slate-100 pb-2.5">
-        <h3 className="text-sm font-bold text-slate-900">Dados do Profissional</h3>
+        <h1 className="text-sm font-bold text-slate-900">Dados do Profissional</h1>
         <p className="text-[11px] text-slate-500">Seus dados cadastrais em Rondonópolis</p>
       </div>
       <div>
@@ -201,6 +201,7 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
         <input
           id="provider-fullname"
           type="text"
+          autoComplete="name"
           placeholder="Ex: João Ferreira da Silva"
           value={fullName}
           onChange={(e) => setFullName(e.target.value)}
@@ -234,20 +235,24 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
               />
             </div>
           </div>
-          <label className="flex items-start gap-2.5 text-[11px] text-slate-600 leading-relaxed">
+          <div className="flex items-start gap-2.5 text-[11px] text-slate-600 leading-relaxed">
             <input
+              id="provider-terms"
               type="checkbox"
+              aria-label={`Li e aceito os Termos de Uso e a Política de Privacidade, versão ${LEGAL_TERMS_VERSION}`}
               checked={acceptedTerms}
               onChange={(event) => setAcceptedTerms(event.target.checked)}
               className="mt-0.5 h-4 w-4 rounded border-slate-300 text-amber-600"
             />
             <span>
-              Li e aceito os Termos de Uso e a Política de Privacidade (versão {LEGAL_TERMS_VERSION}).{' '}
+              <label htmlFor="provider-terms" className="cursor-pointer">
+                Li e aceito os Termos de Uso e a Política de Privacidade (versão {LEGAL_TERMS_VERSION}).{' '}
+              </label>
               <button type="button" onClick={() => setShowTerms(true)} className="font-bold text-brand-700 underline">
                 Ler resumo
               </button>
             </span>
-          </label>
+          </div>
         </div>
       )}
       <div className="grid grid-cols-2 gap-2">
@@ -255,7 +260,9 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
           <label htmlFor="provider-phone" className="block text-xs font-bold text-slate-700 mb-1">WhatsApp (DDD 66)</label>
           <input
             id="provider-phone"
-            type="text"
+            type="tel"
+            autoComplete="tel"
+            inputMode="tel"
             placeholder="(66) 99999-0000"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
@@ -267,6 +274,8 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
           <input
             id="provider-cpf"
             type="text"
+            autoComplete="off"
+            inputMode="numeric"
             placeholder="000.000.000-00"
             value={cpf}
             onChange={(e) => setCpf(e.target.value)}
@@ -302,7 +311,7 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
   const renderStep2 = () => (
     <div className="space-y-3.5">
       <div className="border-b border-slate-100 pb-2.5">
-        <h3 className="text-sm font-bold text-slate-900">Especialidades & Regiões</h3>
+        <h1 className="text-sm font-bold text-slate-900">Especialidades & Regiões</h1>
         <p className="text-[11px] text-slate-500">Defina o que você faz e onde atende em Rondonópolis</p>
       </div>
       <div>
@@ -381,7 +390,7 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
   const renderStep3 = () => (
     <div className="space-y-3.5">
       <div className="border-b border-slate-100 pb-2.5">
-        <h3 className="text-sm font-bold text-slate-900">Verificação de Identidade (Selo Verificado)</h3>
+        <h1 className="text-sm font-bold text-slate-900">Verificação de Identidade (Selo Verificado)</h1>
         <p className="text-[11px] text-slate-500">Documentos confidenciais com acesso restrito e links temporários</p>
       </div>
       <div className="space-y-2">
@@ -477,7 +486,7 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
   const renderStep4 = () => (
     <div className="space-y-3.5">
       <div className="border-b border-slate-100 pb-2.5">
-        <h3 className="text-sm font-bold text-slate-900">Revisão do Cadastro</h3>
+        <h1 className="text-sm font-bold text-slate-900">Revisão do Cadastro</h1>
         <p className="text-[11px] text-slate-500">Seu perfil ficará pendente até a análise dos documentos.</p>
       </div>
       <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs text-slate-700 space-y-2">
@@ -526,7 +535,14 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
         </span>
       </div>
 
-      <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+      <div
+        role="progressbar"
+        aria-label="Progresso do cadastro profissional"
+        aria-valuemin={1}
+        aria-valuemax={totalSteps}
+        aria-valuenow={step}
+        className="w-full bg-slate-200 h-2 rounded-full overflow-hidden"
+      >
         <div
           className="bg-amber-500 h-full transition-all duration-300 rounded-full"
           style={{ width: `${(step / totalSteps) * 100}%` }}
@@ -539,7 +555,7 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
             <CheckCircle className="w-9 h-9" />
           </div>
           <div>
-            <h3 className="text-base font-extrabold text-slate-900">Cadastro Enviado com Sucesso!</h3>
+            <h1 className="text-base font-extrabold text-slate-900">Cadastro Enviado com Sucesso!</h1>
             <p className="text-xs text-slate-600 mt-1 leading-relaxed">
               Nossa equipe analisará seus documentos. O perfil poderá receber clientes depois que a verificação for aprovada.
             </p>

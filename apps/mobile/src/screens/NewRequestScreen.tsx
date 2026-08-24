@@ -124,9 +124,9 @@ export const NewRequestScreen: React.FC<NewRequestScreenProps> = ({ onSuccess })
   return (
     <div className="pb-28 pt-4 px-4 sm:px-6 lg:px-8 space-y-6 max-w-3xl mx-auto w-full">
       <div className="border-b border-slate-200/80 pb-4">
-        <h2 className="text-lg sm:text-2xl font-black text-slate-900 leading-tight">
+        <h1 className="text-lg sm:text-2xl font-black text-slate-900 leading-tight">
           Pedir Orçamento Grátis na Cidade
-        </h2>
+        </h1>
         <p className="text-xs sm:text-sm text-slate-500 mt-1">
           Descreva o que precisa e receba propostas dos melhores profissionais verificados de Rondonópolis.
         </p>
@@ -134,12 +134,12 @@ export const NewRequestScreen: React.FC<NewRequestScreenProps> = ({ onSuccess })
 
       {isSuccess ? (
         <div className="bg-white rounded-3xl p-8 sm:p-12 text-center border border-emerald-200 shadow-xl space-y-3 animate-in fade-in">
-          <div className="w-18 h-18 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
+          <div className="w-[72px] h-[72px] bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
             <CheckCircle2 className="w-10 h-10" />
           </div>
-          <h3 className="text-xl font-black text-slate-900">
+          <h2 className="text-xl font-black text-slate-900">
             Pedido Publicado com Sucesso!
-          </h3>
+          </h2>
           <p className="text-sm text-slate-600 max-w-md mx-auto">
             Seu pedido ficou visível para prestadores verificados e disponíveis. As propostas aparecerão no chat quando forem enviadas.
           </p>
@@ -243,10 +243,10 @@ export const NewRequestScreen: React.FC<NewRequestScreenProps> = ({ onSuccess })
 
           {/* Urgência */}
           <div>
-            <span className="block text-xs sm:text-sm font-extrabold text-slate-800 mb-2">
+            <span id="request-urgency-label" className="block text-xs sm:text-sm font-extrabold text-slate-800 mb-2">
               Para quando você precisa do serviço?
             </span>
-            <div className="grid grid-cols-3 gap-2.5">
+            <div role="radiogroup" aria-labelledby="request-urgency-label" className="grid grid-cols-3 gap-2.5">
               {(Object.keys(URGENCY_LABELS) as RequestUrgency[]).map((urg) => {
                 const isSelected = urgency === urg;
                 return (
@@ -254,6 +254,8 @@ export const NewRequestScreen: React.FC<NewRequestScreenProps> = ({ onSuccess })
                     key={urg}
                     type="button"
                     onClick={() => setUrgency(urg)}
+                    role="radio"
+                    aria-checked={isSelected}
                     className={`py-3.5 px-3 rounded-2xl border text-xs sm:text-sm font-black transition-all flex flex-col items-center justify-center gap-1 cursor-pointer ${
                       isSelected
                         ? 'bg-brand-50 border-brand-500 text-brand-800 shadow-md ring-2 ring-brand-500/20'

@@ -23,6 +23,7 @@ export function useDialogAccessibility(): void {
   useEffect(() => {
     let activeDialog: HTMLElement | null = null;
     let previousActiveElement: HTMLElement | null = null;
+    const dialogFocusOrigins = new WeakMap<HTMLElement, HTMLElement | null>();
     const originalBodyOverflow = document.body.style.overflow;
 
     const getTopDialog = (): HTMLElement | null => {
@@ -34,14 +35,46 @@ export function useDialogAccessibility(): void {
     };
 
     const focusInsideDialog = (dialog: HTMLElement) => {
-      const target = getVisibleFocusableElements(dialog)[0] ?? dialog;
+      const preferredTarget = dialog.querySelector<HTMLElement>('[data-dialog-initial-focus]');
+      const target = preferredTarget && preferredTarget.getClientRects().length > 0
+        ? preferredTarget
+        : getVisibleFocusableElements(dialog)[0] ?? dialog;
       if (target === dialog && !dialog.hasAttribute('tabindex')) dialog.tabIndex = -1;
       target.focus({ preventScroll: true });
     };
 
     const syncDialog = () => {
       const nextDialog = getTopDialog();
+      const openDialogs = Array.from(
+        document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]')
+      ).filter((dialog) => dialog.getClientRects().length > 0);
+
+      openDialogs.forEach((dialog) => {
+        if (dialog === nextDialog) {
+          if (dialog.dataset.rooservDialogInert === 'true') {
+            dialog.inert = false;
+            dialog.removeAttribute('aria-hidden');
+            delete dialog.dataset.rooservDialogInert;
+          }
+          return;
+        }
+        dialog.inert = true;
+        dialog.setAttribute('aria-hidden', 'true');
+        dialog.dataset.rooservDialogInert = 'true';
+      });
+
       if (nextDialog === activeDialog) return;
+
+      const previousDialog = activeDialog;
+      if (nextDialog && !dialogFocusOrigins.has(nextDialog)) {
+        dialogFocusOrigins.set(
+          nextDialog,
+          document.activeElement instanceof HTMLElement ? document.activeElement : null
+        );
+      }
+      const nestedReturnTarget = previousDialog && !document.body.contains(previousDialog)
+        ? dialogFocusOrigins.get(previousDialog) ?? null
+        : null;
 
       if (!activeDialog && nextDialog) {
         previousActiveElement = document.activeElement instanceof HTMLElement
@@ -54,6 +87,10 @@ export function useDialogAccessibility(): void {
       if (activeDialog) {
         document.body.style.overflow = 'hidden';
         window.setTimeout(() => {
+          if (nestedReturnTarget && activeDialog?.contains(nestedReturnTarget)) {
+            nestedReturnTarget.focus({ preventScroll: true });
+            return;
+          }
           if (activeDialog && !activeDialog.contains(document.activeElement)) {
             focusInsideDialog(activeDialog);
           }
@@ -119,6 +156,11 @@ export function useDialogAccessibility(): void {
       document.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('focusin', handleFocusIn);
       document.body.style.overflow = originalBodyOverflow;
+      document.querySelectorAll<HTMLElement>('[data-rooserv-dialog-inert="true"]').forEach((dialog) => {
+        dialog.inert = false;
+        dialog.removeAttribute('aria-hidden');
+        delete dialog.dataset.rooservDialogInert;
+      });
     };
   }, []);
 }
