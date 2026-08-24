@@ -16,7 +16,8 @@
     "test:coverage": "vitest run --coverage",
     "test:payments:sandbox": "node scripts/abacatepay-sandbox-smoke.mjs --simulate",
     "test:staging:financial": "node scripts/staging-financial-e2e.mjs --confirm-staging",
-    "cleanup:staging:financial": "node scripts/cleanup-staging-financial-e2e.mjs --confirm-staging --delete-fixtures"
+    "cleanup:staging:financial": "node scripts/cleanup-staging-financial-e2e.mjs --confirm-staging --delete-fixtures",
+    "migrate:staging:legacy-media": "node scripts/migrate-staging-legacy-media.mjs --confirm-staging --migrate"
   },
   "keywords": [
     "servicos",

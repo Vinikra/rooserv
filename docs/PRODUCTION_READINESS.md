@@ -11,7 +11,7 @@ Revisão executada em 23/08/2026 sobre React/PWA, autenticação, Supabase RLS/R
 - Bundle inicial dividido por telas: aproximadamente 420 KB minificado / 120 KB gzip.
 - QA visual da build de produção em desktop e viewport móvel de 390×844: sem overflow horizontal nem erros de console observados.
 - Chave Dev mode validada diretamente contra a API v2 da AbacatePay: criação de R$ 30,00, QR/payload presentes, simulação `PAID` e consulta final `PAID`.
-- Staging Supabase atualizado em 24/08/2026: migrations `202608230001`–`202608230003` e `202608240001`–`202608240005` aplicadas e registradas no histórico.
+- Staging Supabase atualizado em 24/08/2026: migrations `202608230001`–`202608230003` e `202608240001`–`202608240006` aplicadas e registradas no histórico.
 - As oito Edge Functions foram publicadas; as sete funções privadas rejeitaram chamadas anônimas com HTTP 401.
 - Cinco secrets de runtime foram configurados, o webhook sandbox foi cadastrado para seis eventos e o health check assinado retornou HTTP 200; chamadas sem secret retornaram HTTP 401.
 - O aplicativo público carregou conectado ao staging endurecido.
@@ -45,7 +45,7 @@ Revisão executada em 23/08/2026 sobre React/PWA, autenticação, Supabase RLS/R
 - O painel administrativo agora cadastra/confirma TOTP, elimina inscrição incompleta ao cancelar e só carrega métricas, KYC, disputas e reembolsos após AAL2 validado também no banco.
 - Execução anônima foi revogada de todas as funções `SECURITY DEFINER`, exceto as duas projeções públicas redigidas. Sete funções internas/legadas também perderam acesso `authenticated`, e privilégios padrão futuros agora exigem concessão explícita.
 - `update_provider_rating()` recebeu `search_path` fixo e deixou de ser executável diretamente pela API.
-- A política ampla que permitia listar todo o bucket legado foi removida. O único objeto restante é um avatar; a URL pública continuou acessível no teste posterior à mudança.
+- A política ampla que permitia listar todo o bucket legado foi removida. O único avatar foi copiado para `rooserv-public-media`, a referência do perfil foi atualizada e validada, o objeto antigo foi removido e `rooserv-media` ficou privado, vazio e sem políticas de escrita.
 - Scripts SQL antigos/destrutivos foram marcados como legado; as migrations incrementais são a trilha de atualização do ambiente existente.
 
 ### Frontend, UI e UX
@@ -65,24 +65,24 @@ Revisão executada em 23/08/2026 sobre React/PWA, autenticação, Supabase RLS/R
 
 ## Concluído no staging em 24/08/2026
 
-1. Migrations incrementais `017`, `018`, `202608230001`–`202608230003` e `202608240001`–`202608240005` presentes no histórico do ambiente.
+1. Migrations incrementais `017`, `018`, `202608230001`–`202608230003` e `202608240001`–`202608240006` presentes no histórico do ambiente.
 2. Oito Edge Functions publicadas, incluindo consulta/simulação Pix e processamento de reembolso.
 3. Secrets de origem, API AbacatePay, URL do webhook, HMAC e trava de simulação configurados. A trava continua devendo ser `false` em produção.
 4. Webhook HTTPS sandbox cadastrado com secret de URL, HMAC e os eventos de pagamento/transferência usados pelo app.
 5. E2E financeiro reproduzível disponível em `npm run test:staging:financial`, com travas para o projeto de staging e chave Dev; a regressão de 24/08/2026 posterior às migrations de privilégios aprovou todos os invariantes locais e AAL2 administrativo.
 6. Limpeza reproduzível disponível em `npm run cleanup:staging:financial`; exige projeto exato, marca de fixture, domínio `example.com` e duas confirmações na linha de comando.
+7. Migração de mídia legada reproduzível disponível em `npm run migrate:staging:legacy-media`; a execução copiou e validou o avatar antes de atualizar o perfil e remover o objeto antigo. O estado final é bucket legado privado com zero objetos e bucket novo com uma referência válida.
 
 ## Bloqueadores restantes antes de dinheiro real
 
 1. **Revogar o token Sonar exposto.** Gere outro, configure `SONAR_TOKEN` no CI e reescreva o histórico Git. Colaboradores devem reclonar depois da limpeza.
-2. **Encerrar o bucket de mídia legada.** A listagem ampla já foi bloqueada e não existem objetos `requests/` ou `proofs/`; resta apenas um avatar com URL pública preservada. Copie-o para `rooserv-public-media`, atualize a referência, valide e desative `rooserv-media`.
-3. **Homologar reembolso e saque no gateway antes de dinheiro real.** O E2E integrado já validou cobrança, pagamento, idempotência, autorização, eventos duplicados/divergentes, disputa, estorno local e recuperação de saldo no saque falho. A AbacatePay Dev recusou tanto `POST /v2/transparents/refund` quanto a transferência Pix; repetir com credenciais/ambiente de homologação que suportem essas operações e obter evidência de reembolso externo, webhook real e transferência concluída/falha pelo gateway.
-4. **Revisão jurídica/LGPD.** Publicar textos integrais, controlador/encarregado, canal do titular, bases legais, retenção, descarte, garantia, mediação e estorno.
-5. **Concluir infraestrutura de Auth para tráfego público.** Confirmação de e-mail, redirects de produção, requisitos de senha, reautenticação e MFA administrativo já estão ativos. Antes do lançamento, configurar SMTP próprio, CAPTCHA e remover o redirect localhost; proteção de senhas vazadas exige upgrade do plano Free para Pro. Revisar os limites atuais com os volumes esperados depois do SMTP.
-6. **Backups/observabilidade.** Ativar PITR, testar restauração e alertar falhas de webhook, reembolso e saque sem registrar dados sensíveis.
-7. **Recuperar saques de estado incerto.** Definir procedimento e alerta para transferências que ficaram em `processing` após timeout/5xx, conciliando pelo webhook ou suporte antes de permitir nova tentativa.
-8. **Criar baseline reproduzível do banco.** A migration `202608210001` pressupõe que o schema e RLS-base já existam. Gere um dump somente de schema do staging endurecido, revise grants/policies, transforme-o em migration-base e prove um `db reset` em projeto descartável; não reutilize os scripts legados em produção.
-9. **Definir chargeback/reembolso depois do repasse.** O ledger atual rejeita reembolso após a liberação do saldo e não modela saldo negativo ou reserva. Defina política operacional e contábil, janela de reserva e recuperação de saldo; então teste chargeback e reembolso tardio antes de habilitar saques reais.
+2. **Homologar reembolso e saque no gateway antes de dinheiro real.** O E2E integrado já validou cobrança, pagamento, idempotência, autorização, eventos duplicados/divergentes, disputa, estorno local e recuperação de saldo no saque falho. A AbacatePay Dev recusou tanto `POST /v2/transparents/refund` quanto a transferência Pix; repetir com credenciais/ambiente de homologação que suportem essas operações e obter evidência de reembolso externo, webhook real e transferência concluída/falha pelo gateway.
+3. **Revisão jurídica/LGPD.** Publicar textos integrais, controlador/encarregado, canal do titular, bases legais, retenção, descarte, garantia, mediação e estorno.
+4. **Concluir infraestrutura de Auth para tráfego público.** Confirmação de e-mail, redirects de produção, requisitos de senha, reautenticação e MFA administrativo já estão ativos. Antes do lançamento, configurar SMTP próprio, CAPTCHA e remover o redirect localhost; proteção de senhas vazadas exige upgrade do plano Free para Pro. Revisar os limites atuais com os volumes esperados depois do SMTP.
+5. **Backups/observabilidade.** Ativar PITR, testar restauração e alertar falhas de webhook, reembolso e saque sem registrar dados sensíveis.
+6. **Recuperar saques de estado incerto.** Definir procedimento e alerta para transferências que ficaram em `processing` após timeout/5xx, conciliando pelo webhook ou suporte antes de permitir nova tentativa.
+7. **Criar baseline reproduzível do banco.** A migration `202608210001` pressupõe que o schema e RLS-base já existam. Gere um dump somente de schema do staging endurecido, revise grants/policies, transforme-o em migration-base e prove um `db reset` em projeto descartável; não reutilize os scripts legados em produção.
+8. **Definir chargeback/reembolso depois do repasse.** O ledger atual rejeita reembolso após a liberação do saldo e não modela saldo negativo ou reserva. Defina política operacional e contábil, janela de reserva e recuperação de saldo; então teste chargeback e reembolso tardio antes de habilitar saques reais.
 
 ## Riscos residuais
 
@@ -93,4 +93,4 @@ Revisão executada em 23/08/2026 sobre React/PWA, autenticação, Supabase RLS/R
 - O manifesto ainda precisa de ícones PNG 192/512 e `apple-touch-icon` validados em iOS real.
 - Fazer DAST e teste manual de autorização com anônimo, cliente, prestador e admin.
 
-Produção com dinheiro real deve ser liberada somente quando os nove bloqueadores restantes tiverem evidência em staging.
+Produção com dinheiro real deve ser liberada somente quando os oito bloqueadores restantes tiverem evidência em staging.
