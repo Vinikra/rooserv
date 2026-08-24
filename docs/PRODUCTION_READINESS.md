@@ -11,7 +11,10 @@ Revisão executada em 23/08/2026 sobre React/PWA, autenticação, Supabase RLS/R
 - Bundle inicial dividido por telas: aproximadamente 420 KB minificado / 120 KB gzip.
 - QA visual da build de produção em desktop e viewport móvel de 390×844: sem overflow horizontal nem erros de console observados.
 - Chave Dev mode validada diretamente contra a API v2 da AbacatePay: criação de R$ 30,00, QR/payload presentes, simulação `PAID` e consulta final `PAID`.
-- Migrations e Edge Functions novas ainda precisam ser aplicadas no ambiente Supabase.
+- Staging Supabase atualizado em 24/08/2026: migrations `202608230001`, `202608230002` e `202608230003` aplicadas e registradas no histórico.
+- As oito Edge Functions foram publicadas; as sete funções privadas rejeitaram chamadas anônimas com HTTP 401.
+- Cinco secrets de runtime foram configurados, o webhook sandbox foi cadastrado para seis eventos e o health check assinado retornou HTTP 200; chamadas sem secret retornaram HTTP 401.
+- O aplicativo público carregou conectado ao staging endurecido, e as tabelas financeiras permaneceram vazias após os testes de infraestrutura.
 
 ## Correções implementadas
 
@@ -50,20 +53,24 @@ Revisão executada em 23/08/2026 sobre React/PWA, autenticação, Supabase RLS/R
 - Textos de Pix, cobertura, disputa e recibo foram alinhados ao comportamento efetivamente implementado.
 - Promessas de “custódia segura”, “escrow”, “split” do gateway e pagamento garantido foram removidas da interface até validação jurídica e operacional.
 
-## Bloqueadores antes de dinheiro real
+## Concluído no staging em 24/08/2026
+
+1. Migrations incrementais `017`, `018`, `202608230001`, `202608230002` e `202608230003` presentes no histórico do ambiente.
+2. Oito Edge Functions publicadas, incluindo consulta/simulação Pix e processamento de reembolso.
+3. Secrets de origem, API AbacatePay, URL do webhook, HMAC e trava de simulação configurados. A trava continua devendo ser `false` em produção.
+4. Webhook HTTPS sandbox cadastrado com secret de URL, HMAC e os eventos de pagamento/transferência usados pelo app.
+
+## Bloqueadores restantes antes de dinheiro real
 
 1. **Revogar o token Sonar exposto.** Gere outro, configure `SONAR_TOKEN` no CI e reescreva o histórico Git. Colaboradores devem reclonar depois da limpeza.
-2. **Aplicar em staging.** Aplicar migrations `017`, `018`, `202608230001`, `202608230002` e `202608230003`; publicar todas as Edge Functions, inclusive `check-pix-payment`, `simulate-pix-payment` e `process-payment-refund`.
-3. **Configurar secrets.** Definir `APP_ORIGIN`, `ABACATEPAY_API_KEY`, `ABACATEPAY_WEBHOOK_SECRET` e `ABACATEPAY_WEBHOOK_HMAC_KEY`, usando menor privilégio. Manter `ALLOW_SANDBOX_PAYMENT_SIMULATION=false` em produção.
-4. **Configurar webhook.** URL HTTPS com `webhookSecret`, assinatura `X-Webhook-Signature` e eventos de pagamento/transferência usados pelo app.
-5. **Migrar mídia legada.** `rooserv-media` continua público para preservar URLs. Copie `requests/` e `proofs/` ao bucket privado, converta as referências, valide e desative o legado.
-6. **Executar E2E financeiro integrado em Dev mode.** O smoke test direto da API já cobre criação, simulação e consulta `PAID`; ainda é necessário validar no staging o fluxo completo com Supabase, expiração/cancelamento, webhook duplicado, divergência, disputa, reembolso e saque concluído/falho.
-7. **Revisão jurídica/LGPD.** Publicar textos integrais, controlador/encarregado, canal do titular, bases legais, retenção, descarte, garantia, mediação e estorno.
-8. **Configurar Supabase Auth.** Confirmação de e-mail, senhas vazadas, limites de Auth, redirects restritos e MFA obrigatório para admins.
-9. **Backups/observabilidade.** Ativar PITR, testar restauração e alertar falhas de webhook, reembolso e saque sem registrar dados sensíveis.
-10. **Recuperar saques de estado incerto.** Definir procedimento e alerta para transferências que ficaram em `processing` após timeout/5xx, conciliando pelo webhook ou suporte antes de permitir nova tentativa.
-11. **Criar baseline reproduzível do banco.** A migration `202608210001` pressupõe que o schema e RLS-base já existam. Gere um dump somente de schema do staging endurecido, revise grants/policies, transforme-o em migration-base e prove um `db reset` em projeto descartável; não reutilize os scripts legados em produção.
-12. **Definir chargeback/reembolso depois do repasse.** O ledger atual rejeita reembolso após a liberação do saldo e não modela saldo negativo ou reserva. Defina política operacional e contábil, janela de reserva e recuperação de saldo; então teste chargeback e reembolso tardio antes de habilitar saques reais.
+2. **Migrar mídia legada.** `rooserv-media` continua público para preservar URLs. Copie `requests/` e `proofs/` ao bucket privado, converta as referências, valide e desative o legado.
+3. **Executar E2E financeiro integrado em Dev mode.** O smoke test direto da API já cobre criação, simulação e consulta `PAID`; ainda é necessário validar no staging o fluxo completo com Supabase, expiração/cancelamento, webhook duplicado, divergência, disputa, reembolso e saque concluído/falho.
+4. **Revisão jurídica/LGPD.** Publicar textos integrais, controlador/encarregado, canal do titular, bases legais, retenção, descarte, garantia, mediação e estorno.
+5. **Configurar Supabase Auth.** Confirmação de e-mail, senhas vazadas, limites de Auth, redirects restritos e MFA obrigatório para admins.
+6. **Backups/observabilidade.** Ativar PITR, testar restauração e alertar falhas de webhook, reembolso e saque sem registrar dados sensíveis.
+7. **Recuperar saques de estado incerto.** Definir procedimento e alerta para transferências que ficaram em `processing` após timeout/5xx, conciliando pelo webhook ou suporte antes de permitir nova tentativa.
+8. **Criar baseline reproduzível do banco.** A migration `202608210001` pressupõe que o schema e RLS-base já existam. Gere um dump somente de schema do staging endurecido, revise grants/policies, transforme-o em migration-base e prove um `db reset` em projeto descartável; não reutilize os scripts legados em produção.
+9. **Definir chargeback/reembolso depois do repasse.** O ledger atual rejeita reembolso após a liberação do saldo e não modela saldo negativo ou reserva. Defina política operacional e contábil, janela de reserva e recuperação de saldo; então teste chargeback e reembolso tardio antes de habilitar saques reais.
 
 ## Riscos residuais
 
@@ -74,4 +81,4 @@ Revisão executada em 23/08/2026 sobre React/PWA, autenticação, Supabase RLS/R
 - O manifesto ainda precisa de ícones PNG 192/512 e `apple-touch-icon` validados em iOS real.
 - Fazer DAST e teste manual de autorização com anônimo, cliente, prestador e admin.
 
-Produção com dinheiro real deve ser liberada somente quando os doze bloqueadores tiverem evidência em staging.
+Produção com dinheiro real deve ser liberada somente quando os nove bloqueadores restantes tiverem evidência em staging.
