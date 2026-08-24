@@ -11,7 +11,7 @@ Revisão executada em 23/08/2026 sobre React/PWA, autenticação, Supabase RLS/R
 - Bundle inicial dividido por telas: aproximadamente 420 KB minificado / 120 KB gzip.
 - QA visual da build de produção em desktop e viewport móvel de 390×844: sem overflow horizontal nem erros de console observados.
 - Chave Dev mode validada diretamente contra a API v2 da AbacatePay: criação de R$ 30,00, QR/payload presentes, simulação `PAID` e consulta final `PAID`.
-- Staging Supabase atualizado em 24/08/2026: migrations `202608230001`, `202608230002` e `202608230003` aplicadas e registradas no histórico.
+- Staging Supabase atualizado em 24/08/2026: migrations `202608230001`–`202608230003` e `202608240001`–`202608240005` aplicadas e registradas no histórico.
 - As oito Edge Functions foram publicadas; as sete funções privadas rejeitaram chamadas anônimas com HTTP 401.
 - Cinco secrets de runtime foram configurados, o webhook sandbox foi cadastrado para seis eventos e o health check assinado retornou HTTP 200; chamadas sem secret retornaram HTTP 401.
 - O aplicativo público carregou conectado ao staging endurecido.
@@ -19,7 +19,8 @@ Revisão executada em 23/08/2026 sobre React/PWA, autenticação, Supabase RLS/R
 - O sandbox recusou o reembolso externo e a transferência Pix. O E2E registrou essas limitações sem tratá-las como sucesso do gateway: aplicou evento controlado apenas para validar o estorno local e comprovou que o saque terminou `failed`, com motivo seguro, R$ 52,80 disponíveis e zero em custódia.
 - Supabase Auth revisado em 24/08/2026: confirmação de e-mail e mudança segura de e-mail ativas; login anônimo e vinculação manual desativados; TOTP ativo; sessões AAL1 limitadas a 15 minutos; mudança de senha exige reautenticação e senha atual; complexidade do servidor alinhada a maiúscula, minúscula e número.
 - A migration `202608240001` separa a capacidade administrativa da autorização efetiva: todos os RPCs, políticas e Edge Functions que já usavam `is_rooserv_admin()` agora exigem token AAL2. O E2E comprovou bloqueio em AAL1 e liberação somente após TOTP.
-- As 12 fixtures criadas durante as três execuções de desenvolvimento e a validação final de MFA foram removidas; staging voltou a zero pedidos, transações, ledger, webhooks e saques de teste.
+- O Security Advisor ficou em 0 erros e 29 avisos após a auditoria. Os avisos remanescentes são as duas projeções públicas redigidas e as 27 assinaturas de RPC deliberadamente concedidas a usuários autenticados; uma consulta independente confirmou zero funções `SECURITY DEFINER` autenticadas fora da allowlist do frontend.
+- As 15 fixtures criadas durante o desenvolvimento, a validação de MFA e a regressão posterior às migrations de privilégios foram removidas; staging voltou a zero pedidos, transações, ledger, webhooks e saques de teste.
 
 ## Correções implementadas
 
@@ -42,6 +43,9 @@ Revisão executada em 23/08/2026 sobre React/PWA, autenticação, Supabase RLS/R
 - O teste sandbox conciliado usa o mesmo RPC idempotente do webhook, com identificador sintético único; a função fica desabilitada quando a flag de ambiente não é exatamente `true`.
 - Admin deixou de conter UUID/e-mail pessoal em migration; concessão exige `service_role`.
 - O painel administrativo agora cadastra/confirma TOTP, elimina inscrição incompleta ao cancelar e só carrega métricas, KYC, disputas e reembolsos após AAL2 validado também no banco.
+- Execução anônima foi revogada de todas as funções `SECURITY DEFINER`, exceto as duas projeções públicas redigidas. Sete funções internas/legadas também perderam acesso `authenticated`, e privilégios padrão futuros agora exigem concessão explícita.
+- `update_provider_rating()` recebeu `search_path` fixo e deixou de ser executável diretamente pela API.
+- A política ampla que permitia listar todo o bucket legado foi removida. O único objeto restante é um avatar; a URL pública continuou acessível no teste posterior à mudança.
 - Scripts SQL antigos/destrutivos foram marcados como legado; as migrations incrementais são a trilha de atualização do ambiente existente.
 
 ### Frontend, UI e UX
@@ -61,17 +65,17 @@ Revisão executada em 23/08/2026 sobre React/PWA, autenticação, Supabase RLS/R
 
 ## Concluído no staging em 24/08/2026
 
-1. Migrations incrementais `017`, `018`, `202608230001`, `202608230002`, `202608230003` e `202608240001` presentes no histórico do ambiente.
+1. Migrations incrementais `017`, `018`, `202608230001`–`202608230003` e `202608240001`–`202608240005` presentes no histórico do ambiente.
 2. Oito Edge Functions publicadas, incluindo consulta/simulação Pix e processamento de reembolso.
 3. Secrets de origem, API AbacatePay, URL do webhook, HMAC e trava de simulação configurados. A trava continua devendo ser `false` em produção.
 4. Webhook HTTPS sandbox cadastrado com secret de URL, HMAC e os eventos de pagamento/transferência usados pelo app.
-5. E2E financeiro reproduzível disponível em `npm run test:staging:financial`, com travas para o projeto de staging e chave `abc_dev_`; execução de 24/08/2026 aprovada em todos os invariantes locais.
+5. E2E financeiro reproduzível disponível em `npm run test:staging:financial`, com travas para o projeto de staging e chave Dev; a regressão de 24/08/2026 posterior às migrations de privilégios aprovou todos os invariantes locais e AAL2 administrativo.
 6. Limpeza reproduzível disponível em `npm run cleanup:staging:financial`; exige projeto exato, marca de fixture, domínio `example.com` e duas confirmações na linha de comando.
 
 ## Bloqueadores restantes antes de dinheiro real
 
 1. **Revogar o token Sonar exposto.** Gere outro, configure `SONAR_TOKEN` no CI e reescreva o histórico Git. Colaboradores devem reclonar depois da limpeza.
-2. **Migrar mídia legada.** `rooserv-media` continua público para preservar URLs. Copie `requests/` e `proofs/` ao bucket privado, converta as referências, valide e desative o legado.
+2. **Encerrar o bucket de mídia legada.** A listagem ampla já foi bloqueada e não existem objetos `requests/` ou `proofs/`; resta apenas um avatar com URL pública preservada. Copie-o para `rooserv-public-media`, atualize a referência, valide e desative `rooserv-media`.
 3. **Homologar reembolso e saque no gateway antes de dinheiro real.** O E2E integrado já validou cobrança, pagamento, idempotência, autorização, eventos duplicados/divergentes, disputa, estorno local e recuperação de saldo no saque falho. A AbacatePay Dev recusou tanto `POST /v2/transparents/refund` quanto a transferência Pix; repetir com credenciais/ambiente de homologação que suportem essas operações e obter evidência de reembolso externo, webhook real e transferência concluída/falha pelo gateway.
 4. **Revisão jurídica/LGPD.** Publicar textos integrais, controlador/encarregado, canal do titular, bases legais, retenção, descarte, garantia, mediação e estorno.
 5. **Concluir infraestrutura de Auth para tráfego público.** Confirmação de e-mail, redirects de produção, requisitos de senha, reautenticação e MFA administrativo já estão ativos. Antes do lançamento, configurar SMTP próprio, CAPTCHA e remover o redirect localhost; proteção de senhas vazadas exige upgrade do plano Free para Pro. Revisar os limites atuais com os volumes esperados depois do SMTP.
