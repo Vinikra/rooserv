@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { randomBytes, randomUUID } from 'node:crypto';
+import { createHmac, randomBytes, randomUUID } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 
 const EXPECTED_PROJECT_REF = 'wggajdfwthocruelxmyv';
@@ -29,6 +29,35 @@ function assertClose(actual, expected, message) {
 
 function delay(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function decodeBase32(value) {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  const clean = value.toUpperCase().replace(/=+$/g, '').replace(/[^A-Z2-7]/g, '');
+  let bits = '';
+  for (const character of clean) {
+    const index = alphabet.indexOf(character);
+    assert(index >= 0, 'Secret TOTP retornado pelo Supabase é inválido.');
+    bits += index.toString(2).padStart(5, '0');
+  }
+  const bytes = [];
+  for (let index = 0; index + 8 <= bits.length; index += 8) {
+    bytes.push(Number.parseInt(bits.slice(index, index + 8), 2));
+  }
+  return Buffer.from(bytes);
+}
+
+function generateTotp(secret, timestamp = Date.now()) {
+  const counter = BigInt(Math.floor(timestamp / 30_000));
+  const buffer = Buffer.alloc(8);
+  buffer.writeBigUInt64BE(counter);
+  const digest = createHmac('sha1', decodeBase32(secret)).update(buffer).digest();
+  const offset = digest[digest.length - 1] & 0x0f;
+  const binary = ((digest[offset] & 0x7f) << 24)
+    | (digest[offset + 1] << 16)
+    | (digest[offset + 2] << 8)
+    | digest[offset + 3];
+  return String(binary % 1_000_000).padStart(6, '0');
 }
 
 function createValidCpf() {
@@ -204,7 +233,36 @@ async function main() {
     signIn(supabaseUrl, anonKey, providerEmail, password),
     signIn(supabaseUrl, anonKey, adminEmail, password),
   ]);
-  assert(await requireRpc(adminAuth.client, 'is_rooserv_admin', {}, 'Validar admin E2E') === true, 'Admin E2E não recebeu a capacidade esperada.');
+  assert(
+    await requireRpc(adminAuth.client, 'has_rooserv_admin_capability', {}, 'Validar capacidade admin E2E') === true,
+    'Admin E2E não recebeu a capacidade esperada.',
+  );
+  assert(
+    await requireRpc(adminAuth.client, 'is_rooserv_admin', {}, 'Validar bloqueio admin AAL1') === false,
+    'Admin E2E obteve acesso sem confirmar MFA.',
+  );
+  const { data: enrollment, error: enrollmentError } = await adminAuth.client.auth.mfa.enroll({
+    factorType: 'totp',
+    friendlyName: `RooServ E2E ${runId}`,
+  });
+  if (enrollmentError) throw new Error(`Cadastrar TOTP E2E: ${enrollmentError.message}`);
+  const { data: challenge, error: challengeError } = await adminAuth.client.auth.mfa.challenge({
+    factorId: enrollment.id,
+  });
+  if (challengeError) throw new Error(`Desafiar TOTP E2E: ${challengeError.message}`);
+  const { error: verifyError } = await adminAuth.client.auth.mfa.verify({
+    factorId: enrollment.id,
+    challengeId: challenge.id,
+    code: generateTotp(enrollment.totp.secret),
+  });
+  if (verifyError) throw new Error(`Confirmar TOTP E2E: ${verifyError.message}`);
+  const { data: verifiedSession, error: sessionError } = await adminAuth.client.auth.getSession();
+  if (sessionError || !verifiedSession.session) throw new Error(`Carregar sessão AAL2 E2E: ${sessionError?.message || 'sessão ausente'}`);
+  adminAuth.token = verifiedSession.session.access_token;
+  assert(
+    await requireRpc(adminAuth.client, 'is_rooserv_admin', {}, 'Validar admin E2E AAL2') === true,
+    'Admin E2E não recebeu acesso após confirmar MFA.',
+  );
   assert(await requireRpc(clientAuth.client, 'is_rooserv_admin', {}, 'Validar cliente não-admin') === false, 'Cliente E2E recebeu capacidade administrativa indevida.');
 
   const createAcceptedOrder = async (label, totalAmount) => {
@@ -496,7 +554,12 @@ async function main() {
     projectRef,
     devMode: true,
     runId,
-    fixturesCreated: { users: createdUserIds.length, providerVerified: true, adminCapability: true },
+    fixturesCreated: {
+      users: createdUserIds.length,
+      providerVerified: true,
+      adminCapability: true,
+      adminMfaAal2: true,
+    },
     payment: {
       ordersTested: 2,
       chargeIdempotency: true,

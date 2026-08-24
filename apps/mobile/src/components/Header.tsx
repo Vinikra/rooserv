@@ -23,6 +23,7 @@ interface HeaderProps {
   onOpenAuth?: () => void;
   onOpenNotifications?: () => void;
   onOpenProfile?: () => void;
+  onRequestAdminMode?: () => void;
   activeTab?: string;
   setActiveTab?: (tab: string) => void;
 }
@@ -174,8 +175,9 @@ const UserDropdownMenu: React.FC<{
   onLogout: () => void;
   onClose: () => void;
   onOpenProfile?: () => void;
+  onRequestAdminMode: () => void;
   roleLabel: string;
-}> = ({ currentUser, currentRole, setCurrentRole, isAdmin, onLogout, onClose, onOpenProfile, roleLabel }) => {
+}> = ({ currentUser, currentRole, setCurrentRole, isAdmin, onLogout, onClose, onOpenProfile, onRequestAdminMode, roleLabel }) => {
   return (
     <div className="absolute right-0 mt-2 w-72 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-3.5 z-50 animate-in fade-in space-y-3">
       <div className="border-b border-slate-800 pb-3">
@@ -265,7 +267,7 @@ const UserDropdownMenu: React.FC<{
           <button
             type="button"
             onClick={() => {
-              setCurrentRole(currentRole === 'admin' ? currentUser.role : 'admin');
+              onRequestAdminMode();
               onClose();
             }}
             className={`w-full py-2.5 px-3 rounded-xl text-xs font-extrabold transition-all flex items-center justify-between cursor-pointer ${
@@ -302,6 +304,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenAuth, 
   onOpenNotifications,
   onOpenProfile,
+  onRequestAdminMode,
   activeTab = 'explore',
   setActiveTab
 }) => {
@@ -430,6 +433,7 @@ export const Header: React.FC<HeaderProps> = ({
                   onLogout={handleLogout}
                   onClose={() => setIsMenuOpen(false)}
                   onOpenProfile={onOpenProfile}
+                  onRequestAdminMode={onRequestAdminMode || (() => undefined)}
                   roleLabel={getRoleLabel()}
                 />
               )}

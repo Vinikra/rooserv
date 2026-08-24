@@ -24,6 +24,7 @@ export const AdminScreen: React.FC = () => {
     resolveDisputeByAdmin, 
     getAdminStats,
     isAdmin,
+    isAdminMfaVerified,
     setCurrentRole
   } = useApp();
 
@@ -96,7 +97,7 @@ export const AdminScreen: React.FC = () => {
   };
 
   // Se o usuário não for administrador, exibe barreira de segurança
-  if (!isAdmin) {
+  if (!isAdmin || !isAdminMfaVerified) {
     return (
       <div className="pb-24 pt-6 px-4 max-w-md mx-auto space-y-6 animate-in fade-in">
         <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xl text-center space-y-4">
@@ -109,7 +110,7 @@ export const AdminScreen: React.FC = () => {
               Painel de Gestão RooServ
             </h3>
             <p className="text-xs text-slate-500 mt-1">
-              Entre pela conta principal autorizada para acessar esta área.
+              Entre pela conta autorizada e confirme o autenticador para acessar esta área.
             </p>
           </div>
 

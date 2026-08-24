@@ -42,6 +42,7 @@ test*.mjs
 *.mjs
 !scripts/abacatepay-sandbox-smoke.mjs
 !scripts/staging-financial-e2e.mjs
+!scripts/cleanup-staging-financial-e2e.mjs
 
 .vercel
 .firecrawl/

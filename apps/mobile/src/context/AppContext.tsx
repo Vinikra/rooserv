@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import React, { createContext, useCallback, useContext, useState, useEffect, useMemo } from 'react';
 import {
   ProviderProfile,
   ServiceCategory,
@@ -25,6 +25,8 @@ interface AppContextType {
   currentUser: UserProfile | null;
   isAuthenticated: boolean;
   isAdmin: boolean;
+  isAdminMfaVerified: boolean;
+  refreshAdminSecurityState: () => Promise<boolean>;
   login: (email: string, pass: string) => Promise<AuthResult>;
   signup: (data: SignupData) => Promise<AuthResult>;
   logout: () => Promise<void>;
@@ -352,6 +354,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [adminProviders, setAdminProviders] = useState<ProviderProfile[]>([]);
   const [adminDashboardStats, setAdminDashboardStats] = useState<AdminStats | null>(null);
   const [hasAdminAccess, setHasAdminAccess] = useState(false);
+  const [hasAdminMfaAccess, setHasAdminMfaAccess] = useState(false);
   const [orders, setOrders] = useState<Order[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [requests, setRequests] = useState<ServiceRequest[]>([]);
@@ -367,6 +370,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [notifications, setNotifications] = useState<InAppNotification[]>([]);
 
   const [activeToast, setActiveToast] = useState<InAppNotification | null>(null);
+
+  const refreshAdminSecurityState = useCallback(async (): Promise<boolean> => {
+    const [{ data: capability, error: capabilityError }, { data: aal2Access, error: aal2Error }] = await Promise.all([
+      supabase.rpc('has_rooserv_admin_capability'),
+      supabase.rpc('is_rooserv_admin'),
+    ]);
+    const hasCapability = !capabilityError && capability === true;
+    const isVerified = hasCapability && !aal2Error && aal2Access === true;
+    setHasAdminAccess(hasCapability);
+    setHasAdminMfaAccess(isVerified);
+    if (!isVerified) {
+      setAdminProviders([]);
+      setAdminDashboardStats(null);
+      setCurrentRole((role) => role === 'admin'
+        ? (currentUser?.role === 'provider' ? 'provider' : 'client')
+        : role);
+    }
+    return isVerified;
+  }, [currentUser?.role]);
 
   const refreshAdminData = async () => {
     const [{ data: dbAdminProviders, error: providersError }, { data: dbStats, error: statsError }] = await Promise.all([
@@ -392,7 +414,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         hasAllDocuments: status.has_all_documents === true,
       } : null);
     }
-    if (hasAdminAccess) await refreshAdminData();
+    if (hasAdminMfaAccess) await refreshAdminData();
   };
 
   const unreadNotificationsCount = useMemo(() => {
@@ -453,6 +475,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const isAuthenticated = Boolean(currentUser);
   const isAdmin = hasAdminAccess;
+  const isAdminMfaVerified = hasAdminMfaAccess;
 
   // A sessão do Supabase Auth é a única fonte de autenticação. Dados locais
   // nunca restauram usuário ou papel sem uma sessão válida no servidor.
@@ -472,6 +495,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setAdminProviders([]);
           setAdminDashboardStats(null);
           setHasAdminAccess(false);
+          setHasAdminMfaAccess(false);
         }
         return;
       }
@@ -487,15 +511,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setCurrentUser(null);
         setCurrentRole('client');
         setHasAdminAccess(false);
+        setHasAdminMfaAccess(false);
         return;
       }
 
       const authenticatedProfile = mapDbProfile(profile, profile.id);
-      const { data: adminAccess } = await supabase.rpc('is_rooserv_admin');
+      const [{ data: adminCapability }, { data: adminAccess }] = await Promise.all([
+        supabase.rpc('has_rooserv_admin_capability'),
+        supabase.rpc('is_rooserv_admin'),
+      ]);
       if (!active) return;
       setCurrentUser(authenticatedProfile);
-      setCurrentRole(authenticatedProfile.role);
-      setHasAdminAccess(adminAccess === true);
+      setCurrentRole(authenticatedProfile.role === 'admin' && adminAccess !== true
+        ? 'client'
+        : authenticatedProfile.role);
+      setHasAdminAccess(adminCapability === true);
+      setHasAdminMfaAccess(adminAccess === true);
     };
 
     supabase.auth.getSession().then(({ data }) => {
@@ -598,7 +629,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             setProviderOnboardingStatus(null);
           }
 
-          if (hasAdminAccess) {
+          if (hasAdminMfaAccess) {
             const [{ data: dbAdminProviders, error: adminProvidersError }, { data: dbAdminStats, error: adminStatsError }] = await Promise.all([
               supabase.rpc('list_admin_provider_directory'),
               supabase.rpc('get_admin_dashboard_metrics'),
@@ -626,7 +657,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     loadFromSupabase();
-  }, [currentUser?.id, hasAdminAccess]);
+  }, [currentUser?.id, hasAdminMfaAccess]);
 
   // Solicitações em tempo real usam eventos de linhas protegidos por RLS. O
   // payload nunca é aceito diretamente: a projeção segura é recarregada.
@@ -725,12 +756,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     setCurrentUser(foundUser);
-    setCurrentRole(foundUser.role);
+    const adminVerified = await refreshAdminSecurityState();
+    setCurrentRole(foundUser.role === 'admin' && !adminVerified ? 'client' : foundUser.role);
 
     if (foundUser.role === 'admin') {
       sendInAppNotification({
-        title: '🛡️ Modo Gestor Autenticado',
-        message: 'Painel de administração master liberado com métricas financeiras e KYC.',
+        title: adminVerified ? '🛡️ Modo Gestor Autenticado' : '🔐 Verificação adicional necessária',
+        message: adminVerified
+          ? 'Painel administrativo liberado com autenticação multifator.'
+          : 'Use o menu da conta para confirmar o autenticador antes de abrir o painel de gestão.',
         type: 'system',
       });
       return { success: true, user: foundUser };
@@ -823,6 +857,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setAdminProviders([]);
     setAdminDashboardStats(null);
     setHasAdminAccess(false);
+    setHasAdminMfaAccess(false);
   };
 
   const deleteAccount = async (): Promise<boolean> => {
@@ -843,6 +878,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setAdminProviders([]);
     setAdminDashboardStats(null);
     setHasAdminAccess(false);
+    setHasAdminMfaAccess(false);
     return true;
   };
 
@@ -870,7 +906,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const updatedUser = mapDbProfile(savedProfile, currentUser.id);
     setCurrentUser(updatedUser);
-    setCurrentRole(updatedUser.role);
+    setCurrentRole(updatedUser.role === 'admin' && !hasAdminMfaAccess ? 'client' : updatedUser.role);
     setProviders((prev) => prev.map((p) =>
       p.profileId === updatedUser.id ? { ...p, profile: updatedUser } : p
     ));
@@ -1239,6 +1275,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     currentUser,
     isAuthenticated,
     isAdmin,
+    isAdminMfaVerified,
+    refreshAdminSecurityState,
     login,
     signup,
     logout,
@@ -1284,11 +1322,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     currentUser,
     isAuthenticated,
     isAdmin,
+    isAdminMfaVerified,
     categories,
     providers,
     adminProviders,
     adminDashboardStats,
     hasAdminAccess,
+    hasAdminMfaAccess,
     orders,
     reviews,
     requests,

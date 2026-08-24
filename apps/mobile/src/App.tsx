@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useEffect, useState } from 'react';
+import React, { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { useApp } from './context/AppContext';
 import { Header } from './components/Header';
 import { BottomTabs } from './components/BottomTabs';
@@ -23,6 +23,7 @@ const TermsModal = lazy(() => import('./components/TermsModal').then((module) =>
 const ReferralModal = lazy(() => import('./components/ReferralModal').then((module) => ({ default: module.ReferralModal })));
 const ProfileModal = lazy(() => import('./screens/ProfileModal').then((module) => ({ default: module.ProfileModal })));
 const PasswordResetModal = lazy(() => import('./screens/PasswordResetModal').then((module) => ({ default: module.PasswordResetModal })));
+const AdminMfaModal = lazy(() => import('./screens/AdminMfaModal').then((module) => ({ default: module.AdminMfaModal })));
 
 const ScreenFallback = () => (
   <div role="status" aria-live="polite" className="flex-1 flex items-center justify-center p-10 text-sm font-bold text-slate-500">
@@ -31,7 +32,16 @@ const ScreenFallback = () => (
 );
 
 export const App: React.FC = () => {
-  const { currentUser, currentRole, isAdmin, activeToast, dismissActiveToast } = useApp();
+  const {
+    currentUser,
+    currentRole,
+    setCurrentRole,
+    isAdmin,
+    isAdminMfaVerified,
+    refreshAdminSecurityState,
+    activeToast,
+    dismissActiveToast,
+  } = useApp();
   useDialogAccessibility();
 
   const [activeTab, setActiveTab] = useState<string>('explore');
@@ -43,6 +53,7 @@ export const App: React.FC = () => {
   const [isTermsOpen, setIsTermsOpen] = useState(false);
   const [isReferralOpen, setIsReferralOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isAdminMfaOpen, setIsAdminMfaOpen] = useState(false);
   const [isPasswordResetOpen, setIsPasswordResetOpen] = useState(
     () => window.location.hash.includes('type=recovery') || window.location.search.includes('type=recovery')
   );
@@ -77,6 +88,26 @@ export const App: React.FC = () => {
     setPendingAuthenticatedTab(null);
     setIsAuthOpen(false);
   };
+
+  const requestAdminMode = () => {
+    if (!currentUser || !isAdmin) return;
+    if (currentRole === 'admin') {
+      setCurrentRole(currentUser.role === 'provider' ? 'provider' : 'client');
+      return;
+    }
+    if (isAdminMfaVerified) {
+      setCurrentRole('admin');
+      return;
+    }
+    setIsAdminMfaOpen(true);
+  };
+
+  const completeAdminMfa = useCallback(async () => {
+    const verified = await refreshAdminSecurityState();
+    if (!verified) throw new Error('O token administrativo não atingiu AAL2.');
+    setCurrentRole('admin');
+    setIsAdminMfaOpen(false);
+  }, [refreshAdminSecurityState, setCurrentRole]);
   
   const [activeChatPartner, setActiveChatPartner] = useState<{
     id: string;
@@ -154,7 +185,7 @@ export const App: React.FC = () => {
       );
     }
 
-    if (currentRole === 'admin' && isAdmin) {
+    if (currentRole === 'admin' && isAdmin && isAdminMfaVerified) {
       return <AdminScreen />;
     }
 
@@ -190,6 +221,7 @@ export const App: React.FC = () => {
           onOpenProfile={() => setIsProfileOpen(true)}
           activeTab={activeTab}
           setActiveTab={navigateToTab}
+          onRequestAdminMode={requestAdminMode}
         />
       )}
 
@@ -249,7 +281,13 @@ export const App: React.FC = () => {
       {isTermsOpen && <TermsModal onClose={() => setIsTermsOpen(false)} />}
       {isReferralOpen && <ReferralModal onClose={() => setIsReferralOpen(false)} />}
       {isProfileOpen && <ProfileModal onClose={() => setIsProfileOpen(false)} />}
-        {isPasswordResetOpen && <PasswordResetModal onClose={() => setIsPasswordResetOpen(false)} />}
+      {isPasswordResetOpen && <PasswordResetModal onClose={() => setIsPasswordResetOpen(false)} />}
+      {isAdminMfaOpen && (
+        <AdminMfaModal
+          onClose={() => setIsAdminMfaOpen(false)}
+          onVerified={completeAdminMfa}
+        />
+      )}
       </Suspense>
     </div>
   );
