@@ -37,7 +37,9 @@ export class ErrorBoundary extends Component<Props, State> {
                 Ops! Ocorreu uma instabilidade no carregamento
               </h2>
               <p className="text-xs text-slate-600 mt-1">
-                {this.state.error?.message || 'Erro inesperado ao inicializar a interface.'}
+                {import.meta.env.DEV && this.state.error?.message
+                  ? this.state.error.message
+                  : 'Não foi possível carregar esta tela. Recarregue o aplicativo e tente novamente.'}
               </p>
             </div>
             <button

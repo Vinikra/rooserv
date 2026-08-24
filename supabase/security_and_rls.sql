@@ -1,4 +1,7 @@
 -- ==============================================================================
+-- REFERÊNCIA LEGADA DE RLS — NÃO USAR PARA DEPLOY ATUAL.
+-- AS POLÍTICAS E RPCS VIGENTES ESTÃO EM supabase/migrations/ EM ORDEM.
+-- ==============================================================================
 -- ROOSERV - POLÍTICAS DE ROW LEVEL SECURITY (RLS) & PROCEDURES ATÔMICAS (RPC)
 -- ==============================================================================
 

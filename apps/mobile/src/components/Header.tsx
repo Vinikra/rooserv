@@ -17,6 +17,7 @@ import {
   PlusCircle
 } from 'lucide-react';
 import { CITY_CONFIG, UserRole, UserProfile } from '@servicos/shared';
+import { UserAvatar } from './UserAvatar';
 
 interface HeaderProps {
   onOpenAuth?: () => void;
@@ -179,9 +180,9 @@ const UserDropdownMenu: React.FC<{
     <div className="absolute right-0 mt-2 w-72 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-3.5 z-50 animate-in fade-in space-y-3">
       <div className="border-b border-slate-800 pb-3">
         <div className="flex items-center gap-2.5">
-          <img
-            src={currentUser.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'}
-            alt={currentUser.fullName}
+          <UserAvatar
+            src={currentUser.avatarUrl}
+            name={currentUser.fullName}
             className="w-11 h-11 rounded-full object-cover border-2 border-brand-500"
           />
           <div className="overflow-hidden">
@@ -347,10 +348,10 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header className="bg-slate-900 text-white pt-safe pb-3.5 px-4 sm:px-6 lg:px-8 sticky top-0 z-40 shadow-md border-b border-slate-800 transition-all">
-      <div className="flex items-center justify-between gap-4 max-w-7xl mx-auto w-full">
+    <header className="bg-slate-900 text-white pt-safe pb-3.5 px-3 sm:px-6 lg:px-8 sticky top-0 z-40 shadow-md border-b border-slate-800 transition-all">
+      <div className="flex items-center justify-between gap-2 sm:gap-4 max-w-7xl mx-auto w-full">
         {/* Logotipo e Cidade */}
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
           <button
             type="button"
             onClick={() => setActiveTab?.('explore')}
@@ -358,9 +359,13 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <span className="font-black text-sm sm:text-base tracking-tight text-white">{CITY_CONFIG.brandName}</span>
           </button>
-          <div className="flex items-center gap-1.5 text-xs text-slate-200 font-semibold bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-700">
+          <div
+            className="flex items-center gap-1.5 text-xs text-slate-200 font-semibold bg-slate-800 px-2 sm:px-3 py-1.5 rounded-xl border border-slate-700"
+            aria-label={`${CITY_CONFIG.name}-${CITY_CONFIG.state}`}
+            title={`${CITY_CONFIG.name}-${CITY_CONFIG.state}`}
+          >
             <MapPin className="w-3.5 h-3.5 text-brand-400" />
-            <span>{`${CITY_CONFIG.name}-${CITY_CONFIG.state}`}</span>
+            <span className="hidden sm:inline">{`${CITY_CONFIG.name}-${CITY_CONFIG.state}`}</span>
           </div>
         </div>
 
@@ -376,7 +381,7 @@ export const Header: React.FC<HeaderProps> = ({
         )}
 
         {/* Lado Direito: Notificações & Perfil */}
-        <div className="flex items-center gap-2.5" ref={menuRef}>
+        <div className="flex items-center gap-1.5 sm:gap-2.5" ref={menuRef}>
           {onOpenNotifications && (
             <button
               type="button"
@@ -400,9 +405,9 @@ export const Header: React.FC<HeaderProps> = ({
                 onClick={() => setIsMenuOpen((prev) => !prev)}
                 className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 rounded-xl transition-all active:scale-95 text-left cursor-pointer"
               >
-                <img
-                  src={currentUser.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'}
-                  alt={currentUser.fullName}
+                <UserAvatar
+                  src={currentUser.avatarUrl}
+                  name={currentUser.fullName}
                   className="w-7 h-7 rounded-full object-cover border border-brand-400 shrink-0"
                 />
                 <div className="hidden sm:block">

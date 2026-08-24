@@ -1,34 +1,42 @@
-import React, { useEffect, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useState } from 'react';
 import { useApp } from './context/AppContext';
 import { Header } from './components/Header';
 import { BottomTabs } from './components/BottomTabs';
-import { HomeScreen } from './screens/HomeScreen';
-import { ProviderProfileModal } from './screens/ProviderProfileModal';
-import { CheckoutModal } from './screens/CheckoutModal';
-import { OrdersScreen } from './screens/OrdersScreen';
-import { NewRequestScreen } from './screens/NewRequestScreen';
-import { ConversationsListScreen } from './screens/ConversationsListScreen';
-import { ChatScreen } from './screens/ChatScreen';
-import { ProviderDashboardScreen } from './screens/ProviderDashboardScreen';
-import { AdminScreen } from './screens/AdminScreen';
-import { ProviderOnboardingScreen } from './screens/ProviderOnboardingScreen';
-import { AuthModal } from './screens/AuthModal';
 import { NotificationModal } from './components/NotificationModal';
 import { PWAInstallBanner } from './components/PWAInstallBanner';
-import { TermsModal } from './components/TermsModal';
-import { ReferralModal } from './components/ReferralModal';
 import { InAppToast } from './components/InAppToast';
-import { ProfileModal } from './screens/ProfileModal';
-import { PasswordResetModal } from './screens/PasswordResetModal';
-import { ProviderProfile } from '@servicos/shared';
+import type { ProviderProfile } from '@servicos/shared';
 import { supabase } from './lib/supabase';
+import { useDialogAccessibility } from './hooks/useDialogAccessibility';
+
+const HomeScreen = lazy(() => import('./screens/HomeScreen').then((module) => ({ default: module.HomeScreen })));
+const ProviderProfileModal = lazy(() => import('./screens/ProviderProfileModal').then((module) => ({ default: module.ProviderProfileModal })));
+const OrdersScreen = lazy(() => import('./screens/OrdersScreen').then((module) => ({ default: module.OrdersScreen })));
+const NewRequestScreen = lazy(() => import('./screens/NewRequestScreen').then((module) => ({ default: module.NewRequestScreen })));
+const ConversationsListScreen = lazy(() => import('./screens/ConversationsListScreen').then((module) => ({ default: module.ConversationsListScreen })));
+const ChatScreen = lazy(() => import('./screens/ChatScreen').then((module) => ({ default: module.ChatScreen })));
+const ProviderDashboardScreen = lazy(() => import('./screens/ProviderDashboardScreen').then((module) => ({ default: module.ProviderDashboardScreen })));
+const AdminScreen = lazy(() => import('./screens/AdminScreen').then((module) => ({ default: module.AdminScreen })));
+const ProviderOnboardingScreen = lazy(() => import('./screens/ProviderOnboardingScreen').then((module) => ({ default: module.ProviderOnboardingScreen })));
+const AuthModal = lazy(() => import('./screens/AuthModal').then((module) => ({ default: module.AuthModal })));
+const TermsModal = lazy(() => import('./components/TermsModal').then((module) => ({ default: module.TermsModal })));
+const ReferralModal = lazy(() => import('./components/ReferralModal').then((module) => ({ default: module.ReferralModal })));
+const ProfileModal = lazy(() => import('./screens/ProfileModal').then((module) => ({ default: module.ProfileModal })));
+const PasswordResetModal = lazy(() => import('./screens/PasswordResetModal').then((module) => ({ default: module.PasswordResetModal })));
+
+const ScreenFallback = () => (
+  <div role="status" aria-live="polite" className="flex-1 flex items-center justify-center p-10 text-sm font-bold text-slate-500">
+    Carregando…
+  </div>
+);
 
 export const App: React.FC = () => {
-  const { currentRole, activeToast, dismissActiveToast } = useApp();
+  const { currentUser, currentRole, isAdmin, activeToast, dismissActiveToast } = useApp();
+  useDialogAccessibility();
 
   const [activeTab, setActiveTab] = useState<string>('explore');
+  const [pendingAuthenticatedTab, setPendingAuthenticatedTab] = useState<string | null>(null);
   const [selectedProvider, setSelectedProvider] = useState<ProviderProfile | null>(null);
-  const [checkoutProvider, setCheckoutProvider] = useState<ProviderProfile | null>(null);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
@@ -45,6 +53,30 @@ export const App: React.FC = () => {
     });
     return () => subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!currentUser) setActiveTab('explore');
+  }, [currentUser]);
+
+  const navigateToTab = (tab: string) => {
+    if (!currentUser && tab !== 'explore') {
+      setPendingAuthenticatedTab(tab);
+      setIsAuthOpen(true);
+      return;
+    }
+    setActiveTab(tab);
+  };
+
+  const closeAuth = () => {
+    setPendingAuthenticatedTab(null);
+    setIsAuthOpen(false);
+  };
+
+  const completeAuthentication = () => {
+    if (pendingAuthenticatedTab) setActiveTab(pendingAuthenticatedTab);
+    setPendingAuthenticatedTab(null);
+    setIsAuthOpen(false);
+  };
   
   const [activeChatPartner, setActiveChatPartner] = useState<{
     id: string;
@@ -54,18 +86,13 @@ export const App: React.FC = () => {
     subtitle: string;
   } | null>(null);
 
-  const handleStartCheckout = (provider: ProviderProfile) => {
-    setSelectedProvider(null);
-    setCheckoutProvider(provider);
-  };
-
   const renderClientContent = () => {
     switch (activeTab) {
       case 'explore':
         return (
           <HomeScreen
             onSelectProvider={(p) => setSelectedProvider(p)}
-            onOpenNewRequest={() => setActiveTab('new_request')}
+            onOpenNewRequest={() => navigateToTab('new_request')}
             onOpenOnboarding={() => setIsOnboardingOpen(true)}
             onOpenReferral={() => setIsReferralOpen(true)}
             onOpenTerms={() => setIsTermsOpen(true)}
@@ -75,12 +102,12 @@ export const App: React.FC = () => {
         return (
           <ConversationsListScreen
             onSelectConversation={(p) => setActiveChatPartner(p)}
-            onExplore={() => setActiveTab('explore')}
-            onRequestQuote={() => setActiveTab('new_request')}
+            onExplore={() => navigateToTab('explore')}
+            onRequestQuote={() => navigateToTab('new_request')}
           />
         );
       case 'new_request':
-        return <NewRequestScreen onSuccess={() => setActiveTab('orders')} />;
+        return <NewRequestScreen onSuccess={() => navigateToTab('orders')} />;
       case 'orders':
         return <OrdersScreen />;
       default:
@@ -127,7 +154,7 @@ export const App: React.FC = () => {
       );
     }
 
-    if (currentRole === 'admin') {
+    if (currentRole === 'admin' && isAdmin) {
       return <AdminScreen />;
     }
 
@@ -144,10 +171,10 @@ export const App: React.FC = () => {
 
       {/* Real-time In-App Notification Toast */}
       <InAppToast
-        notification={activeToast}
+          notification={activeToast}
         onClose={dismissActiveToast}
         onNavigate={(tab) => {
-          setActiveTab(tab);
+          navigateToTab(tab);
           dismissActiveToast();
         }}
       />
@@ -155,32 +182,41 @@ export const App: React.FC = () => {
       {/* Header com Navegação Integrada (Desktop + Mobile) */}
       {!activeChatPartner && !isOnboardingOpen && (
         <Header
-          onOpenAuth={() => setIsAuthOpen(true)}
-          onOpenNotifications={() => setIsNotificationsOpen(true)}
+          onOpenAuth={() => {
+            setPendingAuthenticatedTab(null);
+            setIsAuthOpen(true);
+          }}
+          onOpenNotifications={currentUser ? () => setIsNotificationsOpen(true) : undefined}
           onOpenProfile={() => setIsProfileOpen(true)}
           activeTab={activeTab}
-          setActiveTab={setActiveTab}
+          setActiveTab={navigateToTab}
         />
       )}
 
       {/* Container Principal Fluido e Responsivo */}
       <main className="flex-1 w-full flex flex-col">
-        {renderMainContent()}
+        <Suspense fallback={<ScreenFallback />}>
+          {renderMainContent()}
+        </Suspense>
       </main>
 
       {/* Barra Inferior exclusiva para Dispositivos Móveis (Oculta no Desktop) */}
       {!activeChatPartner && !isOnboardingOpen && (
-        <BottomTabs activeTab={activeTab} setActiveTab={setActiveTab} />
+        <BottomTabs activeTab={activeTab} setActiveTab={navigateToTab} />
       )}
 
       {/* Modais Globais com Backdrop e Centralização Responsiva */}
-      {selectedProvider && (
+      <Suspense fallback={null}>
+        {selectedProvider && (
         <ProviderProfileModal
           provider={selectedProvider}
           onClose={() => setSelectedProvider(null)}
-          onStartCheckout={handleStartCheckout}
           onOpenChat={(p) => {
             setSelectedProvider(null);
+            if (!currentUser) {
+              setIsAuthOpen(true);
+              return;
+            }
             setActiveChatPartner({
               id: p.id,
               name: p.profile?.fullName || 'Profissional',
@@ -190,23 +226,12 @@ export const App: React.FC = () => {
             });
           }}
         />
-      )}
-
-      {checkoutProvider && (
-        <CheckoutModal
-          provider={checkoutProvider}
-          onClose={() => setCheckoutProvider(null)}
-          onSuccess={() => {
-            setCheckoutProvider(null);
-            setActiveTab('orders');
-          }}
-        />
-      )}
+        )}
 
       {isAuthOpen && (
         <AuthModal
-          onClose={() => setIsAuthOpen(false)}
-          onSuccess={() => setIsAuthOpen(false)}
+          onClose={closeAuth}
+          onSuccess={completeAuthentication}
         />
       )}
 
@@ -224,7 +249,8 @@ export const App: React.FC = () => {
       {isTermsOpen && <TermsModal onClose={() => setIsTermsOpen(false)} />}
       {isReferralOpen && <ReferralModal onClose={() => setIsReferralOpen(false)} />}
       {isProfileOpen && <ProfileModal onClose={() => setIsProfileOpen(false)} />}
-      {isPasswordResetOpen && <PasswordResetModal onClose={() => setIsPasswordResetOpen(false)} />}
+        {isPasswordResetOpen && <PasswordResetModal onClose={() => setIsPasswordResetOpen(false)} />}
+      </Suspense>
     </div>
   );
 };

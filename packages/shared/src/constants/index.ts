@@ -1,5 +1,7 @@
 import { OrderStatus, RequestUrgency, VerificationStatus } from '../types';
 
+export const LEGAL_TERMS_VERSION = '2026-08-23';
+
 export const CITY_CONFIG = {
   name: 'Rondonópolis',
   state: 'MT',
@@ -35,9 +37,9 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, { label: string; color: st
     description: 'Aguardando confirmação do Pix ou Cartão',
   },
   payment_in_escrow: {
-    label: 'Valor Seguro na Plataforma',
+    label: 'Pagamento confirmado',
     color: '#3B82F6',
-    description: 'Pagamento confirmado e retido com segurança (em custódia)',
+    description: 'Pagamento confirmado; repasse ao prestador aguarda a conclusão do fluxo',
   },
   in_progress: {
     label: 'Em Execução',

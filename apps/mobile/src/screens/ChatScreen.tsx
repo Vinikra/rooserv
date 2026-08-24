@@ -15,6 +15,7 @@ import {
   Pause
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { UserAvatar } from '../components/UserAvatar';
 
 interface ChatScreenProps {
   recipientUser: {
@@ -65,10 +66,10 @@ const ChatProposalCard: React.FC<{
       <div className="flex items-center justify-between border-b border-white/10 pb-2">
         <span className="flex items-center gap-1.5 text-xs font-black text-amber-400">
           <Sparkles className="w-4 h-4" />
-          <span>Orçamento Formal com Garantia</span>
+          <span>Orçamento Formal</span>
         </span>
         <span className="text-xs bg-white/10 px-2.5 py-0.5 rounded-full text-slate-200 font-bold">
-          Custódia RooServ
+          Pagamento RooServ
         </span>
       </div>
 
@@ -275,9 +276,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
   useEffect(() => {
     if (!currentUser?.id) return;
     const channelName = `rooserv_messages_${currentUser.id}`;
-    const channel = supabase.channel(channelName, {
-      config: { broadcast: { self: false } },
-    });
+    const channel = supabase.channel(channelName);
 
     const handlePersistedMessage = (payload: any) => {
       const row = payload?.new;
@@ -328,7 +327,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
 
     if (scanResult.hasSensitiveContact) {
       setSecurityAlert(
-        '⚠️ Tentativa de contato externo bloqueada! Para sua segurança e garantia, números de telefone e redes sociais não podem ser enviados no chat.'
+        '⚠️ Tentativa de contato externo bloqueada. Para manter a negociação registrada, números de telefone e redes sociais não podem ser enviados no chat.'
       );
     }
 
@@ -388,12 +387,11 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
           </button>
 
           <div className="relative">
-            <img
-              src={recipientUser.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100'}
-              alt={recipientUser.name}
+            <UserAvatar
+              src={recipientUser.avatarUrl}
+              name={recipientUser.name}
               className="w-11 h-11 rounded-full object-cover border-2 border-brand-500 shadow-sm"
             />
-            <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-slate-900 rounded-full" />
           </div>
 
           <div>
@@ -409,7 +407,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1 bg-emerald-950/80 text-emerald-300 border border-emerald-800 px-3 py-1 rounded-full text-xs font-bold">
             <ShieldCheck className="w-4 h-4 text-emerald-400" />
-            <span className="hidden sm:inline">Garantia RooServ</span>
+            <span className="hidden sm:inline">Chat protegido</span>
           </div>
         </div>
       </div>
@@ -442,7 +440,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
               Início da conversa com {recipientUser.name}
             </h4>
             <p className="text-xs text-slate-500 leading-relaxed">
-              Tire dúvidas, envie detalhes do serviço ou solicite um orçamento formal com garantia e pagamento seguro por custódia.
+              Tire dúvidas, envie detalhes do serviço ou solicite um orçamento formal com pagamento pela plataforma.
             </p>
             <div className="flex flex-wrap gap-1.5 justify-center pt-2">
               <button

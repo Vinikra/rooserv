@@ -1,17 +1,10 @@
 import React, { useState } from 'react';
 import { CheckCircle, KeyRound } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { getPasswordValidationError } from '@servicos/shared';
 
 interface PasswordResetModalProps {
   onClose: () => void;
-}
-
-function validateNewPassword(password: string): string | null {
-  if (password.length < 8) return 'A senha deve ter pelo menos 8 caracteres.';
-  if (!/[A-Z]/.test(password)) return 'Inclua pelo menos uma letra maiúscula.';
-  if (!/[a-z]/.test(password)) return 'Inclua pelo menos uma letra minúscula.';
-  if (!/[0-9]/.test(password)) return 'Inclua pelo menos um número.';
-  return null;
 }
 
 export const PasswordResetModal: React.FC<PasswordResetModalProps> = ({ onClose }) => {
@@ -29,7 +22,7 @@ export const PasswordResetModal: React.FC<PasswordResetModalProps> = ({ onClose 
     event.preventDefault();
     setError(null);
 
-    const validationError = validateNewPassword(password);
+    const validationError = getPasswordValidationError(password);
     if (validationError) {
       setError(validationError);
       return;
@@ -64,13 +57,13 @@ export const PasswordResetModal: React.FC<PasswordResetModalProps> = ({ onClose 
 
   return (
     <div className="fixed inset-0 z-[80] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white w-full max-w-md rounded-3xl p-6 sm:p-7 shadow-2xl">
+      <div role="dialog" aria-modal="true" aria-labelledby="password-reset-title" className="bg-white w-full max-w-md rounded-3xl p-6 sm:p-7 shadow-2xl">
         {isComplete ? (
           <div className="text-center space-y-4">
             <CheckCircle className="w-14 h-14 text-emerald-600 mx-auto" />
             <div>
-              <h2 className="text-xl font-black text-slate-900">Senha atualizada</h2>
-              <p className="text-sm text-slate-600 mt-2">Sua nova senha já pode ser usada no login administrativo.</p>
+              <h2 id="password-reset-title" className="text-xl font-black text-slate-900">Senha atualizada</h2>
+              <p className="text-sm text-slate-600 mt-2">Sua nova senha já pode ser usada para entrar no RooServ.</p>
             </div>
             <button
               type="button"
@@ -84,7 +77,7 @@ export const PasswordResetModal: React.FC<PasswordResetModalProps> = ({ onClose 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="text-center">
               <KeyRound className="w-12 h-12 text-emerald-600 mx-auto" />
-              <h2 className="text-xl font-black text-slate-900 mt-3">Definir nova senha</h2>
+              <h2 id="password-reset-title" className="text-xl font-black text-slate-900 mt-3">Definir nova senha</h2>
               <p className="text-sm text-slate-600 mt-1">Crie uma senha segura para concluir a recuperação da conta.</p>
             </div>
 

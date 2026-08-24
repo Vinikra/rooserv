@@ -67,7 +67,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
   // Filtragem limpa por categoria e termo de busca para Rondonópolis
   const filteredProviders = (providers || []).filter((p) => {
-    if (p?.verificationStatus !== 'verified') return false;
+    if (p?.verificationStatus !== 'verified' || !p.isAvailable) return false;
     if (selectedCategorySlug && !(p.categories || []).some((c) => c?.slug === selectedCategorySlug)) return false;
     return matchesSearch(p, searchTerm.trim());
   });
@@ -86,20 +86,20 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         />
       </div>
 
-      {/* Grid Superior: Banner de Garantia & Ações Rápidas */}
+      {/* Grid superior: fluxo de pagamento e ações rápidas */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Banner de Proteção / Escrow Exclusivo da Cidade */}
         <div className="lg:col-span-2 bg-gradient-to-r from-brand-900 via-brand-800 to-slate-900 rounded-3xl p-6 sm:p-7 text-white shadow-lg relative overflow-hidden flex flex-col justify-between space-y-4">
           <div className="relative z-10 space-y-2 max-w-xl">
             <div className="flex items-center gap-2 text-xs font-extrabold text-brand-200">
               <ShieldCheck className="w-5 h-5 text-emerald-400" />
-              <span>Garantia RooServ & Pagamento Seguro</span>
+              <span>Pagamento e repasse acompanhados</span>
             </div>
             <h2 className="text-lg sm:text-2xl font-black leading-snug">
-              Contrate os melhores profissionais da cidade sem medo de calote.
+              Contrate profissionais verificados com pagamento e histórico na plataforma.
             </h2>
             <p className="text-xs sm:text-sm text-brand-100/90 leading-relaxed">
-              O valor fica protegido sob custódia pela plataforma e só é transferido ao prestador após sua aprovação final.
+              O pagamento fica registrado na plataforma e o repasse ao prestador ocorre após sua aprovação final ou a resolução de uma disputa.
             </p>
           </div>
 
@@ -113,10 +113,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               <span>Pedir Orçamento Grátis na Cidade</span>
             </button>
           </div>
-          <div className="absolute -right-10 -bottom-10 w-52 h-52 bg-brand-600/30 rounded-full blur-3xl pointer-events-none" />
+          <div aria-hidden="true" className="absolute -right-10 -bottom-10 w-52 h-52 bg-brand-600/30 rounded-full blur-3xl pointer-events-none" />
         </div>
 
-        {/* Ações Rápidas: Indicação & Garantia */}
+        {/* Ações rápidas: indicação e regras */}
         <div className="flex flex-col sm:flex-row lg:flex-col gap-3 justify-between">
           {onOpenReferral && (
             <button
@@ -129,10 +129,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               </div>
               <div>
                 <span className="text-sm font-black text-amber-950 block leading-tight">
-                  Ganhe R$ 20 de Desconto
+                  Convide um Vizinho
                 </span>
                 <span className="text-xs text-amber-900 font-medium">
-                  Indique um vizinho de condomínio ou bairro
+                  Compartilhe o RooServ com sua comunidade
                 </span>
               </div>
             </button>
@@ -149,10 +149,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               </div>
               <div>
                 <span className="text-sm font-black text-slate-900 block leading-tight">
-                  Regras de Proteção & Custódia
+                  Regras de Pagamento & Disputa
                 </span>
                 <span className="text-xs text-slate-500 font-medium">
-                  Termos e cobertura de 60 dias
+                  Regras de pagamento, suporte e disputa
                 </span>
               </div>
             </button>
@@ -210,7 +210,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             Profissionais Disponíveis em Rondonópolis ({filteredProviders.length})
           </h3>
           <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-xl border border-emerald-200/60">
-            Atende toda a cidade
+            Disponíveis no catálogo
           </span>
         </div>
 
@@ -243,11 +243,17 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 <div className="space-y-3">
                   <div className="flex items-start gap-3.5">
                     <div className="relative shrink-0">
-                      <img
-                        src={provider.profile?.avatarUrl || 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=150'}
-                        alt={provider.profile?.fullName || 'Profissional'}
-                        className="w-16 h-16 rounded-2xl object-cover border-2 border-slate-100 shadow-xs"
-                      />
+                      {provider.profile?.avatarUrl ? (
+                        <img
+                          src={provider.profile.avatarUrl}
+                          alt={provider.profile.fullName || 'Profissional'}
+                          className="w-16 h-16 rounded-2xl object-cover border-2 border-slate-100 shadow-xs"
+                        />
+                      ) : (
+                        <div aria-hidden="true" className="w-16 h-16 rounded-2xl bg-brand-100 text-brand-800 border-2 border-slate-100 shadow-xs flex items-center justify-center text-xl font-black">
+                          {(provider.profile?.fullName || 'P').trim().charAt(0).toUpperCase()}
+                        </div>
+                      )}
                       <div className="absolute -bottom-1 -right-1 bg-emerald-500 text-white rounded-full p-1 shadow-sm" title="Identidade Verificada">
                         <CheckCircle2 className="w-4 h-4" />
                       </div>
@@ -261,35 +267,36 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                         <div className="flex items-center gap-1 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200 shrink-0">
                           <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
                           <span className="text-xs font-black text-amber-950">
-                            {(Number(provider.averageRating) || 5.0).toFixed(1)}
+                            {provider.totalReviews > 0 && Number(provider.averageRating) > 0
+                              ? Number(provider.averageRating).toFixed(1)
+                              : 'Novo'}
                           </span>
                         </div>
                       </div>
 
                       <p className="text-xs text-slate-500 font-medium mb-1">
-                        Base: <strong className="text-slate-800">{provider.profile?.neighborhood || 'Centro'}</strong> • {provider.experienceYears || 3} anos de exp.
+                        {provider.profile?.neighborhood
+                          ? <>Base: <strong className="text-slate-800">{provider.profile.neighborhood}</strong></>
+                          : 'Bairro não informado'}
+                        {provider.experienceYears > 0 ? ` • ${provider.experienceYears} anos de exp.` : ''}
                       </p>
                     </div>
                   </div>
 
                   <p className="text-xs sm:text-sm text-slate-600 line-clamp-2 leading-relaxed">
-                    {provider.bio || 'Profissional com ferramentas próprias e garantia de serviço em Rondonópolis.'}
+                    {provider.bio || 'Biografia ainda não cadastrada.'}
                   </p>
 
                   {/* Badges de Confiança & Gamificação AAA */}
                   <div className="flex flex-wrap gap-1.5 pt-1">
-                    {(Number(provider.averageRating) || 5.0) >= 4.8 && (
+                    {provider.totalReviews >= 5 && Number(provider.averageRating) >= 4.8 && (
                       <span className="inline-flex items-center gap-1 text-[11px] font-extrabold bg-amber-50 text-amber-900 px-2.5 py-0.5 rounded-lg border border-amber-200">
                         <span>🏅 Super Prestador</span>
                       </span>
                     )}
                     <span className="inline-flex items-center gap-1 text-[11px] font-bold bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded-lg border border-emerald-200">
                       <ShieldCheck className="w-3 h-3 text-emerald-600" />
-                      <span>Garantia 60 Dias</span>
-                    </span>
-                    <span className="inline-flex items-center gap-1 text-[11px] font-bold bg-blue-50 text-blue-800 px-2 py-0.5 rounded-lg border border-blue-200">
-                      <Zap className="w-3 h-3 text-blue-600" />
-                      <span>Resposta Rápida</span>
+                      <span>Cadastro verificado</span>
                     </span>
                   </div>
                 </div>
@@ -298,7 +305,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 <div className="flex items-center justify-between pt-3 border-t border-slate-100 text-xs">
                   <div className="text-slate-600">
                     <span>Preço base: </span>
-                    <span className="font-extrabold text-slate-900 text-sm">R$ {provider.hourlyRateEstimate || 80}/h</span>
+                    <span className="font-extrabold text-slate-900 text-sm">
+                      {provider.hourlyRateEstimate ? `R$ ${provider.hourlyRateEstimate}/h` : 'Sob consulta'}
+                    </span>
                   </div>
 
                   <div className="flex items-center gap-1.5 text-brand-700 bg-brand-50 px-3 py-1.5 rounded-xl font-bold border border-brand-200/80 group-hover:bg-brand-600 group-hover:text-white transition-colors">
@@ -323,7 +332,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               Você é prestador de serviços na cidade?
             </h4>
             <p className="text-xs sm:text-sm text-amber-950 font-medium">
-              Cadastre-se para receber chamados na Vila Aurora, Centro, Sagrada Família e todos os bairros da cidade.
+              Cadastre-se para receber solicitações publicadas por moradores de Rondonópolis.
             </p>
           </div>
 

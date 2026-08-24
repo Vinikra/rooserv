@@ -29,11 +29,15 @@ export const ProviderDashboardScreen: React.FC<ProviderDashboardScreenProps> = (
     currentUser,
     providerWallet,
     payoutRequests,
+    providerOnboardingStatus,
     sendServiceProposal,
     requestProviderPayout,
   } = useApp();
 
   const currentProvider = providers.find((p) => p.profileId === currentUser?.id);
+  const verificationStatus = providerOnboardingStatus?.verificationStatus
+    || currentProvider?.verificationStatus
+    || 'pending';
 
   // Cálculos da Carteira
   const availableBalance = providerWallet?.balanceAvailable || 0;
@@ -82,10 +86,16 @@ export const ProviderDashboardScreen: React.FC<ProviderDashboardScreenProps> = (
     setIsSendingProposal(true);
     setProposalError(null);
     try {
+      const labor = Number(laborAmount);
+      const materials = Number(materialsAmount);
+      if (!Number.isFinite(labor) || labor < 1 || !Number.isFinite(materials) || materials < 0
+          || labor + materials < 30 || labor + materials > 100000) {
+        throw new Error('O total do orçamento deve ficar entre R$ 30 e R$ 100.000.');
+      }
       await sendServiceProposal({
         requestId: proposalRequestId,
-        laborAmount: Number(laborAmount),
-        materialsAmount: Number(materialsAmount),
+        laborAmount: labor,
+        materialsAmount: materials,
         estimatedDays: Number(estimatedDays),
         warrantyDays: Number(warrantyDays),
         description: proposalDescription.trim(),
@@ -100,18 +110,32 @@ export const ProviderDashboardScreen: React.FC<ProviderDashboardScreenProps> = (
     }
   };
 
-  if (!currentProvider || currentProvider.verificationStatus !== 'verified') {
+  if (!currentProvider || verificationStatus !== 'verified') {
+    const isUnderReview = verificationStatus === 'under_review';
+    const isRejected = verificationStatus === 'rejected';
     return (
       <div className="max-w-2xl mx-auto w-full px-4 py-12">
         <div className="bg-white rounded-3xl border border-amber-200 shadow-sm p-8 text-center space-y-4">
           <AlertCircle className="w-12 h-12 text-amber-600 mx-auto" />
-          <h2 className="text-xl font-black text-slate-900">Perfil profissional ainda não verificado</h2>
+          <h2 className="text-xl font-black text-slate-900">
+            {isUnderReview ? 'Documentos em análise' : isRejected ? 'Cadastro precisa de ajustes' : 'Complete seu cadastro profissional'}
+          </h2>
           <p className="text-sm text-slate-600">
-            Conclua o cadastro e aguarde a validação RooServ antes de visualizar oportunidades ou enviar propostas.
+            {isUnderReview
+              ? 'Seu cadastro foi enviado e está aguardando a validação da gestão RooServ.'
+              : isRejected
+              ? 'Revise os dados ou documentos indicados e envie novamente para análise.'
+              : 'Envie seus dados e documentos para solicitar a verificação RooServ.'}
           </p>
-          {onOpenOnboarding && (
+          {isRejected && providerOnboardingStatus?.rejectionReason && (
+            <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-sm text-red-800 text-left">
+              <strong className="block text-xs uppercase tracking-wide mb-1">Motivo informado pela gestão</strong>
+              {providerOnboardingStatus.rejectionReason}
+            </div>
+          )}
+          {onOpenOnboarding && !isUnderReview && (
             <button type="button" onClick={onOpenOnboarding} className="bg-amber-600 hover:bg-amber-700 text-white font-black px-6 py-3 rounded-2xl">
-              Completar cadastro profissional
+              {isRejected ? 'Corrigir e reenviar cadastro' : 'Completar cadastro profissional'}
             </button>
           )}
         </div>
@@ -170,12 +194,12 @@ export const ProviderDashboardScreen: React.FC<ProviderDashboardScreenProps> = (
               </p>
             </div>
 
-            {/* Dinheiro Retido em Custódia */}
+            {/* Valores aguardando liberação */}
             <div className="bg-slate-800/90 rounded-2xl p-4 border border-slate-700/80 flex items-center justify-between text-xs sm:text-sm">
               <div className="flex items-center gap-2.5">
                 <Clock className="w-5 h-5 text-blue-400 shrink-0" />
                 <div>
-                  <span className="text-slate-400 block text-[11px] uppercase font-extrabold">Retido em Custódia</span>
+                  <span className="text-slate-400 block text-[11px] uppercase font-extrabold">Aguardando repasse</span>
                   <strong className="text-white text-sm sm:text-base font-extrabold">{formatCurrencyBRL(escrowBalance)}</strong>
                 </div>
               </div>
@@ -323,13 +347,13 @@ export const ProviderDashboardScreen: React.FC<ProviderDashboardScreenProps> = (
 
       {proposalRequestId && (
         <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
+          <div role="dialog" aria-modal="true" aria-labelledby="proposal-modal-title" className="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
-                <h3 className="text-lg font-black text-slate-900">Orçamento oficial</h3>
+                <h3 id="proposal-modal-title" className="text-lg font-black text-slate-900">Orçamento oficial</h3>
                 <p className="text-xs text-slate-500">O cliente receberá a proposta no chat seguro.</p>
               </div>
-              <button type="button" onClick={() => setProposalRequestId(null)} disabled={isSendingProposal} className="p-2 text-slate-400 hover:text-slate-700">
+              <button type="button" onClick={() => setProposalRequestId(null)} disabled={isSendingProposal} aria-label="Fechar orçamento" className="p-2 text-slate-400 hover:text-slate-700">
                 <X className="w-5 h-5" />
               </button>
             </div>

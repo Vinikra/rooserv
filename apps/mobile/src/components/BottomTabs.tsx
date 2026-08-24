@@ -64,9 +64,6 @@ export const BottomTabs: React.FC<BottomTabsProps> = ({ activeTab, setActiveTab 
         >
           <MessageSquare className="w-6 h-6" />
           <span>Chat</span>
-          <span className="absolute top-0 right-5 bg-brand-600 text-white text-[10px] w-4.5 h-4.5 rounded-full flex items-center justify-center font-black">
-            1
-          </span>
         </button>
 
         <button
@@ -110,9 +107,6 @@ export const BottomTabs: React.FC<BottomTabsProps> = ({ activeTab, setActiveTab 
       >
         <MessageSquare className="w-6 h-6" />
         <span>Mensagens</span>
-        <span className="absolute top-0 right-5 bg-brand-600 text-white text-[10px] w-4.5 h-4.5 rounded-full flex items-center justify-center font-black">
-          1
-        </span>
       </button>
 
       {/* Botão Central de Destaque para Pedir Orçamento */}

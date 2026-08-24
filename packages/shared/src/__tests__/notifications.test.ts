@@ -5,7 +5,7 @@ describe('In-App Notification Engine (Uber-style)', () => {
   it('should create valid in-app notification objects', () => {
     const notif: InAppNotification = {
       id: 'notif-123',
-      title: 'Custódia Ativa no Serviço',
+      title: 'Pagamento confirmado no serviço',
       message: 'Seu pagamento de R$ 150,00 foi retido com segurança.',
       type: 'payment',
       time: 'Agora',

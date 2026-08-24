@@ -10,21 +10,19 @@ import {
   Mail,
   ArrowLeft
 } from 'lucide-react';
-import { CITY_CONFIG } from '@servicos/shared';
+import {
+  CITY_CONFIG,
+  LEGAL_TERMS_VERSION,
+  getPasswordValidationError,
+  isValidBrazilianPhone,
+  isValidCpf,
+} from '@servicos/shared';
 import { supabase } from '../lib/supabase';
 
 interface AuthModalProps {
   onClose: () => void;
   onSuccess: () => void;
 }
-
-const validatePassword = (pass: string): string | null => {
-  if (pass.length < 8) return 'A senha deve ter pelo menos 8 caracteres.';
-  if (!/[A-Z]/.test(pass)) return 'A senha deve conter pelo menos uma letra maiúscula.';
-  if (!/[a-z]/.test(pass)) return 'A senha deve conter pelo menos uma letra minúscula.';
-  if (!/[0-9]/.test(pass)) return 'A senha deve conter pelo menos um número.';
-  return null;
-};
 
 export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
   const { login, signup } = useApp();
@@ -37,6 +35,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
   const [phone, setPhone] = useState('');
   const [cpf, setCpf] = useState('');
   const [neighborhood, setNeighborhood] = useState(CITY_CONFIG.defaultNeighborhoods[0]);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -75,7 +74,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
       return;
     }
 
-    const passwordError = validatePassword(password);
+    const passwordError = getPasswordValidationError(password);
     if (passwordError) {
       setIsLoading(false);
       setErrorMessage(passwordError);
@@ -88,9 +87,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
       return;
     }
 
-    if (cpf.replace(/\D/g, '').length !== 11) {
+    if (!isValidCpf(cpf)) {
       setIsLoading(false);
-      setErrorMessage('Informe um CPF válido com 11 dígitos.');
+      setErrorMessage('Informe um CPF válido.');
+      return;
+    }
+
+    if (!isValidBrazilianPhone(phone)) {
+      setIsLoading(false);
+      setErrorMessage('Informe um telefone com DDD válido.');
+      return;
+    }
+    if (!acceptedTerms) {
+      setIsLoading(false);
+      setErrorMessage('Leia e aceite os Termos de Uso e a Política de Privacidade para continuar.');
       return;
     }
 
@@ -99,9 +109,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
       fullName: name,
       email,
       password,
-      phone: phone || '(66) 99999-0000',
+      phone,
       neighborhood,
       documentCpf: cpf,
+      acceptedTerms,
+      termsVersion: LEGAL_TERMS_VERSION,
     });
 
     if (result.success) {
@@ -134,7 +146,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
 
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
-        redirectTo: import.meta.env.PROD ? window.location.origin : 'https://rooserv.vercel.app',
+        redirectTo: `${window.location.origin}/`,
       });
 
       if (error) {
@@ -252,7 +264,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200">
-      <div className="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl p-6 sm:p-7 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
+      <div role="dialog" aria-modal="true" aria-labelledby="auth-title" className="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl p-6 sm:p-7 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
         {/* Cabeçalho */}
         <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
           <div className="flex items-center gap-3">
@@ -260,7 +272,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
               {authMode === 'forgot' ? <Mail className="w-6 h-6 text-blue-600" /> : <Lock className="w-6 h-6 text-brand-600" />}
             </div>
             <div>
-              <h3 className="text-base sm:text-lg font-black text-slate-900 leading-tight">
+              <h3 id="auth-title" className="text-base sm:text-lg font-black text-slate-900 leading-tight">
                 {authMode === 'login' && 'Entrar no RooServ'}
                 {authMode === 'signup' && 'Criar Conta no RooServ'}
                 {authMode === 'forgot' && 'Recuperar Senha'}
@@ -275,6 +287,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
           <button
             type="button"
             onClick={onClose}
+            aria-label="Fechar autenticação"
             className="text-slate-400 hover:text-slate-600 p-2 rounded-full"
           >
             <X className="w-6 h-6" />
@@ -329,6 +342,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
                   <input
                     id="auth-login-email"
                     type="email"
+                    autoComplete="email"
                     required
                     placeholder="seu.email@exemplo.com"
                     value={email}
@@ -344,6 +358,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
                   <input
                     id="auth-login-password"
                     type="password"
+                    autoComplete="current-password"
                     required
                     placeholder="••••••••"
                     value={password}
@@ -395,6 +410,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
                   <input
                     id="auth-signup-email"
                     type="email"
+                    autoComplete="email"
                     required
                     placeholder="seu.email@exemplo.com"
                     value={email}
@@ -410,6 +426,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
                   <input
                     id="auth-signup-password"
                     type="password"
+                    autoComplete="new-password"
                     required
                     minLength={8}
                     placeholder="Mínimo 8 caracteres"
@@ -427,6 +444,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
                   <input
                     id="auth-signup-confirm"
                     type="password"
+                    autoComplete="new-password"
                     required
                     placeholder="••••••••"
                     value={confirmPassword}
@@ -436,6 +454,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess }) => {
                     }`}
                   />
                 </div>
+
+                <label className="flex items-start gap-2.5 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={acceptedTerms}
+                    onChange={(event) => setAcceptedTerms(event.target.checked)}
+                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600"
+                  />
+                  <span>
+                    Li e aceito os <strong>Termos de Uso</strong> e a <strong>Política de Privacidade</strong>,
+                    versão {LEGAL_TERMS_VERSION}. O resumo pode ser consultado na tela inicial.
+                  </span>
+                </label>
 
                 {errorMessage && (
                   <div className="p-3 bg-red-50 border border-red-200 rounded-2xl text-xs sm:text-sm text-red-600 font-medium">

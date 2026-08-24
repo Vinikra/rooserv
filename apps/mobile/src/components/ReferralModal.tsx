@@ -7,23 +7,29 @@ interface ReferralModalProps {
 
 export const ReferralModal: React.FC<ReferralModalProps> = ({ onClose }) => {
   const [copied, setCopied] = useState(false);
-  const referralCode = 'ROOSERV-ROO20';
-  const shareMessage = `Oi! Estou usando o RooServ para contratar eletricistas e serviços com garantia aqui em Rondonópolis. Use o cupom ${referralCode} e ganhe R$ 20 de desconto: http://localhost:3001/`;
+  const [copyError, setCopyError] = useState(false);
+  const shareUrl = `${window.location.origin}/`;
+  const shareMessage = `Oi! Conheça o RooServ para contratar profissionais em Rondonópolis: ${shareUrl}`;
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(referralCode);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2500);
+  const handleCopy = async () => {
+    setCopyError(false);
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      setCopyError(true);
+    }
   };
 
   const handleWhatsAppShare = () => {
     const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareMessage)}`;
-    window.open(url, '_blank');
+    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200">
-      <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl space-y-4">
+      <div role="dialog" aria-modal="true" aria-labelledby="referral-title" className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl space-y-4">
         
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -32,44 +38,45 @@ export const ReferralModal: React.FC<ReferralModalProps> = ({ onClose }) => {
               <Gift className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-sm font-extrabold text-slate-900">
+              <h3 id="referral-title" className="text-sm font-extrabold text-slate-900">
                 Indique um Vizinho em Rondonópolis
               </h3>
               <p className="text-[11px] text-slate-500">
-                Ganhe R$ 20 de crédito por cada morador indicado
+                Compartilhe o acesso ao aplicativo
               </p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
+            aria-label="Fechar indicação"
             className="text-slate-400 hover:text-slate-600 p-1"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Banner Ilustrativo */}
+        {/* Banner de convite */}
         <div className="bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 p-4 rounded-2xl shadow-sm text-center space-y-1">
           <span className="text-[10px] font-black uppercase tracking-wider bg-black/15 px-2.5 py-0.5 rounded-full inline-block">
-            Programa Vizinho Seguro
+            Rede local de serviços
           </span>
           <h4 className="text-sm font-black">
-            Seu amigo ganha R$ 20 e você também!
+            Ajude um vizinho a encontrar profissionais locais
           </h4>
           <p className="text-xs text-amber-950/80 font-medium leading-tight">
-            Válido para reformas, elétrica, pintura ou faxina em qualquer bairro da cidade.
+            Compartilhe o link do RooServ por mensagem ou WhatsApp.
           </p>
         </div>
 
-        {/* Caixa de Cupom */}
+        {/* Link do aplicativo */}
         <div className="space-y-1.5">
           <p className="text-xs font-bold text-slate-700">
-            Seu Cupom Exclusivo de Indicação:
+            Link do aplicativo:
           </p>
           <div className="flex items-center gap-2">
             <div className="flex-1 bg-slate-100 border-2 border-dashed border-slate-300 rounded-xl p-2.5 text-center font-mono font-extrabold text-slate-900 text-sm tracking-wider">
-              {referralCode}
+              {shareUrl}
             </div>
             <button
               type="button"
@@ -80,6 +87,11 @@ export const ReferralModal: React.FC<ReferralModalProps> = ({ onClose }) => {
               <span>{copied ? 'Copiado!' : 'Copiar'}</span>
             </button>
           </div>
+          {copyError && (
+            <p role="alert" className="text-xs text-red-700 font-semibold">
+              Não foi possível copiar automaticamente. Selecione o link acima e copie manualmente.
+            </p>
+          )}
         </div>
 
         {/* Botão de Compartilhar no WhatsApp */}

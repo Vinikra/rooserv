@@ -64,7 +64,7 @@ export function sanitizeChatMessage(text: string): ContactDetectionResult {
     sanitizedText: sanitized,
     originalText: text,
     warningMessage: hasSensitiveContact
-      ? 'Aviso de Segurança RooServ: Para garantir o seguro de 60 dias e a custódia do seu pagamento, propostas e negociações devem ser feitas exclusivamente dentro da plataforma.'
+      ? 'Aviso de segurança RooServ: mantenha propostas e negociações na plataforma para preservar o histórico usado em suporte e disputas.'
       : undefined,
   };
 }

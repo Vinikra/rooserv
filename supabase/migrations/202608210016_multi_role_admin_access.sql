@@ -11,38 +11,10 @@ CREATE TABLE IF NOT EXISTS admin_users (
 ALTER TABLE admin_users ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE admin_users FROM PUBLIC, anon, authenticated;
 
-INSERT INTO admin_users (profile_id)
-SELECT id FROM profiles
-WHERE id = '52936151-bec6-4c35-be41-85ea3ce03118'::UUID
-ON CONFLICT (profile_id) DO UPDATE SET is_active = true, updated_at = NOW();
-
-DO $$
-DECLARE
-    v_profile_id UUID;
-BEGIN
-    SELECT id INTO v_profile_id
-    FROM profiles
-    WHERE user_id = 'ab1bad86-26db-47f7-9c5d-e16c4b510bc8'::UUID
-      AND lower(email) = 'vinikra14@gmail.com';
-
-    IF v_profile_id IS NULL THEN
-        RAISE EXCEPTION 'A conta indicada para acesso administrativo não foi encontrada';
-    END IF;
-
-    UPDATE profiles
-    SET role = 'provider', updated_at = NOW()
-    WHERE id = v_profile_id;
-
-    INSERT INTO provider_profiles (profile_id, verification_status, is_available)
-    VALUES (v_profile_id, 'pending', false)
-    ON CONFLICT (profile_id) DO NOTHING;
-
-    INSERT INTO admin_users (profile_id, granted_by)
-    VALUES (v_profile_id, '52936151-bec6-4c35-be41-85ea3ce03118'::UUID)
-    ON CONFLICT (profile_id) DO UPDATE
-    SET is_active = true, updated_at = NOW();
-END;
-$$;
+-- O acesso administrativo é uma configuração de ambiente, não dado de
+-- aplicação. Nenhum UUID ou e-mail pessoal deve ser gravado em migrations.
+-- A concessão é feita pela função service-role criada na migration de
+-- hardening posterior.
 
 CREATE OR REPLACE FUNCTION is_rooserv_admin()
 RETURNS BOOLEAN

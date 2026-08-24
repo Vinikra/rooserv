@@ -75,7 +75,7 @@ BEGIN
         RAISE EXCEPTION 'Valor de materiais inválido';
     END IF;
     v_total := ROUND(p_labor_amount + COALESCE(p_materials_amount, 0), 2);
-    IF v_total < 1 OR v_total > 100000 THEN RAISE EXCEPTION 'Valor total inválido'; END IF;
+    IF v_total < 30 OR v_total > 100000 THEN RAISE EXCEPTION 'Valor total deve ficar entre R$ 30 e R$ 100.000'; END IF;
     IF p_estimated_days IS NULL OR p_estimated_days < 1 OR p_estimated_days > 365 THEN
         RAISE EXCEPTION 'Prazo estimado inválido';
     END IF;
@@ -202,7 +202,11 @@ BEGIN
         provider_payout_amount, status, payment_method, installments_count
     ) VALUES (
         v_order_number, v_profile_id, v_proposal.provider_id, v_proposal.id, v_request.id,
-        v_proposal.total_amount, 12, 0, 0, 'awaiting_payment', 'pix', 1
+        v_proposal.total_amount,
+        12.00,
+        ROUND(v_proposal.total_amount * 0.12, 2),
+        v_proposal.total_amount - ROUND(v_proposal.total_amount * 0.12, 2),
+        'awaiting_payment', 'pix', 1
     ) RETURNING * INTO v_order;
 
     v_payload := jsonb_set(v_payload, '{proposalData,isAccepted}', 'true'::JSONB, true);

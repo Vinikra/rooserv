@@ -2,12 +2,13 @@ import React from 'react';
 import { useApp } from '../context/AppContext';
 import { ShieldCheck, ChevronRight, MessageSquare, Compass, Send } from 'lucide-react';
 import { Order, ProviderProfile, UserRole } from '@servicos/shared';
+import { UserAvatar } from '../components/UserAvatar';
 
 interface ConversationItem {
   id: string;
   partnerId: string;
   name: string;
-  avatarUrl: string;
+  avatarUrl?: string;
   role: 'client' | 'provider';
   subtitle: string;
   lastMessage: string;
@@ -35,11 +36,11 @@ function buildOrderConversation(order: Order, role: UserRole): ConversationItem 
     : order.provider?.profile?.fullName || 'Profissional Parceiro';
 
   const partnerAvatar = isProvider
-    ? order.client?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'
-    : order.provider?.profile?.avatarUrl || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150';
+    ? order.client?.avatarUrl
+    : order.provider?.profile?.avatarUrl;
 
   const lastMessage = order.status === 'payment_in_escrow'
-    ? 'Valor retido sob custódia. Pronto para execução.'
+    ? 'Pagamento confirmado. Pronto para execução.'
     : 'Conversa segura vinculada ao pedido.';
 
   return {
@@ -50,19 +51,21 @@ function buildOrderConversation(order: Order, role: UserRole): ConversationItem 
     role: isProvider ? 'client' : 'provider',
     subtitle: `Pedido #${order.orderNumber} • ${order.serviceTitle || 'Serviço'}`,
     lastMessage,
-    time: 'Hoje',
+    time: order.createdAt
+      ? new Date(order.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+      : '',
     unreadCount: 0,
     hasPendingProposal: order.status === 'draft',
   };
 }
 
 function buildProviderConversation(prov: ProviderProfile): ConversationItem | null {
-  if (!prov.profile) return null;
+  if (!prov.profile || prov.verificationStatus !== 'verified' || !prov.isAvailable) return null;
   return {
     id: `conv-prov-${prov.id}`,
     partnerId: prov.profileId,
     name: prov.profile.fullName,
-    avatarUrl: prov.profile.avatarUrl || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
+    avatarUrl: prov.profile.avatarUrl,
     role: 'provider',
     subtitle: `${prov.profile.neighborhood} • ${prov.categories?.[0]?.name || 'Prestador de Serviços'}`,
     lastMessage: 'Clique para iniciar uma conversa e pedir um orçamento formal.',
@@ -171,9 +174,9 @@ export const ConversationsListScreen: React.FC<ConversationsListScreenProps> = (
               className="w-full text-left bg-white rounded-3xl p-4 sm:p-5 border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer flex items-center gap-4 active:scale-[0.99]"
             >
               <div className="relative shrink-0">
-                <img
+                <UserAvatar
                   src={conv.avatarUrl}
-                  alt={conv.name}
+                  name={conv.name}
                   className="w-14 h-14 rounded-2xl object-cover border border-slate-100 shadow-xs"
                 />
                 {conv.unreadCount > 0 && (

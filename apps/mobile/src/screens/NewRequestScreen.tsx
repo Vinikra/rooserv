@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { CITY_CONFIG, URGENCY_LABELS, RequestUrgency } from '@servicos/shared';
 import { 
@@ -10,6 +10,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { RooServStorageService } from '../services/storageService';
+import { SecureImage } from '../components/SecureImage';
 
 interface NewRequestScreenProps {
   onSuccess: () => void;
@@ -26,46 +27,98 @@ export const NewRequestScreen: React.FC<NewRequestScreenProps> = ({ onSuccess })
   const [neighborhood, setNeighborhood] = useState<string>(
     selectedNeighborhood !== 'Todos os Bairros' ? selectedNeighborhood : CITY_CONFIG.defaultNeighborhoods[0]
   );
-  const [budget, setBudget] = useState<string>('150');
+  const [budget, setBudget] = useState<string>('');
   const [photos, setPhotos] = useState<string[]>([]);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
+  const photosRef = useRef<string[]>([]);
+  const requestPublishedRef = useRef(false);
+
+  useEffect(() => {
+    if (!categoryId && categories[0]) setCategoryId(categories[0].id);
+  }, [categories, categoryId]);
+
+  useEffect(() => {
+    photosRef.current = photos;
+  }, [photos]);
+
+  useEffect(() => () => {
+    if (!requestPublishedRef.current && photosRef.current.length > 0) {
+      void RooServStorageService.removePrivateImages(photosRef.current).catch(() => undefined);
+    }
+  }, []);
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && photos.length < 3) {
       setIsUploadingPhoto(true);
-      const url = await RooServStorageService.uploadImage(file, 'requests');
-      if (url) {
+      setFormError(null);
+      try {
+        const url = await RooServStorageService.uploadImage(file, 'requests');
         setPhotos((prev) => [...prev, url]);
+      } catch (error) {
+        setFormError(error instanceof Error ? error.message : 'Não foi possível enviar a imagem.');
+      } finally {
+        setIsUploadingPhoto(false);
+        e.target.value = '';
       }
-      setIsUploadingPhoto(false);
     }
   };
 
-  const removePhoto = (index: number) => {
-    setPhotos((prev) => prev.filter((_, i) => i !== index));
+  const removePhoto = async (index: number) => {
+    const reference = photos[index];
+    if (!reference) return;
+    setFormError(null);
+    try {
+      await RooServStorageService.removePrivateImages([reference]);
+      setPhotos((prev) => prev.filter((_, i) => i !== index));
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : 'Não foi possível remover a imagem.');
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !description.trim()) return;
+    setFormError(null);
+    const parsedBudget = budget ? Number(budget) : undefined;
+    if (title.trim().length < 5 || title.trim().length > 120) {
+      setFormError('O título deve ter entre 5 e 120 caracteres.');
+      return;
+    }
+    if (description.trim().length < 20 || description.trim().length > 4000) {
+      setFormError('A descrição deve ter entre 20 e 4.000 caracteres.');
+      return;
+    }
+    if (parsedBudget !== undefined && (!Number.isFinite(parsedBudget) || parsedBudget < 30 || parsedBudget > 100000)) {
+      setFormError('Informe um orçamento entre R$ 30 e R$ 100.000.');
+      return;
+    }
 
-    await createServiceRequest({
-      categoryId,
-      title: title.trim(),
-      description: description.trim(),
-      urgency,
-      neighborhood,
-      budget: budget ? Number(budget) : undefined,
-      photos,
-    });
+    setIsSubmitting(true);
+    try {
+      await createServiceRequest({
+        categoryId,
+        title: title.trim(),
+        description: description.trim(),
+        urgency,
+        neighborhood,
+        budget: parsedBudget,
+        photos,
+      });
 
-    setIsSuccess(true);
-    setTimeout(() => {
-      setIsSuccess(false);
-      onSuccess();
-    }, 1500);
+      requestPublishedRef.current = true;
+      setIsSuccess(true);
+      setTimeout(() => {
+        setIsSuccess(false);
+        onSuccess();
+      }, 1500);
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : 'Não foi possível publicar o pedido.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -88,7 +141,7 @@ export const NewRequestScreen: React.FC<NewRequestScreenProps> = ({ onSuccess })
             Pedido Publicado com Sucesso!
           </h3>
           <p className="text-sm text-slate-600 max-w-md mx-auto">
-            Os prestadores verificados da sua região foram notificados. Você receberá orçamentos em instantes.
+            Seu pedido ficou visível para prestadores verificados e disponíveis. As propostas aparecerão no chat quando forem enviadas.
           </p>
         </div>
       ) : (
@@ -121,6 +174,8 @@ export const NewRequestScreen: React.FC<NewRequestScreenProps> = ({ onSuccess })
               id="req-title"
               type="text"
               required
+              minLength={5}
+              maxLength={120}
               placeholder="Ex: Troca de disjuntor e revisão no chuveiro"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -136,6 +191,8 @@ export const NewRequestScreen: React.FC<NewRequestScreenProps> = ({ onSuccess })
             <textarea
               id="req-description"
               required
+              minLength={20}
+              maxLength={4000}
               rows={4}
               placeholder="Ex: O chuveiro está desarmando o disjuntor após 3 minutos ligado. Preciso de alguém com chave de teste e fios adequados..."
               value={description}
@@ -174,9 +231,11 @@ export const NewRequestScreen: React.FC<NewRequestScreenProps> = ({ onSuccess })
                 id="req-budget"
                 type="number"
                 min="30"
+                max="100000"
                 step="10"
                 value={budget}
                 onChange={(e) => setBudget(e.target.value)}
+                placeholder="Opcional"
                 className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm sm:text-base font-bold text-slate-900 focus:outline-none focus:border-brand-500"
               />
             </div>
@@ -221,10 +280,11 @@ export const NewRequestScreen: React.FC<NewRequestScreenProps> = ({ onSuccess })
             <div className="grid grid-cols-3 gap-3">
               {photos.map((photo, index) => (
                 <div key={photo.slice(0, 40) + index} className="relative aspect-square rounded-2xl overflow-hidden border border-slate-200 shadow-sm group">
-                  <img src={photo} alt={`Foto ${index + 1}`} className="w-full h-full object-cover" />
+                  <SecureImage src={photo} alt={`Foto ${index + 1}`} className="w-full h-full object-cover" />
                   <button
                     type="button"
-                    onClick={() => removePhoto(index)}
+                    onClick={() => void removePhoto(index)}
+                    aria-label={`Remover foto ${index + 1}`}
                     className="absolute top-1.5 right-1.5 bg-red-600/90 text-white p-1 rounded-full shadow-md cursor-pointer hover:bg-red-700 transition-colors"
                   >
                     <X className="w-3.5 h-3.5" />
@@ -257,7 +317,7 @@ export const NewRequestScreen: React.FC<NewRequestScreenProps> = ({ onSuccess })
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*"
+              accept="image/jpeg,image/png,image/webp"
               className="hidden"
               onChange={handlePhotoUpload}
             />
@@ -265,12 +325,18 @@ export const NewRequestScreen: React.FC<NewRequestScreenProps> = ({ onSuccess })
 
           {/* Botão de Envio */}
           <div className="pt-2">
+            {formError && (
+              <div role="alert" className="mb-3 bg-red-50 border border-red-200 text-red-800 rounded-xl px-3 py-2 text-xs font-semibold">
+                {formError}
+              </div>
+            )}
             <button
               type="submit"
-              className="w-full bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 text-white font-black text-sm sm:text-base py-4 rounded-2xl shadow-lg shadow-emerald-500/25 transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
+              disabled={isSubmitting || isUploadingPhoto || !categoryId}
+              className="w-full bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 disabled:opacity-60 text-white font-black text-sm sm:text-base py-4 rounded-2xl shadow-lg shadow-emerald-500/25 transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
             >
-              <Send className="w-5 h-5" />
-              <span>Publicar Pedido de Orçamento</span>
+              {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+              <span>{isSubmitting ? 'Publicando com segurança...' : 'Publicar Pedido de Orçamento'}</span>
             </button>
           </div>
         </form>

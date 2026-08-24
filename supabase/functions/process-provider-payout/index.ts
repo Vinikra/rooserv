@@ -1,7 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import {
-  ASAAS_BASE_URL,
-  asaasHeaders,
+  ABACATEPAY_BASE_URL,
+  abacatePayHeaders,
   corsHeaders,
   errorResponse,
   successResponse,
@@ -9,18 +9,22 @@ import {
 
 interface ProcessPayoutRequest { payoutRequestId?: string }
 
-interface AsaasTransfer {
+interface AbacatePayTransfer {
   id?: string;
-  value?: number;
-  status?: 'PENDING' | 'BANK_PROCESSING' | 'DONE' | 'CANCELLED' | 'FAILED';
-  operationType?: 'PIX' | 'TED' | 'INTERNAL';
-  externalReference?: string;
-  failReason?: string | null;
-  transactionReceiptUrl?: string | null;
+  amount?: number;
+  status?: 'PENDING' | 'COMPLETE' | 'CANCELLED' | 'REFUNDED' | 'FAILED';
+  externalId?: string;
+  receiptUrl?: string | null;
 }
 
-function asaasError(body: { errors?: Array<{ description?: string }> }, fallback: string) {
-  return body.errors?.[0]?.description || fallback;
+interface AbacatePayResponse<T> {
+  data?: T | null;
+  error?: string | null;
+  success?: boolean;
+}
+
+function abacatePayError(body: AbacatePayResponse<unknown>, fallback: string) {
+  return typeof body.error === 'string' && body.error.trim() ? body.error : fallback;
 }
 
 function normalizePixKey(key: string, type: string) {
@@ -28,7 +32,7 @@ function normalizePixKey(key: string, type: string) {
   if (normalizedType === 'cpf' || normalizedType === 'cnpj') return key.replace(/\D/g, '');
   if (normalizedType === 'phone') {
     const digits = key.replace(/\D/g, '');
-    return digits.startsWith('55') ? `+${digits}` : `+55${digits}`;
+    return digits.startsWith('55') ? digits.slice(2) : digits;
   }
   if (normalizedType === 'email') return key.trim().toLowerCase();
   return key.trim();
@@ -40,10 +44,16 @@ function mapPixKeyType(type: string) {
     cnpj: 'CNPJ',
     email: 'EMAIL',
     phone: 'PHONE',
-    random: 'EVP',
-    evp: 'EVP',
+    random: 'RANDOM',
+    evp: 'RANDOM',
   };
-  return types[type.toLowerCase()] || 'EVP';
+  return types[type.toLowerCase()] || 'RANDOM';
+}
+
+function mapTransferStatus(status?: AbacatePayTransfer['status']) {
+  if (status === 'COMPLETE') return 'DONE';
+  if (status === 'FAILED' || status === 'CANCELLED' || status === 'REFUNDED') return 'FAILED';
+  return 'PENDING';
 }
 
 Deno.serve(async (req) => {
@@ -81,27 +91,30 @@ Deno.serve(async (req) => {
       .single();
     if (!provider || provider.profile_id !== profile.id) return errorResponse('Você não pode processar este saque.', 403);
 
-    const reconcile = async (transfer: AsaasTransfer) => {
+    const reconcile = async (transfer: AbacatePayTransfer) => {
       const { data, error } = await adminClient.rpc('reconcile_provider_payout', {
         p_payout_request_id: payout.id,
         p_gateway_transfer_id: transfer.id || null,
-        p_gateway_status: transfer.status,
-        p_fail_reason: transfer.failReason || null,
-        p_receipt_url: transfer.transactionReceiptUrl || null,
+        p_gateway_status: mapTransferStatus(transfer.status),
+        p_fail_reason: ['FAILED', 'CANCELLED', 'REFUNDED'].includes(transfer.status || '')
+          ? 'Transferência não concluída pela AbacatePay'
+          : null,
+        p_receipt_url: transfer.receiptUrl || null,
       });
       if (error) throw new Error(error.message);
       return data?.payout_request;
     };
 
     if (payout.gateway_transfer_id) {
-      const response = await fetch(`${ASAAS_BASE_URL}/transfers/${payout.gateway_transfer_id}`, {
-        headers: asaasHeaders(),
+      const response = await fetch(`${ABACATEPAY_BASE_URL}/pix/get?id=${encodeURIComponent(payout.gateway_transfer_id)}`, {
+        headers: abacatePayHeaders(),
       });
-      const transfer: AsaasTransfer = await response.json();
-      if (!response.ok || transfer.id !== payout.gateway_transfer_id) {
-        return errorResponse('Não foi possível consultar a transferência no Asaas.', 502);
+      const responseBody: AbacatePayResponse<AbacatePayTransfer> = await response.json();
+      const transfer = responseBody.data;
+      if (!response.ok || !transfer || transfer.id !== payout.gateway_transfer_id) {
+        return errorResponse(abacatePayError(responseBody, 'Não foi possível consultar a transferência na AbacatePay.'), 502);
       }
-      if (transfer.externalReference !== payout.id || Number(transfer.value) !== Number(payout.amount)) {
+      if (transfer.externalId !== payout.id || Number(transfer.amount) !== Math.round(Number(payout.amount) * 100)) {
         return errorResponse('Transferência divergente da solicitação local.', 409);
       }
       const reconciled = await reconcile(transfer);
@@ -121,22 +134,23 @@ Deno.serve(async (req) => {
 
     const pixKey = String(claim.pix_key || '');
     const pixKeyType = String(claim.pix_key_type || '');
-    const transferResponse = await fetch(`${ASAAS_BASE_URL}/transfers`, {
+    const transferResponse = await fetch(`${ABACATEPAY_BASE_URL}/pix/send`, {
       method: 'POST',
-      headers: asaasHeaders(),
+      headers: abacatePayHeaders(),
       body: JSON.stringify({
-        value: Number(payout.amount),
-        operationType: 'PIX',
-        pixAddressKey: normalizePixKey(pixKey, pixKeyType),
-        pixAddressKeyType: mapPixKeyType(pixKeyType),
+        amount: Math.round(Number(payout.amount) * 100),
+        pix: {
+          key: normalizePixKey(pixKey, pixKeyType),
+          type: mapPixKeyType(pixKeyType),
+        },
         description: `RooServ - Saque ${payout.id.slice(0, 8)}`,
-        externalReference: payout.id,
+        externalId: payout.id,
       }),
     });
-    const transferBody = await transferResponse.json();
+    const transferBody: AbacatePayResponse<AbacatePayTransfer> = await transferResponse.json();
 
     if (!transferResponse.ok) {
-      const message = asaasError(transferBody, 'Falha ao criar transferência Pix.');
+      const message = abacatePayError(transferBody, 'Falha ao criar transferência Pix.');
       if (transferResponse.status >= 400 && transferResponse.status < 500) {
         await adminClient.rpc('reconcile_provider_payout', {
           p_payout_request_id: payout.id,
@@ -149,14 +163,14 @@ Deno.serve(async (req) => {
       return errorResponse(message, transferResponse.status >= 500 ? 502 : 422);
     }
 
-    const transfer = transferBody as AsaasTransfer;
-    if (!transfer.id || !transfer.status || transfer.operationType !== 'PIX') {
-      return errorResponse('Resposta de transferência inválida do Asaas.', 502);
+    const transfer = transferBody.data;
+    if (!transfer?.id || !transfer.status) {
+      return errorResponse('Resposta de transferência inválida da AbacatePay.', 502);
     }
-    if (transfer.externalReference && transfer.externalReference !== payout.id) {
+    if (transfer.externalId && transfer.externalId !== payout.id) {
       return errorResponse('Referência externa divergente na transferência.', 409);
     }
-    if (Number(transfer.value) !== Number(payout.amount)) {
+    if (Number(transfer.amount) !== Math.round(Number(payout.amount) * 100)) {
       return errorResponse('Valor divergente na transferência.', 409);
     }
 

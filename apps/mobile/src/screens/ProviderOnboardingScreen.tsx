@@ -1,8 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { CITY_CONFIG } from '@servicos/shared';
+import {
+  CITY_CONFIG,
+  LEGAL_TERMS_VERSION,
+  getPasswordValidationError,
+  isValidBrazilianPhone,
+  isValidCpf,
+} from '@servicos/shared';
 import { supabase } from '../lib/supabase';
 import { RooServStorageService } from '../services/storageService';
+import { TermsModal } from '../components/TermsModal';
 import { 
   User, 
   CheckCircle, 
@@ -21,7 +28,7 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
   onSuccess,
   onCancel,
 }) => {
-  const { categories, signup, currentUser } = useApp();
+  const { categories, signup, currentUser, refreshProviderDirectory } = useApp();
   const [step, setStep] = useState<number>(1);
   const totalSteps = 4;
 
@@ -31,16 +38,19 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
   const [cpf, setCpf] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [showTerms, setShowTerms] = useState(false);
   const [baseNeighborhood, setBaseNeighborhood] = useState(CITY_CONFIG.defaultNeighborhoods[0]);
 
   // Formulário Step 2: Categoria & Preço
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
-  const [hourlyRate, setHourlyRate] = useState('80');
-  const [experienceYears, setExperienceYears] = useState(5);
+  const [hourlyRate, setHourlyRate] = useState('');
+  const [experienceYears, setExperienceYears] = useState(0);
 
   // Formulário Step 3: Bio & Chave Pix
-  const [bio, setBio] = useState('Professor de Matemática & Reforço Escolar especializado em Rondonópolis.');
+  const [bio, setBio] = useState('');
   const [pixKey, setPixKey] = useState('');
+  const [pixKeyType, setPixKeyType] = useState<'cpf' | 'cnpj' | 'email' | 'phone' | 'random'>('phone');
 
   // Formulário Step 4: Documentos / KYC
   const [idFrontFile, setIdFrontFile] = useState<File | null>(null);
@@ -60,6 +70,16 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
     }
   }, [categories, selectedCategoryIds.length]);
 
+  useEffect(() => {
+    if (!currentUser) return;
+    setFullName((value) => value || currentUser.fullName || '');
+    setPhone((value) => value || currentUser.phone || '');
+    setCpf((value) => value || currentUser.documentCpf || '');
+    setEmail((value) => value || currentUser.email || '');
+    setBaseNeighborhood(currentUser.neighborhood || CITY_CONFIG.defaultNeighborhoods[0]);
+    setPixKey((value) => value || currentUser.phone || '');
+  }, [currentUser]);
+
   const handleToggleCategory = (catId: string) => {
     setSelectedCategoryIds((prev) => {
       if (prev.includes(catId)) {
@@ -76,9 +96,18 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
     try {
       const cleanName = fullName.trim();
       const cleanPhone = phone.trim();
-      if (!cleanName || !cleanPhone || cpf.replace(/\D/g, '').length !== 11) {
+      if (!cleanName || !isValidBrazilianPhone(cleanPhone) || !isValidCpf(cpf)) {
         throw new Error('Preencha nome, telefone e um CPF válido.');
       }
+      const numericHourlyRate = Number(hourlyRate);
+      if (!Number.isFinite(numericHourlyRate) || numericHourlyRate <= 0 || numericHourlyRate > 100000) {
+        throw new Error('Informe um preço base válido.');
+      }
+      if (!Number.isInteger(experienceYears) || experienceYears < 0 || experienceYears > 80) {
+        throw new Error('Informe os anos de experiência entre 0 e 80.');
+      }
+      if (bio.trim().length < 20) throw new Error('A apresentação deve ter pelo menos 20 caracteres.');
+      if (pixKey.trim().length < 3) throw new Error('Informe uma chave Pix válida.');
       if (!idFrontFile || !idBackFile || !selfieFile) {
         throw new Error('Anexe a frente, o verso do documento e a selfie.');
       }
@@ -86,8 +115,11 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
 
       let providerUser = currentUser;
       if (!providerUser) {
-        if (!email.trim() || password.length < 8) {
-          throw new Error('Informe um e-mail e uma senha com pelo menos 8 caracteres.');
+        if (!email.trim()) throw new Error('Informe seu e-mail.');
+        const passwordError = getPasswordValidationError(password);
+        if (passwordError) throw new Error(passwordError);
+        if (!acceptedTerms) {
+          throw new Error('Leia e aceite os Termos de Uso e a Política de Privacidade para criar a conta.');
         }
         const signupResult = await signup({
           role: 'provider',
@@ -97,7 +129,8 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
           phone: cleanPhone,
           neighborhood: baseNeighborhood,
           documentCpf: cpf,
-          avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200',
+          acceptedTerms,
+          termsVersion: LEGAL_TERMS_VERSION,
         });
         if (signupResult.requiresEmailConfirmation) {
           throw new Error('Conta criada. Confirme o link enviado ao seu e-mail, faça login e retorne para enviar os documentos.');
@@ -111,40 +144,40 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
         throw new Error('Esta conta não é uma conta de prestador.');
       }
 
-      const [idFrontPath, idBackPath, selfiePath] = await Promise.all([
+      const uploadResults = await Promise.allSettled([
         RooServStorageService.uploadKycDocument(idFrontFile, 'id-front'),
         RooServStorageService.uploadKycDocument(idBackFile, 'id-back'),
         RooServStorageService.uploadKycDocument(selfieFile, 'selfie'),
       ]);
+      const uploadedPaths = uploadResults.flatMap((result) => result.status === 'fulfilled' ? [result.value] : []);
+      const failedUpload = uploadResults.find((result) => result.status === 'rejected');
+      if (failedUpload) {
+        await RooServStorageService.removeKycDocuments(uploadedPaths);
+        throw failedUpload.reason;
+      }
+      const [idFrontPath, idBackPath, selfiePath] = uploadedPaths;
 
-      const { data: providerProfile, error: providerLookupError } = await supabase
-        .from('provider_profiles')
-        .select('id')
-        .eq('profile_id', providerUser.id)
-        .single();
-      if (providerLookupError || !providerProfile) throw new Error('Perfil profissional não encontrado.');
+      const { error: submissionError } = await supabase.rpc('submit_provider_onboarding', {
+        p_full_name: cleanName,
+        p_phone: cleanPhone,
+        p_document_cpf: cpf,
+        p_neighborhood: baseNeighborhood,
+        p_bio: bio.trim(),
+        p_hourly_rate: numericHourlyRate,
+        p_experience_years: experienceYears,
+        p_pix_key: pixKey.trim(),
+        p_pix_key_type: pixKeyType,
+        p_document_id_front_path: idFrontPath,
+        p_document_id_back_path: idBackPath,
+        p_selfie_with_id_path: selfiePath,
+        p_category_ids: selectedCategoryIds,
+      });
+      if (submissionError) {
+        await RooServStorageService.removeKycDocuments(uploadedPaths);
+        throw submissionError;
+      }
 
-      const { error: providerUpdateError } = await supabase.from('provider_profiles').update({
-        bio: bio.trim(),
-        hourly_rate_estimate: Number(hourlyRate) || 80,
-        experience_years: experienceYears,
-        pix_key: pixKey.trim() || cleanPhone,
-        pix_key_type: 'phone',
-        document_id_front_url: idFrontPath,
-        document_id_back_url: idBackPath,
-        selfie_with_id_url: selfiePath,
-      }).eq('id', providerProfile.id);
-      if (providerUpdateError) throw providerUpdateError;
-
-      const { error: clearCategoriesError } = await supabase
-        .from('provider_categories')
-        .delete()
-        .eq('provider_id', providerProfile.id);
-      if (clearCategoriesError) throw clearCategoriesError;
-      const { error: categoriesError } = await supabase.from('provider_categories').insert(
-        selectedCategoryIds.map((categoryId) => ({ provider_id: providerProfile.id, category_id: categoryId }))
-      );
-      if (categoriesError) throw categoriesError;
+      await refreshProviderDirectory();
 
       setSubmissionComplete(true);
       setTimeout(() => {
@@ -175,28 +208,46 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
         />
       </div>
       {!currentUser && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          <div>
-            <label htmlFor="provider-email" className="block text-xs font-bold text-slate-700 mb-1">E-mail</label>
-            <input
-              id="provider-email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none focus:border-amber-500"
-            />
+        <div className="space-y-2.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div>
+              <label htmlFor="provider-email" className="block text-xs font-bold text-slate-700 mb-1">E-mail</label>
+              <input
+                id="provider-email"
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none focus:border-amber-500"
+              />
+            </div>
+            <div>
+              <label htmlFor="provider-password" className="block text-xs font-bold text-slate-700 mb-1">Senha</label>
+              <input
+                id="provider-password"
+                type="password"
+                autoComplete="new-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="8+ caracteres, maiúscula e número"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none focus:border-amber-500"
+              />
+            </div>
           </div>
-          <div>
-            <label htmlFor="provider-password" className="block text-xs font-bold text-slate-700 mb-1">Senha</label>
+          <label className="flex items-start gap-2.5 text-[11px] text-slate-600 leading-relaxed">
             <input
-              id="provider-password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Mínimo 8 caracteres"
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none focus:border-amber-500"
+              type="checkbox"
+              checked={acceptedTerms}
+              onChange={(event) => setAcceptedTerms(event.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-slate-300 text-amber-600"
             />
-          </div>
+            <span>
+              Li e aceito os Termos de Uso e a Política de Privacidade (versão {LEGAL_TERMS_VERSION}).{' '}
+              <button type="button" onClick={() => setShowTerms(true)} className="font-bold text-brand-700 underline">
+                Ler resumo
+              </button>
+            </span>
+          </label>
         </div>
       )}
       <div className="grid grid-cols-2 gap-2">
@@ -239,7 +290,7 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
       <button
         type="button"
         onClick={() => setStep(2)}
-        disabled={!fullName.trim() || (!currentUser && (!email.trim() || password.length < 8))}
+        disabled={!fullName.trim() || (!currentUser && (!email.trim() || Boolean(getPasswordValidationError(password)) || !acceptedTerms))}
         className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs py-3 rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 active:scale-95 disabled:opacity-50 mt-2"
       >
         <span>Avançar para Especialidades</span>
@@ -283,6 +334,8 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
           <input
             id="provider-experience"
             type="number"
+            min="0"
+            max="80"
             value={experienceYears}
             onChange={(e) => setExperienceYears(Number(e.target.value))}
             className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-500"
@@ -293,6 +346,9 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
           <input
             id="provider-rate"
             type="number"
+            min="1"
+            max="100000"
+            step="0.01"
             value={hourlyRate}
             onChange={(e) => setHourlyRate(e.target.value)}
             className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-500"
@@ -313,7 +369,8 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
       <button
         type="button"
         onClick={() => setStep(3)}
-        className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs py-3 rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 active:scale-95 mt-2"
+        disabled={selectedCategoryIds.length === 0 || !Number(hourlyRate) || experienceYears < 0 || experienceYears > 80 || bio.trim().length < 20}
+        className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs py-3 rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 active:scale-95 disabled:opacity-50 mt-2"
       >
         <span>Avançar para Documentos</span>
         <ArrowRight className="w-4 h-4" />
@@ -325,7 +382,7 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
     <div className="space-y-3.5">
       <div className="border-b border-slate-100 pb-2.5">
         <h3 className="text-sm font-bold text-slate-900">Verificação de Identidade (Selo Verificado)</h3>
-        <p className="text-[11px] text-slate-500">Documentos confidenciais protegidos por criptografia</p>
+        <p className="text-[11px] text-slate-500">Documentos confidenciais com acesso restrito e links temporários</p>
       </div>
       <div className="space-y-2">
         <button
@@ -382,14 +439,28 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
           <DollarSign className="w-4 h-4 text-amber-600" />
           <label htmlFor="provider-pix">Chave Pix para Receber seus Pagamentos</label>
         </div>
-        <input
-          id="provider-pix"
-          type="text"
-          placeholder="Digite sua chave Pix (CPF, Telefone ou E-mail)"
-          value={pixKey}
-          onChange={(e) => setPixKey(e.target.value)}
-          className="w-full bg-white border border-amber-300 rounded-xl p-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-500"
-        />
+        <div className="grid grid-cols-3 gap-2">
+          <select
+            aria-label="Tipo da chave Pix"
+            value={pixKeyType}
+            onChange={(e) => setPixKeyType(e.target.value as typeof pixKeyType)}
+            className="bg-white border border-amber-300 rounded-xl p-2.5 text-xs text-slate-900 font-bold"
+          >
+            <option value="phone">Telefone</option>
+            <option value="cpf">CPF</option>
+            <option value="cnpj">CNPJ</option>
+            <option value="email">E-mail</option>
+            <option value="random">Aleatória</option>
+          </select>
+          <input
+            id="provider-pix"
+            type="text"
+            placeholder="Digite sua chave Pix"
+            value={pixKey}
+            onChange={(e) => setPixKey(e.target.value)}
+            className="col-span-2 w-full bg-white border border-amber-300 rounded-xl p-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-500"
+          />
+        </div>
       </div>
       <button
         type="button"
@@ -470,7 +541,7 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
           <div>
             <h3 className="text-base font-extrabold text-slate-900">Cadastro Enviado com Sucesso!</h3>
             <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-              Nossa equipe de Rondonópolis está analisando seus documentos. Em poucas horas seu perfil estará ativo para receber clientes!
+              Nossa equipe analisará seus documentos. O perfil poderá receber clientes depois que a verificação for aprovada.
             </p>
           </div>
           <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 text-xs text-slate-700 font-medium">
@@ -485,6 +556,7 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
           {step === 4 && renderStep4()}
         </div>
       )}
+      {showTerms && <TermsModal onClose={() => setShowTerms(false)} />}
     </div>
   );
 };

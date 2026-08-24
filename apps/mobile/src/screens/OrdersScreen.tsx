@@ -22,6 +22,7 @@ import {
   QrCode
 } from 'lucide-react';
 import { generateOrderReceiptPDF } from '../utils/pdfReceiptGenerator';
+import { SecureImage } from '../components/SecureImage';
 import { CheckoutModal } from './CheckoutModal';
 
 export const OrdersScreen: React.FC = () => {
@@ -109,7 +110,7 @@ export const OrdersScreen: React.FC = () => {
             {currentRole === 'provider' ? 'Serviços em Andamento' : 'Meus Pedidos & Contratos'}
           </h2>
           <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-            Acompanhe o status do serviço e a custódia do pagamento em tempo real
+            Acompanhe o status do serviço, do pagamento e do repasse
           </p>
         </div>
         <span className="text-xs sm:text-sm text-slate-700 font-bold bg-slate-200/70 px-3.5 py-1.5 rounded-xl">
@@ -169,7 +170,7 @@ export const OrdersScreen: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Detalhes Financeiros e Custódia */}
+                  {/* Detalhes financeiros e de repasse */}
                   <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/80 space-y-2.5 text-xs sm:text-sm">
                     <div className="flex justify-between items-center">
                       <span className="text-slate-600 font-semibold">Valor do Contrato:</span>
@@ -179,7 +180,7 @@ export const OrdersScreen: React.FC = () => {
                     {order.status === 'awaiting_payment' && currentRole === 'client' && (
                       <div className="flex items-center gap-2.5 bg-amber-50 text-amber-950 p-3 rounded-xl border border-amber-200 text-xs font-medium">
                         <Clock className="w-5 h-5 text-amber-600 shrink-0" />
-                        <span>A proposta foi aceita. Gere a cobrança Pix para confirmar a contratação e proteger o valor em custódia.</span>
+                        <span>A proposta foi aceita. Gere a cobrança Pix para confirmar a contratação.</span>
                       </div>
                     )}
 
@@ -187,7 +188,7 @@ export const OrdersScreen: React.FC = () => {
                       <div className="flex items-center gap-2.5 bg-blue-50 text-blue-950 p-3 rounded-xl border border-blue-200/80 text-xs font-medium">
                         <ShieldCheck className="w-5 h-5 text-blue-600 shrink-0" />
                         <span>
-                          <strong>Custódia Segura RooServ:</strong> O dinheiro está protegido pela plataforma. O profissional trabalha com a certeza de pagamento garantido.
+                          <strong>Pagamento confirmado:</strong> o valor está registrado na plataforma e o repasse ao profissional aguarda a aprovação do serviço ou a resolução de uma disputa.
                         </span>
                       </div>
                     )}
@@ -252,7 +253,7 @@ export const OrdersScreen: React.FC = () => {
                       </span>
                       <div className="flex gap-2 overflow-x-auto pb-1">
                         {order.photos.map((photo, pIdx) => (
-                          <img
+                          <SecureImage
                             key={photo.slice(0, 40) + pIdx}
                             src={photo}
                             alt={`Anexo ${pIdx + 1}`}
@@ -290,7 +291,7 @@ export const OrdersScreen: React.FC = () => {
                         className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs sm:text-sm px-4 py-2.5 rounded-xl transition-all shadow-sm active:scale-95 flex items-center gap-2 cursor-pointer"
                       >
                         <FileText className="w-4 h-4 text-emerald-400" />
-                        <span>Baixar Recibo & Garantia (PDF)</span>
+                        <span>Gerar comprovante do serviço</span>
                       </button>
                     )}
 
@@ -326,13 +327,13 @@ export const OrdersScreen: React.FC = () => {
         </div>
       )}
 
-      {/* Modal de Avaliação e Liberação de Custódia */}
+      {/* Modal de avaliação e autorização de repasse */}
       {selectedOrderForReview && (
         <div className="fixed inset-0 z-50 bg-slate-900/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200">
-          <div className="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
+          <div role="dialog" aria-modal="true" aria-labelledby="review-modal-title" className="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
               <div>
-                <h3 className="text-base sm:text-lg font-black text-slate-900">
+                <h3 id="review-modal-title" className="text-base sm:text-lg font-black text-slate-900">
                   Avaliar e Liberar Pagamento
                 </h3>
                 <p className="text-xs text-slate-500 font-medium">
@@ -342,6 +343,7 @@ export const OrdersScreen: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setSelectedOrderForReview(null)}
+                aria-label="Fechar avaliação"
                 className="text-slate-400 hover:text-slate-600 p-2 cursor-pointer"
               >
                 <X className="w-6 h-6" />
@@ -359,6 +361,8 @@ export const OrdersScreen: React.FC = () => {
                     key={star}
                     type="button"
                     onClick={() => setRating(star)}
+                    aria-label={`Avaliar com ${star} ${star === 1 ? 'estrela' : 'estrelas'}`}
+                    aria-pressed={star === rating}
                     className="p-1.5 text-amber-400 hover:scale-125 transition-transform active:scale-95 cursor-pointer"
                   >
                     <Star
@@ -439,14 +443,14 @@ export const OrdersScreen: React.FC = () => {
       {/* Modal de Abertura de Disputa / Problema */}
       {selectedOrderForDispute && (
         <div className="fixed inset-0 z-50 bg-slate-900/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200">
-          <div className="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
+          <div role="dialog" aria-modal="true" aria-labelledby="dispute-modal-title" className="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
               <div className="flex items-center gap-2.5">
                 <div className="p-2.5 bg-red-50 text-red-600 rounded-2xl">
                   <ShieldAlert className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="text-base sm:text-lg font-black text-slate-900">
+                  <h3 id="dispute-modal-title" className="text-base sm:text-lg font-black text-slate-900">
                     Reportar Problema no Serviço
                   </h3>
                   <p className="text-xs text-slate-500 font-medium">
@@ -457,6 +461,7 @@ export const OrdersScreen: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setSelectedOrderForDispute(null)}
+                aria-label="Fechar abertura de disputa"
                 className="text-slate-400 hover:text-slate-600 p-2 cursor-pointer"
               >
                 <X className="w-6 h-6" />
@@ -467,7 +472,7 @@ export const OrdersScreen: React.FC = () => {
               <span>O pagamento de </span>
               <strong>{formatCurrencyBRL(selectedOrderForDispute.totalAmount)}</strong>
               <span> continuará </span>
-              <strong>bloqueado sob custódia segura</strong>
+              <strong>com repasse suspenso durante a análise</strong>
               <span> enquanto a moderação analisa o caso.</span>
             </div>
 

@@ -58,7 +58,7 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200">
-      <div className="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4 max-h-[92vh] flex flex-col overflow-hidden">
+      <div role="dialog" aria-modal="true" aria-labelledby="notifications-title" className="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4 max-h-[92vh] flex flex-col overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
           <div className="flex items-center gap-3">
@@ -66,7 +66,7 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
               <Bell className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="text-base sm:text-lg font-black text-slate-900 leading-tight">
+              <h3 id="notifications-title" className="text-base sm:text-lg font-black text-slate-900 leading-tight">
                 Notificações no App
               </h3>
               <p className="text-xs text-slate-500 font-medium">
@@ -77,6 +77,7 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
           <button
             type="button"
             onClick={onClose}
+            aria-label="Fechar notificações"
             className="text-slate-400 hover:text-slate-600 p-2 rounded-full"
           >
             <X className="w-6 h-6" />

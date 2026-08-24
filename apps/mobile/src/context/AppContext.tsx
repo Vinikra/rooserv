@@ -15,7 +15,6 @@ import {
   AuthResult,
   InAppNotification,
   InAppNotificationType,
-  calculateServiceSplit,
 } from '@servicos/shared';
 import { supabase } from '../lib/supabase';
 import { inAppSound } from '../utils/notificationSound';
@@ -39,6 +38,11 @@ interface AppContextType {
   proposals: Proposal[];
   providerWallet: ProviderWalletSummary | null;
   payoutRequests: PayoutRequest[];
+  providerOnboardingStatus: {
+    verificationStatus: VerificationStatus;
+    rejectionReason?: string;
+    hasAllDocuments: boolean;
+  } | null;
   selectedNeighborhood: string;
   setSelectedNeighborhood: (bairro: string) => void;
   selectedCategorySlug: string | null;
@@ -69,6 +73,7 @@ interface AppContextType {
     pixKeyType?: string;
     categories?: ServiceCategory[];
   }) => Promise<void>;
+  refreshProviderDirectory: () => Promise<void>;
 
   createServiceRequest: (data: {
     categoryId: string;
@@ -90,13 +95,6 @@ interface AppContextType {
   }) => Promise<Proposal>;
   acceptChatProposal: (messageId: string) => Promise<void>;
 
-  hireProviderWithEscrow: (params: {
-    providerId: string;
-    amount: number;
-    paymentMethod: 'pix' | 'credit_card';
-    installments: number;
-  }) => Promise<Order>;
-
   markOrderAsCompletedByProvider: (orderId: string, proofPhotos?: string[]) => Promise<void>;
 
   confirmAndReleaseEscrow: (params: {
@@ -106,7 +104,7 @@ interface AppContextType {
     tags: string[];
   }) => Promise<void>;
 
-  verifyProviderByAdmin: (providerId: string, status: VerificationStatus) => Promise<void>;
+  verifyProviderByAdmin: (providerId: string, status: VerificationStatus, rejectionReason?: string) => Promise<void>;
   requestProviderPayout: (amount: number) => Promise<PayoutRequest>;
   openDispute: (orderId: string, reason: string, details: string) => Promise<void>;
   resolveDisputeByAdmin: (orderId: string, decision: 'refund_client' | 'release_provider') => Promise<void>;
@@ -172,14 +170,32 @@ function mapDbProfile(prof: any, profileId: string): UserProfile {
     role: prof?.role || 'client',
     fullName: prof?.full_name || 'Profissional',
     email,
-    phone: prof?.phone || '(66) 99888-0000',
+    phone: prof?.phone || '',
     documentCpf: prof?.document_cpf || undefined,
-    neighborhood: prof?.neighborhood || 'Centro',
+    neighborhood: prof?.neighborhood || '',
     city: prof?.city || 'Rondonópolis',
     state: prof?.state || 'MT',
-    avatarUrl: prof?.avatar_url || 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=150',
+    avatarUrl: prof?.avatar_url || undefined,
     isActive: prof?.is_active ?? true,
-    createdAt: prof?.created_at || '2026-01-01T00:00:00Z',
+    createdAt: prof?.created_at || new Date(0).toISOString(),
+  };
+}
+
+function mapDbServiceRequest(r: any): ServiceRequest {
+  return {
+    id: r.id,
+    clientId: r.client_id,
+    client: r.client ? mapDbProfile(r.client, r.client_id) : undefined,
+    categoryId: r.category_id,
+    category: r.category ? mapDbCategory(r.category) : undefined,
+    title: r.title,
+    description: r.description,
+    urgency: r.urgency || 'normal',
+    addressNeighborhood: r.address_neighborhood || '',
+    budgetEstimate: r.budget_estimate ? Number(r.budget_estimate) : undefined,
+    photos: r.photos || [],
+    status: r.status || 'open',
+    createdAt: r.created_at,
   };
 }
 
@@ -189,15 +205,15 @@ function mapDbProvider(p: any): ProviderProfile {
     id: p.id,
     profileId: p.profile_id,
     verificationStatus: p.verification_status || 'pending',
-    bio: p.bio || 'Profissional qualificado em Rondonópolis.',
-    experienceYears: Number(p.experience_years) || 3,
-    hourlyRateEstimate: Number(p.hourly_rate_estimate) || 80,
+    bio: p.bio || '',
+    experienceYears: Number(p.experience_years) || 0,
+    hourlyRateEstimate: Number(p.hourly_rate_estimate) || undefined,
     pixKeyType: p.pix_key_type || 'cpf',
     pixKey: p.pix_key || '',
-    averageRating: Number(p.average_rating) || 5.0,
+    averageRating: Number(p.average_rating) || 0,
     totalReviews: Number(p.total_reviews) || 0,
     totalCompletedOrders: Number(p.total_completed_orders) || 0,
-    isAvailable: p.is_available ?? true,
+    isAvailable: p.is_available ?? false,
     profile: mapDbProfile(prof, p.profile_id),
     categories: (p.provider_categories || [])
       .map((relation: any) => relation.service_categories)
@@ -342,6 +358,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [providerWallet, setProviderWallet] = useState<ProviderWalletSummary | null>(null);
   const [payoutRequests, setPayoutRequests] = useState<PayoutRequest[]>([]);
+  const [providerOnboardingStatus, setProviderOnboardingStatus] = useState<AppContextType['providerOnboardingStatus']>(null);
 
   const [selectedNeighborhood, setSelectedNeighborhood] = useState<string>('Todos os Bairros');
   const [selectedCategorySlug, setSelectedCategorySlug] = useState<string | null>(null);
@@ -360,6 +377,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (statsError) throw statsError;
     setAdminProviders((dbAdminProviders || []).map(mapDbProvider));
     setAdminDashboardStats(mapDbAdminStats(dbStats));
+  };
+
+  const refreshProviderDirectory = async () => {
+    const { data, error } = await supabase.rpc('list_provider_directory');
+    if (error) throw error;
+    setProviders((data || []).map(mapDbProvider));
+    if (currentUser?.role === 'provider') {
+      const { data: status, error: statusError } = await supabase.rpc('get_my_provider_onboarding_status');
+      if (statusError) throw statusError;
+      setProviderOnboardingStatus(status ? {
+        verificationStatus: status.verification_status || 'pending',
+        rejectionReason: status.rejection_reason || undefined,
+        hasAllDocuments: status.has_all_documents === true,
+      } : null);
+    }
+    if (hasAdminAccess) await refreshAdminData();
   };
 
   const unreadNotificationsCount = useMemo(() => {
@@ -398,7 +431,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         new Notification(notif.title, {
           body: notif.message,
-          icon: '/icon-192.png',
+          icon: '/icon.svg',
         });
       } catch {
         // Fallback silencioso
@@ -435,6 +468,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setProposals([]);
           setProviderWallet(null);
           setPayoutRequests([]);
+          setProviderOnboardingStatus(null);
           setAdminProviders([]);
           setAdminDashboardStats(null);
           setHasAdminAccess(false);
@@ -528,10 +562,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setProposals((dbProposals || []).map(mapDbProposal));
 
           if (currentUser.role === 'provider') {
-            const { data: finances, error: financesError } = await supabase
-              .rpc('get_my_provider_finances');
+            const [{ data: finances, error: financesError }, { data: onboardingStatus, error: onboardingStatusError }] = await Promise.all([
+              supabase.rpc('get_my_provider_finances'),
+              supabase.rpc('get_my_provider_onboarding_status'),
+            ]);
             if (financesError) throw financesError;
+            if (onboardingStatusError) throw onboardingStatusError;
             setProviderWallet(finances?.wallet ? mapDbProviderWallet(finances.wallet) : null);
+            setProviderOnboardingStatus(onboardingStatus ? {
+              verificationStatus: onboardingStatus.verification_status || 'pending',
+              rejectionReason: onboardingStatus.rejection_reason || undefined,
+              hasAllDocuments: onboardingStatus.has_all_documents === true,
+            } : null);
             const mappedPayouts = (finances?.payout_requests || []).map(mapDbPayoutRequest);
             setPayoutRequests(mappedPayouts);
 
@@ -553,6 +595,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           } else {
             setProviderWallet(null);
             setPayoutRequests([]);
+            setProviderOnboardingStatus(null);
           }
 
           if (hasAdminAccess) {
@@ -574,21 +617,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             .rpc('list_visible_service_requests');
 
           if (requestsError) throw requestsError;
-          const mappedRequests: ServiceRequest[] = (dbRequests || []).map((r: any) => ({
-              id: r.id,
-              clientId: r.client_id,
-              client: r.client ? mapDbProfile(r.client, r.client_id) : undefined,
-              categoryId: r.category_id,
-              category: r.category ? mapDbCategory(r.category) : undefined,
-              title: r.title,
-              description: r.description,
-              urgency: r.urgency || 'normal',
-              addressNeighborhood: r.address_neighborhood || 'Centro',
-              budgetEstimate: r.budget_estimate ? Number(r.budget_estimate) : undefined,
-              photos: r.photos || [],
-              status: r.status || 'open',
-              createdAt: r.created_at,
-            }));
+          const mappedRequests: ServiceRequest[] = (dbRequests || []).map(mapDbServiceRequest);
           setRequests(mappedRequests);
         }
       } catch (error) {
@@ -599,38 +628,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     loadFromSupabase();
   }, [currentUser?.id, hasAdminAccess]);
 
-  // WebSockets Realtime Globais para Sincronização Instantânea
+  // Solicitações em tempo real usam eventos de linhas protegidos por RLS. O
+  // payload nunca é aceito diretamente: a projeção segura é recarregada.
   useEffect(() => {
-    const globalChannel = supabase.channel('rooserv_global_events', {
-      config: { broadcast: { self: false } },
-    });
+    if (!currentUser?.id) return;
 
-    globalChannel
-      .on('broadcast', { event: 'new_request' }, (payload) => {
-        if (payload?.payload) {
-          setRequests((prev) => [payload.payload, ...prev]);
-          sendInAppNotification({
-            title: '🔔 Nova Oportunidade na Cidade!',
-            message: `Cliente publicou: "${payload.payload.title}" no bairro ${payload.payload.addressNeighborhood}.`,
-            type: 'order',
-            actionTab: 'provider_leads',
-          });
-        }
-      })
-      .on('broadcast', { event: 'order_updated' }, (payload) => {
-        const { orderId, changes } = payload?.payload || {};
-        if (orderId && changes) {
-          setOrders((prev) =>
-            prev.map((o) => (o.id === orderId ? { ...o, ...changes } : o))
-          );
+    const channel = supabase
+      .channel(`rooserv_requests_${currentUser.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'service_requests' }, async (payload) => {
+        const { data, error } = await supabase.rpc('list_visible_service_requests');
+        if (error) return;
+        const visibleRequests = (data || []).map(mapDbServiceRequest);
+        setRequests(visibleRequests);
+
+        if (payload.eventType === 'INSERT' && currentUser.role === 'provider') {
+          const inserted = visibleRequests.find((request) => request.id === (payload.new as any)?.id);
+          if (inserted) {
+            sendInAppNotification({
+              title: '🔔 Nova oportunidade na cidade',
+              message: `Novo pedido: "${inserted.title}" no bairro ${inserted.addressNeighborhood}.`,
+              type: 'order',
+              actionTab: 'provider_leads',
+            });
+          }
         }
       })
       .subscribe();
 
     return () => {
-      supabase.removeChannel(globalChannel);
+      supabase.removeChannel(channel);
     };
-  }, []);
+  }, [currentUser?.id, currentUser?.role]);
 
   // Alterações confirmadas pelo banco (inclusive webhooks de pagamento) são a
   // fonte autoritativa para atualizar o status financeiro exibido no app.
@@ -676,7 +704,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       if (error || !data?.user) {
         if (error?.code === 'email_not_confirmed') {
-          return { success: false, error: 'Confirme seu e-mail antes de entrar. Reenviamos o link de confirmação.' };
+          return { success: false, error: 'Confirme seu e-mail antes de entrar. Use o link enviado no cadastro.' };
         }
         return { success: false, error: 'Credenciais inválidas. Verifique seu e-mail e senha.' };
       }
@@ -723,6 +751,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!data.password) {
       return { success: false, error: 'A senha é obrigatória para o cadastro.' };
     }
+    if (!data.acceptedTerms || !data.termsVersion) {
+      return { success: false, error: 'Aceite os Termos de Uso e a Política de Privacidade para continuar.' };
+    }
 
     let authUserId = '';
     try {
@@ -737,6 +768,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             phone: data.phone,
             document_cpf: data.documentCpf,
             avatar_url: data.avatarUrl,
+            legal_terms_accepted: true,
+            legal_terms_version: data.termsVersion,
           },
         },
       });
@@ -769,7 +802,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCurrentRole(newUser.role);
     sendInAppNotification({
       title: '🎉 Conta Criada com Sucesso!',
-      message: 'Bem-vindo ao RooServ! Contrate ou anuncie serviços com 100% de garantia.',
+      message: 'Bem-vindo ao RooServ! Contrate ou anuncie serviços com pagamento e histórico registrados na plataforma.',
       type: 'system',
     });
     return { success: true, user: newUser };
@@ -786,6 +819,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setProposals([]);
     setProviderWallet(null);
     setPayoutRequests([]);
+    setProviderOnboardingStatus(null);
     setAdminProviders([]);
     setAdminDashboardStats(null);
     setHasAdminAccess(false);
@@ -805,6 +839,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setProposals([]);
     setProviderWallet(null);
     setPayoutRequests([]);
+    setProviderOnboardingStatus(null);
     setAdminProviders([]);
     setAdminDashboardStats(null);
     setHasAdminAccess(false);
@@ -859,36 +894,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const myProvider = providers.find((p) => p.profileId === currentUser.id);
     if (!myProvider) throw new Error('Perfil profissional não encontrado.');
 
-    const { data: savedProvider, error } = await supabase
-      .from('provider_profiles')
-      .update({
-        bio: data.bio ?? myProvider.bio,
-        hourly_rate_estimate: data.hourlyRateEstimate ?? myProvider.hourlyRateEstimate,
-        experience_years: data.experienceYears ?? myProvider.experienceYears,
-        pix_key: data.pixKey ?? myProvider.pixKey,
-        pix_key_type: data.pixKeyType ?? myProvider.pixKeyType,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', myProvider.id)
-      .select('*')
-      .single();
+    const selectedCategories = data.categories ?? myProvider.categories;
+    const { data: result, error } = await supabase.rpc('update_my_provider_profile', {
+      p_bio: data.bio ?? myProvider.bio,
+      p_hourly_rate: data.hourlyRateEstimate ?? myProvider.hourlyRateEstimate,
+      p_experience_years: data.experienceYears ?? myProvider.experienceYears,
+      p_pix_key: data.pixKey ?? myProvider.pixKey,
+      p_pix_key_type: data.pixKeyType ?? myProvider.pixKeyType,
+      p_category_ids: selectedCategories.map((category) => category.id),
+    });
+    const savedProvider = result?.provider;
     if (error || !savedProvider) {
       throw new Error(`Não foi possível salvar o perfil profissional: ${error?.message || 'resposta vazia'}`);
-    }
-
-    if (data.categories) {
-      const { error: deleteCategoriesError } = await supabase
-        .from('provider_categories')
-        .delete()
-        .eq('provider_id', myProvider.id);
-      if (deleteCategoriesError) throw new Error(`Falha ao atualizar categorias: ${deleteCategoriesError.message}`);
-
-      if (data.categories.length > 0) {
-        const { error: insertCategoriesError } = await supabase.from('provider_categories').insert(
-          data.categories.map((category) => ({ provider_id: myProvider.id, category_id: category.id }))
-        );
-        if (insertCategoriesError) throw new Error(`Falha ao atualizar categorias: ${insertCategoriesError.message}`);
-      }
     }
 
     setProviders((prev) => prev.map((provider) => provider.id === myProvider.id ? {
@@ -898,12 +915,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       experienceYears: Number(savedProvider.experience_years) || 0,
       pixKey: savedProvider.pix_key || '',
       pixKeyType: (savedProvider.pix_key_type || undefined) as ProviderProfile['pixKeyType'],
-      categories: data.categories ?? provider.categories,
+      categories: selectedCategories,
     } : provider));
 
     sendInAppNotification({
-      title: '✓ Chave Pix e Perfil Salvos!',
-      message: `Chave Pix (${data.pixKeyType || 'telefone'}: ${data.pixKey}) configurada com sucesso.`,
+      title: '✓ Perfil profissional atualizado!',
+      message: 'Informações profissionais e categorias salvas com sucesso.',
       type: 'system',
     });
   };
@@ -921,39 +938,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const category = categories.find((c) => c.id === data.categoryId);
     if (!category) throw new Error('Categoria de serviço inválida.');
     const client = currentUser;
-    const reqUuid = generateUuid();
-
-    const newReq: ServiceRequest = {
-      id: reqUuid,
-      clientId: client.id,
-      client,
-      categoryId: category.id,
-      category,
-      title: data.title,
-      description: data.description,
-      urgency: data.urgency,
-      addressNeighborhood: data.neighborhood,
-      budgetEstimate: data.budget,
-      photos: data.photos || [],
-      status: 'open',
-      createdAt: new Date().toISOString(),
-    };
-
-    const { data: savedRequest, error } = await supabase.from('service_requests').insert([{
-        id: reqUuid,
-        client_id: client.id,
-        category_id: category.id,
-        title: newReq.title,
-        description: newReq.description,
-        urgency: newReq.urgency,
-        address_neighborhood: newReq.addressNeighborhood,
-        budget_estimate: newReq.budgetEstimate,
-        photos: newReq.photos,
-        status: 'open',
-      }]).select('*').single();
+    const { data: savedRequest, error } = await supabase.rpc('create_service_request', {
+      p_category_id: category.id,
+      p_title: data.title.trim(),
+      p_description: data.description.trim(),
+      p_urgency: data.urgency,
+      p_neighborhood: data.neighborhood.trim(),
+      p_budget: data.budget ?? null,
+      p_photos: data.photos || [],
+    });
     if (error || !savedRequest) {
       throw new Error(`Não foi possível publicar a solicitação: ${error?.message || 'resposta vazia'}`);
     }
+
+    const newReq: ServiceRequest = {
+      ...mapDbServiceRequest(savedRequest),
+      client,
+      category,
+    };
 
     setRequests((prev) => [newReq, ...prev]);
 
@@ -963,13 +965,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       message: `Seu pedido "${data.title}" foi enviado aos profissionais verificados da cidade.`,
       type: 'order',
       actionTab: 'orders',
-    });
-
-    const globalChannel = supabase.channel('rooserv_global_events');
-    globalChannel.send({
-      type: 'broadcast',
-      event: 'new_request',
-      payload: newReq,
     });
 
     return newReq;
@@ -1020,84 +1015,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     )));
   };
 
-  const hireProviderWithEscrow = async (params: {
-    providerId: string;
-    amount: number;
-    paymentMethod: 'pix' | 'credit_card';
-    installments: number;
-  }): Promise<Order> => {
-    if (!currentUser) {
-      throw new Error('Faça login antes de iniciar uma contratação.');
-    }
-
-    if (params.paymentMethod !== 'pix') {
-      throw new Error('Pagamento com cartão ainda não está disponível.');
-    }
-
-    const provider = providers.find((p) => p.id === params.providerId);
-    if (!provider) {
-      throw new Error('Prestador não encontrado.');
-    }
-
-    const split = calculateServiceSplit(params.amount, 12.0);
-    const client = currentUser;
-    const orderUuid = generateUuid();
-    const clientUuid = client.id;
-    const providerUuid = params.providerId;
-
-    const randomSuffix = typeof crypto !== 'undefined' && crypto.getRandomValues
-      ? (1000 + (crypto.getRandomValues(new Uint32Array(1))[0] % 9000))
-      : 5521;
-
-    const newOrder: Order = {
-      id: orderUuid,
-      orderNumber: `SRV-2026-${randomSuffix}`,
-      clientId: clientUuid,
-      client,
-      providerId: providerUuid,
-      provider,
-      totalAmount: split.totalAmount,
-      platformFeePercent: split.platformFeePercent,
-      platformFeeAmount: split.platformFeeAmount,
-      providerPayoutAmount: split.providerPayoutAmount,
-      status: 'awaiting_payment',
-      paymentMethod: params.paymentMethod,
-      installmentsCount: params.installments,
-      createdAt: new Date().toISOString(),
-    };
-
-    // O pedido precisa existir antes da cobrança. A confirmação de custódia
-    // acontece exclusivamente pelo webhook autenticado do gateway.
-    const { error } = await supabase.from('orders').insert([{
-        id: orderUuid,
-        order_number: newOrder.orderNumber,
-        client_id: clientUuid,
-        provider_id: providerUuid,
-        total_amount: newOrder.totalAmount,
-        platform_fee_percent: newOrder.platformFeePercent,
-        platform_fee_amount: newOrder.platformFeeAmount,
-        provider_payout_amount: newOrder.providerPayoutAmount,
-        status: newOrder.status,
-        payment_method: newOrder.paymentMethod,
-        installments_count: newOrder.installmentsCount,
-      }]);
-
-    if (error) {
-      throw new Error(`Não foi possível criar o pedido: ${error.message}`);
-    }
-
-    setOrders((prev) => [newOrder, ...prev]);
-
-    sendInAppNotification({
-      title: 'Pedido criado — aguardando pagamento',
-      message: `A cobrança de R$ ${split.totalAmount.toFixed(2)} será confirmada somente após o retorno do Asaas.`,
-      type: 'payment',
-      actionTab: 'orders',
-    });
-
-    return newOrder;
-  };
-
   const markOrderAsCompletedByProvider = async (orderId: string, proofPhotos?: string[]) => {
     const { error } = await supabase.rpc('complete_order_by_provider', {
       p_order_id: orderId,
@@ -1122,12 +1039,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       actionTab: 'orders',
     });
 
-    const globalChannel = supabase.channel('rooserv_global_events');
-    globalChannel.send({
-      type: 'broadcast',
-      event: 'order_updated',
-      payload: { orderId, changes: { status: 'completed_by_provider' } },
-    });
   };
 
   const confirmAndReleaseEscrow = async (params: {
@@ -1145,7 +1056,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       p_comment: params.comment,
       p_tags: params.tags,
     });
-    if (error) throw new Error(`Não foi possível liberar a custódia: ${error.message}`);
+    if (error) throw new Error(`Não foi possível autorizar o repasse: ${error.message}`);
 
     const releasedAt = new Date().toISOString();
     setOrders((prev) => prev.map((o) => o.id === params.orderId ? {
@@ -1177,25 +1088,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       actionTab: 'orders',
     });
 
-    const globalChannel = supabase.channel('rooserv_global_events');
-    globalChannel.send({
-      type: 'broadcast',
-      event: 'order_updated',
-      payload: {
-        orderId: params.orderId,
-        changes: { status: 'approved_by_client', fundsReleasedAt: new Date().toISOString() },
-      },
-    });
   };
 
-  const verifyProviderByAdmin = async (providerId: string, status: VerificationStatus) => {
+  const verifyProviderByAdmin = async (providerId: string, status: VerificationStatus, rejectionReason?: string) => {
     if (status !== 'verified' && status !== 'rejected') {
       throw new Error('Decisão de verificação inválida.');
     }
     const { error } = await supabase.rpc('review_provider_kyc', {
       p_provider_id: providerId,
       p_decision: status,
-      p_rejection_reason: status === 'rejected' ? 'Documentação recusada pela gestão' : null,
+      p_rejection_reason: status === 'rejected' ? rejectionReason?.trim() : null,
     });
     if (error) throw new Error(`Não foi possível revisar o KYC: ${error.message}`);
 
@@ -1211,6 +1113,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       verifiedAt: status === 'verified' ? new Date().toISOString() : undefined,
       isAvailable: status === 'verified',
     } : provider));
+    if (providers.some((provider) => provider.id === providerId && provider.profileId === currentUser?.id)) {
+      setProviderOnboardingStatus((current) => ({
+        verificationStatus: status,
+        rejectionReason: status === 'rejected' ? rejectionReason?.trim() : undefined,
+        hasAllDocuments: current?.hasAllDocuments ?? true,
+      }));
+    }
     await refreshAdminData();
   };
 
@@ -1235,11 +1144,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setPayoutRequests((finances.payout_requests || []).map(mapDbPayoutRequest));
     }
     if (processingError) {
-      throw new Error('O saque foi registrado, mas o Asaas não confirmou o processamento. Consulte o status no histórico.');
+      throw new Error('O saque foi registrado, mas a AbacatePay não confirmou o processamento. Consulte o status no histórico.');
     }
 
     sendInAppNotification({
-      title: 'Saque Pix enviado ao Asaas',
+      title: 'Saque Pix enviado à AbacatePay',
       message: `A transferência de R$ ${payout.amount.toFixed(2)} foi registrada para processamento.`,
       type: 'payment',
     });
@@ -1269,25 +1178,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     sendInAppNotification({
       title: '⚠️ Disputa Aberta na Plataforma',
-      message: 'O valor permanecerá retido sob custódia enquanto nossa moderação analisa o caso.',
+      message: 'O repasse ficará suspenso enquanto a moderação analisa o caso.',
       type: 'system',
       actionTab: 'orders',
     });
 
-    const globalChannel = supabase.channel('rooserv_global_events');
-    globalChannel.send({
-      type: 'broadcast',
-      event: 'order_updated',
-      payload: {
-        orderId,
-        changes: {
-          status: 'disputed',
-          disputeReason: reason,
-          disputeDetails: details,
-          disputeOpenedAt: new Date().toISOString(),
-        },
-      },
-    });
   };
 
   const resolveDisputeByAdmin = async (
@@ -1300,8 +1195,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
     if (error) throw new Error(`Não foi possível resolver a disputa: ${error.message}`);
 
+    if (decision === 'refund_client') {
+      const { data: refundResult, error: refundError } = await supabase.functions.invoke('process-payment-refund', {
+        body: { orderId },
+      });
+      if (refundError || refundResult?.success !== true) {
+        throw new Error(
+          `Reembolso autorizado, mas ainda não enviado à AbacatePay: ${refundResult?.error || refundError?.message || 'tente novamente'}`
+        );
+      }
+    }
+
     const resolvedAt = new Date().toISOString();
-    const refundPending = decision === 'refund_client' && data?.gateway_action_required === true;
+    const refundPending = decision === 'refund_client';
     setOrders((prev) => prev.map((o) => o.id === orderId ? {
       ...o,
       status: decision === 'release_provider' ? 'approved_by_client' : 'disputed',
@@ -1316,26 +1222,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ? '⚖️ Reembolso Autorizado pela Gestão'
         : '⚖️ Disputa Concluída pela Gestão',
       message: decision === 'refund_client'
-        ? 'Reembolso autorizado e aguardando processamento pelo Asaas.'
-        : 'Valor em custódia liberado ao profissional.',
+        ? 'Reembolso enviado à AbacatePay e aguardando a confirmação do webhook.'
+        : 'Repasse ao profissional autorizado.',
       type: 'system',
       actionTab: 'orders',
     });
 
-    const globalChannel = supabase.channel('rooserv_global_events');
-    globalChannel.send({
-      type: 'broadcast',
-      event: 'order_updated',
-      payload: {
-        orderId,
-        changes: {
-          status: decision === 'release_provider' ? 'approved_by_client' : 'disputed',
-          disputeResolution: decision,
-          refundRequestedAt: refundPending ? resolvedAt : undefined,
-          disputeResolvedAt: decision === 'release_provider' ? resolvedAt : undefined,
-        },
-      },
-    });
     await refreshAdminData();
   };
 
@@ -1353,6 +1245,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     deleteAccount,
     updateUserProfile,
     updateProviderProfile,
+    refreshProviderDirectory,
     categories,
     providers,
     adminProviders,
@@ -1362,6 +1255,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     proposals,
     providerWallet,
     payoutRequests,
+    providerOnboardingStatus,
     selectedNeighborhood,
     setSelectedNeighborhood,
     selectedCategorySlug,
@@ -1378,7 +1272,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     createServiceRequest,
     sendServiceProposal,
     acceptChatProposal,
-    hireProviderWithEscrow,
     markOrderAsCompletedByProvider,
     confirmAndReleaseEscrow,
     verifyProviderByAdmin,
@@ -1395,12 +1288,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     providers,
     adminProviders,
     adminDashboardStats,
+    hasAdminAccess,
     orders,
     reviews,
     requests,
     proposals,
     providerWallet,
     payoutRequests,
+    providerOnboardingStatus,
     selectedNeighborhood,
     selectedCategorySlug,
     notifications,

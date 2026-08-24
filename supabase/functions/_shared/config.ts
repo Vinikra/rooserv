@@ -2,30 +2,36 @@
 // IMPORTANTE: As variáveis de ambiente devem ser configuradas no painel do Supabase
 // Settings > Edge Functions > Secrets
 
-export const ASAAS_BASE_URL = Deno.env.get('ASAAS_ENV') === 'production'
-  ? 'https://api.asaas.com/v3'
-  : 'https://api-sandbox.asaas.com/v3';
+export const ABACATEPAY_BASE_URL = 'https://api.abacatepay.com/v2';
 
-export const ASAAS_API_KEY = Deno.env.get('ASAAS_API_KEY') || '';
+export const ABACATEPAY_API_KEY = Deno.env.get('ABACATEPAY_API_KEY') || '';
 
-export const ASAAS_WEBHOOK_TOKEN = Deno.env.get('ASAAS_WEBHOOK_TOKEN') || '';
+export const ABACATEPAY_WEBHOOK_SECRET = Deno.env.get('ABACATEPAY_WEBHOOK_SECRET') || '';
+
+// Chave de verificação publicada na documentação da AbacatePay. Mantê-la em
+// secret de ambiente permite rotação imediata sem novo deploy do código.
+export const ABACATEPAY_WEBHOOK_HMAC_KEY = Deno.env.get('ABACATEPAY_WEBHOOK_HMAC_KEY') || '';
+
+export const APP_ORIGIN = Deno.env.get('APP_ORIGIN') || 'https://rooserv.vercel.app';
 
 export const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': APP_ORIGIN,
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Vary': 'Origin',
 };
 
 /**
- * Cria um header de autenticação para a API do Asaas
+ * Cria os headers de autenticação da API AbacatePay.
  */
-export function asaasHeaders() {
-  if (!ASAAS_API_KEY) {
-    throw new Error('ASAAS_API_KEY não configurada.');
+export function abacatePayHeaders() {
+  if (!ABACATEPAY_API_KEY) {
+    throw new Error('ABACATEPAY_API_KEY não configurada.');
   }
 
   return {
     'Content-Type': 'application/json',
-    'access_token': ASAAS_API_KEY,
+    'Authorization': `Bearer ${ABACATEPAY_API_KEY}`,
   };
 }
 
@@ -37,6 +43,22 @@ export function constantTimeEqual(received: string, expected: string) {
     difference |= received.charCodeAt(index) ^ expected.charCodeAt(index);
   }
   return difference === 0;
+}
+
+export async function verifyAbacatePaySignature(rawBody: string, receivedSignature: string) {
+  if (!receivedSignature || !ABACATEPAY_WEBHOOK_HMAC_KEY) return false;
+
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(ABACATEPAY_WEBHOOK_HMAC_KEY),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  );
+  const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(rawBody));
+  const expected = btoa(String.fromCharCode(...new Uint8Array(signature)));
+  return constantTimeEqual(receivedSignature, expected);
 }
 
 /**

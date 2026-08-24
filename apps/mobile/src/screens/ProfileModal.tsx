@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useApp } from '../context/AppContext';
-import { CITY_CONFIG } from '@servicos/shared';
+import { CITY_CONFIG, isValidBrazilianPhone } from '@servicos/shared';
 import { 
   X, 
   Camera, 
@@ -17,26 +17,18 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { RooServStorageService } from '../services/storageService';
+import { UserAvatar } from '../components/UserAvatar';
 
 interface ProfileModalProps {
   onClose: () => void;
 }
-
-const PRESET_AVATARS = [
-  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200',
-  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200',
-  'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200',
-  'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200',
-  'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=200',
-  'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=200',
-];
 
 export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
   const { currentUser, providers, updateUserProfile, updateProviderProfile, deleteAccount } = useApp();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleDeleteAccount = async () => {
-    if (window.confirm('TEM CERTEZA? Esta ação apagará definitivamente seus dados, histórico e não pode ser desfeita.')) {
+    if (window.confirm('TEM CERTEZA? Esta ação encerra o acesso, anonimiza seus dados pessoais e não pode ser desfeita.')) {
       setSaveError(null);
       try {
         const success = await deleteAccount();
@@ -49,21 +41,22 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
   };
 
   const currentProvider = providers.find((p) => p.profileId === currentUser?.id);
+  const isPixLocked = currentProvider?.verificationStatus === 'verified';
 
   const [fullName, setFullName] = useState(currentUser?.fullName || '');
   const [phone, setPhone] = useState(currentUser?.phone || '');
-  const [neighborhood, setNeighborhood] = useState(currentUser?.neighborhood || CITY_CONFIG.defaultNeighborhoods[0]);
-  const [avatarUrl, setAvatarUrl] = useState(currentUser?.avatarUrl || PRESET_AVATARS[0]);
+  const [neighborhood, setNeighborhood] = useState(currentUser?.neighborhood || '');
+  const [avatarUrl, setAvatarUrl] = useState(currentUser?.avatarUrl || '');
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
 
   const [bio, setBio] = useState(
-    currentProvider?.bio ?? 'Profissional em Rondonópolis.'
+    currentProvider?.bio ?? ''
   );
   const [hourlyRate, setHourlyRate] = useState(
-    String(currentProvider?.hourlyRateEstimate ?? 80)
+    currentProvider?.hourlyRateEstimate ? String(currentProvider.hourlyRateEstimate) : ''
   );
   const [experienceYears, setExperienceYears] = useState(
-    currentProvider?.experienceYears ?? 1
+    currentProvider?.experienceYears ?? 0
   );
   const [pixKeyType, setPixKeyType] = useState(
     currentProvider?.pixKeyType ?? 'phone'
@@ -97,12 +90,29 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
     setIsSaving(true);
     setSaveError(null);
     try {
+      if (fullName.trim().length < 3) throw new Error('Informe seu nome completo.');
+      if (!isValidBrazilianPhone(phone)) throw new Error('Informe um telefone com DDD válido.');
+      if (!neighborhood) throw new Error('Selecione seu bairro.');
+
+      let numericHourlyRate: number | undefined;
+      if (currentUser?.role === 'provider') {
+        numericHourlyRate = Number(hourlyRate);
+        if (bio.trim().length < 20) throw new Error('A apresentação deve ter pelo menos 20 caracteres.');
+        if (!Number.isFinite(numericHourlyRate) || numericHourlyRate <= 0 || numericHourlyRate > 100000) {
+          throw new Error('Informe um valor por hora válido.');
+        }
+        if (!Number.isInteger(experienceYears) || experienceYears < 0 || experienceYears > 80) {
+          throw new Error('Informe os anos de experiência entre 0 e 80.');
+        }
+        if (pixKey.trim().length < 3) throw new Error('Informe uma chave Pix válida.');
+      }
+
       await updateUserProfile({ fullName, phone, neighborhood, avatarUrl });
 
-      if (currentUser?.role === 'provider') {
+      if (currentUser?.role === 'provider' && numericHourlyRate !== undefined) {
         await updateProviderProfile({
           bio,
-          hourlyRateEstimate: Number(hourlyRate) || 80,
+          hourlyRateEstimate: numericHourlyRate,
           experienceYears,
           pixKey,
           pixKeyType,
@@ -138,7 +148,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white w-full max-w-xl rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
+      <div role="dialog" aria-modal="true" aria-labelledby="profile-modal-title" className="bg-white w-full max-w-xl rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-900 text-white shrink-0">
           <div className="flex items-center gap-2.5">
@@ -146,11 +156,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
               <User className="w-5 h-5 text-brand-400" />
             </div>
             <div>
-              <h3 className="text-base sm:text-lg font-black leading-tight">
+              <h3 id="profile-modal-title" className="text-base sm:text-lg font-black leading-tight">
                 Meu Perfil & Customização
               </h3>
               <p className="text-xs text-slate-400">
-                Altere sua foto, dados de contato e chave Pix
+                {currentUser?.role === 'provider'
+                  ? 'Altere sua foto, dados de contato e chave Pix'
+                  : 'Altere sua foto e seus dados de contato'}
               </p>
             </div>
           </div>
@@ -158,6 +170,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
           <button
             type="button"
             onClick={onClose}
+            aria-label="Fechar edição do perfil"
             className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
@@ -169,9 +182,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
           {/* Seção Foto de Perfil */}
           <div className="bg-slate-50 p-5 rounded-3xl border border-slate-200/80 text-center space-y-4">
             <div className="relative inline-block mx-auto">
-              <img
-                src={avatarUrl}
-                alt="Foto de Perfil"
+              <UserAvatar
+                src={avatarUrl || undefined}
+                name={fullName}
                 className="w-24 h-24 sm:w-28 sm:h-28 rounded-full object-cover border-4 border-white shadow-md mx-auto"
               />
               <button
@@ -213,26 +226,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
               </button>
             </div>
 
-            {/* Sugestões de Avatares Rápidos */}
-            <div className="pt-2">
-              <span className="text-[11px] font-bold text-slate-500 block mb-2">
-                Ou escolha um avatar profissional:
-              </span>
-              <div className="flex items-center justify-center gap-2.5 flex-wrap">
-                {PRESET_AVATARS.map((url, idx) => (
-                  <button
-                    key={url}
-                    type="button"
-                    onClick={() => setAvatarUrl(url)}
-                    className={`w-10 h-10 rounded-full overflow-hidden border-2 transition-transform active:scale-90 cursor-pointer ${
-                      avatarUrl === url ? 'border-brand-600 ring-2 ring-brand-500/40 scale-105' : 'border-slate-200 opacity-70 hover:opacity-100'
-                    }`}
-                  >
-                    <img src={url} alt={`Avatar ${idx + 1}`} className="w-full h-full object-cover" />
-                  </button>
-                ))}
-              </div>
-            </div>
           </div>
 
           {/* Dados Pessoais */}
@@ -285,8 +278,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
                     id="select-neighborhood"
                     value={neighborhood}
                     onChange={(e) => setNeighborhood(e.target.value)}
+                    required
                     className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-3.5 pl-10 text-sm font-semibold text-slate-900 focus:outline-none focus:border-brand-500 appearance-none"
                   >
+                    <option value="" disabled>Selecione um bairro</option>
                     {CITY_CONFIG.defaultNeighborhoods.map((b) => (
                       <option key={b} value={b}>{b}</option>
                     ))}
@@ -297,6 +292,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
           </div>
 
           {/* Configurações Específicas de Prestador / Chave Pix */}
+          {currentUser?.role === 'provider' && (
           <div className="space-y-4 pt-4 border-t border-slate-100">
             <div className="flex items-center justify-between">
               <h4 className="text-xs font-extrabold text-amber-800 uppercase tracking-wider flex items-center gap-1.5">
@@ -317,6 +313,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
                 value={bio}
                 onChange={(e) => setBio(e.target.value)}
                 rows={3}
+                minLength={20}
+                maxLength={2000}
+                required
                 placeholder="Descreva suas qualificações, experiência com aulas ou reparos..."
                 className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-3.5 text-xs sm:text-sm font-medium text-slate-900 focus:outline-none focus:border-brand-500"
               />
@@ -332,6 +331,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
                   <input
                     id="input-hourly-rate"
                     type="number"
+                    min="1"
+                    max="100000"
+                    step="0.01"
+                    required
                     value={hourlyRate}
                     onChange={(e) => setHourlyRate(e.target.value)}
                     placeholder="80"
@@ -349,6 +352,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
                   <input
                     id="input-exp-years"
                     type="number"
+                    min="0"
+                    max="80"
+                    required
                     value={experienceYears}
                     onChange={(e) => setExperienceYears(Number(e.target.value))}
                     className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-3.5 pl-10 text-sm font-semibold text-slate-900 focus:outline-none focus:border-brand-500"
@@ -373,7 +379,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
                     id="select-pix-type"
                     value={pixKeyType}
                     onChange={(e) => setPixKeyType(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-900"
+                    disabled={isPixLocked}
+                    className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-900 disabled:bg-slate-100 disabled:text-slate-500"
                   >
                     <option value="phone">Telefone</option>
                     <option value="cpf">CPF</option>
@@ -391,13 +398,22 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
                     type="text"
                     value={pixKey}
                     onChange={(e) => setPixKey(e.target.value)}
+                    minLength={3}
+                    required
+                    disabled={isPixLocked}
                     placeholder="Sua chave Pix para recebimento"
-                    className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-semibold text-slate-900"
+                    className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-semibold text-slate-900 disabled:bg-slate-100 disabled:text-slate-500"
                   />
                 </div>
               </div>
+              {isPixLocked && (
+                <p className="text-[11px] text-amber-900 leading-relaxed">
+                  A chave Pix de um perfil verificado fica bloqueada para proteger os repasses. Solicite uma nova verificação à gestão para alterá-la.
+                </p>
+              )}
             </div>
           </div>
+          )}
 
           {/* Zona de Perigo - LGPD */}
           <div className="pt-4 border-t border-slate-100">
@@ -407,14 +423,14 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
                 <span>Excluir Minha Conta (LGPD)</span>
               </div>
               <p className="text-xs text-red-600 font-medium mb-3">
-                Ao excluir sua conta, todos os seus dados pessoais, histórico de serviços e anúncios serão permanentemente apagados. Esta ação não pode ser desfeita.
+                Ao excluir sua conta, o acesso será encerrado e os dados pessoais serão anonimizados. Registros financeiros e de serviços que precisem ser preservados por obrigação legal ou prevenção a fraude deixam de identificar publicamente você.
               </p>
               <button
                 type="button"
                 onClick={handleDeleteAccount}
                 className="w-full bg-white text-red-600 hover:bg-red-100 font-bold text-sm py-2.5 rounded-xl border border-red-200 transition-colors cursor-pointer"
               >
-                Excluir Minha Conta Definitivamente
+                Excluir e Anonimizar Minha Conta
               </button>
             </div>
           </div>

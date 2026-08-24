@@ -30,6 +30,7 @@ export const AdminScreen: React.FC = () => {
   const [pendingDisputeId, setPendingDisputeId] = useState<string | null>(null);
   const [pendingProviderId, setPendingProviderId] = useState<string | null>(null);
   const [loadingDocumentsId, setLoadingDocumentsId] = useState<string | null>(null);
+  const [rejectionReasons, setRejectionReasons] = useState<Record<string, string>>({});
   const [kycDocuments, setKycDocuments] = useState<Record<string, {
     idFront: string;
     idBack: string;
@@ -59,7 +60,16 @@ export const AdminScreen: React.FC = () => {
     setPendingProviderId(providerId);
     setOperationError(null);
     try {
-      await verifyProviderByAdmin(providerId, decision);
+      const rejectionReason = rejectionReasons[providerId]?.trim();
+      if (decision === 'rejected' && (!rejectionReason || rejectionReason.length < 10)) {
+        throw new Error('Informe um motivo de rejeição com pelo menos 10 caracteres.');
+      }
+      await verifyProviderByAdmin(providerId, decision, rejectionReason);
+      setRejectionReasons((current) => {
+        const next = { ...current };
+        delete next[providerId];
+        return next;
+      });
     } catch (error) {
       setOperationError(error instanceof Error ? error.message : 'Não foi possível revisar o prestador.');
     } finally {
@@ -119,9 +129,7 @@ export const AdminScreen: React.FC = () => {
 
   const stats = getAdminStats();
 
-  const pendingProviders = adminProviders.filter(
-    (p) => p.verificationStatus === 'under_review' || p.verificationStatus === 'pending'
-  );
+  const pendingProviders = adminProviders.filter((p) => p.verificationStatus === 'under_review');
 
   const disputedOrders = orders.filter((o) => o.status === 'disputed');
 
@@ -149,7 +157,7 @@ export const AdminScreen: React.FC = () => {
         {/* Receita da Plataforma (12%) */}
         <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-1.5">
           <div className="flex items-center justify-between text-xs sm:text-sm text-slate-500 font-bold">
-            <span>Sua Receita Líquida</span>
+            <span>Receita Bruta Estimada</span>
             <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl">
               <TrendingUp className="w-5 h-5" />
             </div>
@@ -157,7 +165,7 @@ export const AdminScreen: React.FC = () => {
           <h3 className="text-2xl sm:text-3xl font-black text-emerald-600">
             {formatCurrencyBRL(stats.platformRevenue)}
           </h3>
-          <span className="text-xs text-slate-400 block font-medium">Comissões de 12% retidas</span>
+          <span className="text-xs text-slate-400 block font-medium">Taxas de 12%, antes de gateway, tributos e estornos</span>
         </div>
 
         {/* Volume Total Transacionado (GMV) */}
@@ -174,10 +182,10 @@ export const AdminScreen: React.FC = () => {
           <span className="text-xs text-slate-400 block font-medium">Serviços contratados</span>
         </div>
 
-        {/* Dinheiro Retido em Custódia Segura */}
+        {/* Valores aguardando destinação */}
         <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-1.5">
           <div className="flex items-center justify-between text-xs sm:text-sm text-slate-500 font-bold">
-            <span>Em Custódia Segura</span>
+            <span>Aguardando repasse ou resolução</span>
             <div className="p-2 bg-amber-50 text-amber-600 rounded-xl">
               <Clock className="w-5 h-5" />
             </div>
@@ -237,8 +245,16 @@ export const AdminScreen: React.FC = () => {
                 </p>
 
                 {order.disputeResolution === 'refund_client' ? (
-                  <div className="bg-amber-100 border border-amber-200 text-amber-900 rounded-xl px-3 py-2 text-xs font-bold">
-                    Reembolso autorizado — aguardando processamento pelo Asaas.
+                  <div className="bg-amber-100 border border-amber-200 text-amber-900 rounded-xl px-3 py-2 text-xs font-bold space-y-2">
+                    <p>Reembolso autorizado — aguardando confirmação da AbacatePay.</p>
+                    <button
+                      type="button"
+                      onClick={() => handleResolveDispute(order.id, 'refund_client')}
+                      disabled={pendingDisputeId === order.id}
+                      className="w-full bg-white hover:bg-amber-50 disabled:opacity-60 text-amber-900 border border-amber-300 font-bold text-xs py-2 rounded-lg transition-colors"
+                    >
+                      {pendingDisputeId === order.id ? 'Processando...' : 'Reenviar/consultar reembolso'}
+                    </button>
                   </div>
                 ) : (
                 <div className="grid grid-cols-2 gap-2 pt-1">
@@ -283,7 +299,7 @@ export const AdminScreen: React.FC = () => {
           {pendingProviders.length === 0 ? (
             <div className="text-center py-8 bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-xs sm:text-sm text-slate-500 flex flex-col items-center gap-1.5 font-medium">
               <CheckCircle className="w-8 h-8 text-emerald-500" />
-              <span>Todos os prestadores cadastrados estão verificados!</span>
+              <span>Nenhum prestador está aguardando verificação.</span>
             </div>
           ) : (
             pendingProviders.map((prov) => (
@@ -308,7 +324,7 @@ export const AdminScreen: React.FC = () => {
                     </div>
                   </div>
                   <span className="text-xs bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded-md">
-                    Pendente
+                    Em análise
                   </span>
                 </div>
 
@@ -342,11 +358,26 @@ export const AdminScreen: React.FC = () => {
                   </button>
                 )}
 
+                <div>
+                  <label htmlFor={`rejection-reason-${prov.id}`} className="block text-xs font-bold text-slate-600 mb-1">
+                    Motivo caso o cadastro seja recusado
+                  </label>
+                  <textarea
+                    id={`rejection-reason-${prov.id}`}
+                    rows={2}
+                    maxLength={500}
+                    value={rejectionReasons[prov.id] || ''}
+                    onChange={(event) => setRejectionReasons((current) => ({ ...current, [prov.id]: event.target.value }))}
+                    placeholder="Explique o documento ou dado que precisa ser corrigido."
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs resize-none focus:outline-none focus:border-red-400"
+                  />
+                </div>
+
                 <div className="grid grid-cols-2 gap-2 pt-1">
                   <button
                     type="button"
                     onClick={() => handleReviewProvider(prov.id, 'rejected')}
-                    disabled={pendingProviderId === prov.id}
+                    disabled={pendingProviderId === prov.id || (rejectionReasons[prov.id]?.trim().length || 0) < 10}
                     className="bg-white hover:bg-slate-100 disabled:opacity-60 text-red-600 border border-slate-300 font-bold text-xs py-2 rounded-xl transition-all flex items-center justify-center gap-1 cursor-pointer"
                   >
                     <XCircle className="w-3.5 h-3.5" />

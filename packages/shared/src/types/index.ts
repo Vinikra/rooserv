@@ -198,11 +198,13 @@ export interface SignupData {
   role: UserRole;
   fullName: string;
   email: string;
-  password?: string;
+  password: string;
   phone: string;
   neighborhood: string;
   documentCpf?: string;
   avatarUrl?: string;
+  acceptedTerms: true;
+  termsVersion: string;
 }
 
 export interface AuthResult {

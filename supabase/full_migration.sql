@@ -1,4 +1,8 @@
 -- ==============================================================================
+-- LEGADO / SOMENTE DEMONSTRAÇÃO LOCAL — NÃO EXECUTAR EM STAGING OU PRODUÇÃO.
+-- ESTE ARQUIVO APAGA TABELAS COM CASCADE E INSERE PERFIS, SALDOS, AVALIAÇÕES E
+-- CHAVES PIX FICTÍCIAS. A FONTE CANÔNICA É supabase/migrations/ EM ORDEM.
+-- ==============================================================================
 -- ROOSERV - PLATAFORMA HIPERLOCAL DE SERVIÇOS EM RONDONÓPOLIS (MT)
 -- SCHEMA + SEED COMPLETO PARA O SUPABASE SQL EDITOR (100% VALID HEX UUIDs)
 -- ==============================================================================

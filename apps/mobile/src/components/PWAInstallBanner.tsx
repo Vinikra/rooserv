@@ -99,12 +99,12 @@ export const PWAInstallBanner: React.FC = () => {
       {/* Modal de Instruções para iPhone / iOS */}
       {showIOSInstructions && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-5 max-w-sm w-full space-y-4 text-slate-900 text-center shadow-2xl">
+          <div role="dialog" aria-modal="true" aria-labelledby="ios-install-title" className="bg-white rounded-3xl p-5 max-w-sm w-full space-y-4 text-slate-900 text-center shadow-2xl">
             <div className="w-12 h-12 bg-brand-50 text-brand-600 rounded-2xl flex items-center justify-center mx-auto">
               <Smartphone className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="text-sm font-extrabold">Como instalar no iPhone:</h3>
+              <h3 id="ios-install-title" className="text-sm font-extrabold">Como instalar no iPhone:</h3>
               <p className="text-xs text-slate-600 mt-1">
                 Siga estes 2 passos simples no Safari:
               </p>

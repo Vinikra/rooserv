@@ -4,8 +4,8 @@ project_id = "rooserv"
 verify_jwt = true
 
 [functions.payment-webhook]
-# O Asaas não envia JWT do Supabase. Esta função exige o token próprio no
-# header asaas-access-token e valida o pagamento novamente na API do Asaas.
+# A AbacatePay não envia JWT do Supabase. A função valida o secret da URL e a
+# assinatura HMAC X-Webhook-Signature antes de processar o corpo raw.
 verify_jwt = false
 
 [functions.delete-account]
@@ -15,4 +15,13 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.process-provider-payout]
+verify_jwt = true
+
+[functions.process-payment-refund]
+verify_jwt = true
+
+[functions.check-pix-payment]
+verify_jwt = true
+
+[functions.simulate-pix-payment]
 verify_jwt = true

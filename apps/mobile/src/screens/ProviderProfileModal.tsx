@@ -7,21 +7,18 @@ import {
   ShieldCheck, 
   CheckCircle, 
   MapPin, 
-  ArrowRight, 
   MessageSquare 
 } from 'lucide-react';
 
 interface ProviderProfileModalProps {
   provider: ProviderProfile | null;
   onClose: () => void;
-  onStartCheckout: (provider: ProviderProfile) => void;
   onOpenChat: (provider: ProviderProfile) => void;
 }
 
 export const ProviderProfileModal: React.FC<ProviderProfileModalProps> = ({
   provider,
   onClose,
-  onStartCheckout,
   onOpenChat,
 }) => {
   const { reviews } = useApp();
@@ -33,13 +30,14 @@ export const ProviderProfileModal: React.FC<ProviderProfileModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200">
-      <div className="bg-white w-full max-w-lg max-h-[92vh] rounded-t-3xl sm:rounded-3xl flex flex-col overflow-hidden shadow-2xl">
+      <div role="dialog" aria-modal="true" aria-labelledby="provider-profile-title" className="bg-white w-full max-w-lg max-h-[92vh] rounded-t-3xl sm:rounded-3xl flex flex-col overflow-hidden shadow-2xl">
         
         {/* Header do Modal com Capa e Botão Fechar */}
         <div className="relative bg-gradient-to-r from-brand-900 via-brand-800 to-slate-900 p-5 sm:p-6 text-white">
           <button
             type="button"
             onClick={onClose}
+            aria-label="Fechar perfil do profissional"
             className="absolute top-4 right-4 bg-black/30 hover:bg-black/50 text-white p-2 rounded-full transition-colors"
           >
             <X className="w-6 h-6" />
@@ -47,29 +45,42 @@ export const ProviderProfileModal: React.FC<ProviderProfileModalProps> = ({
 
           <div className="flex items-center gap-4 mt-2">
             <div className="relative shrink-0">
-              <img
-                src={provider.profile?.avatarUrl}
-                alt={provider.profile?.fullName}
-                className="w-18 h-18 rounded-2xl object-cover border-2 border-white shadow-lg"
-              />
+              {provider.profile?.avatarUrl ? (
+                <img
+                  src={provider.profile.avatarUrl}
+                  alt={provider.profile.fullName || 'Profissional'}
+                  className="w-18 h-18 rounded-2xl object-cover border-2 border-white shadow-lg"
+                />
+              ) : (
+                <div aria-hidden="true" className="w-18 h-18 rounded-2xl bg-brand-100 text-brand-900 border-2 border-white shadow-lg flex items-center justify-center text-2xl font-black">
+                  {(provider.profile?.fullName || 'P').trim().charAt(0).toUpperCase()}
+                </div>
+              )}
               <div className="absolute -bottom-1 -right-1 bg-emerald-500 text-white p-1 rounded-full shadow-sm">
                 <CheckCircle className="w-4 h-4" />
               </div>
             </div>
 
             <div className="flex-1 min-w-0">
-              <h3 className="text-base sm:text-lg font-black leading-tight truncate">
+              <h3 id="provider-profile-title" className="text-base sm:text-lg font-black leading-tight truncate">
                 {provider.profile?.fullName}
               </h3>
               <p className="text-xs sm:text-sm text-brand-200 flex items-center gap-1.5 mt-1 font-medium">
                 <MapPin className="w-4 h-4 text-brand-400 shrink-0" />
-                <span>{`${provider.profile?.neighborhood} • ${provider.experienceYears} anos de exp.`}</span>
+                <span>
+                  {provider.profile?.neighborhood || 'Bairro não informado'}
+                  {provider.experienceYears > 0 ? ` • ${provider.experienceYears} anos de exp.` : ''}
+                </span>
               </p>
               
               <div className="flex items-center gap-2 mt-2">
                 <div className="flex items-center gap-1.5 bg-amber-400/25 px-2.5 py-1 rounded-lg text-amber-300 text-xs font-black">
                   <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
-                  <span>{(Number(provider.averageRating) || 5.0).toFixed(1)}</span>
+                  <span>
+                    {provider.totalReviews > 0 && Number(provider.averageRating) > 0
+                      ? Number(provider.averageRating).toFixed(1)
+                      : 'Novo'}
+                  </span>
                   <span className="text-white/80 font-normal">({provider.totalReviews || 0})</span>
                 </div>
 
@@ -128,7 +139,7 @@ export const ProviderProfileModal: React.FC<ProviderProfileModalProps> = ({
                   Biografia & Especialidades
                 </h4>
                 <p className="text-sm text-slate-700 leading-relaxed bg-slate-50 p-4 rounded-2xl border border-slate-200 font-medium">
-                  {provider.bio}
+                  {provider.bio || 'Biografia ainda não cadastrada.'}
                 </p>
               </div>
 
@@ -137,10 +148,10 @@ export const ProviderProfileModal: React.FC<ProviderProfileModalProps> = ({
                 <ShieldCheck className="w-6 h-6 text-emerald-600 shrink-0 mt-0.5" />
                 <div>
                   <h5 className="text-sm font-black text-emerald-950">
-                    Contratação Segura com Custódia RooServ
+                    Contratação com pagamento pela RooServ
                   </h5>
                   <p className="text-xs text-emerald-800 leading-relaxed mt-1 font-medium">
-                    Você pode pagar no Pix ou parcelar em até 12x no cartão. O valor fica retido com segurança na plataforma e só é repassado ao prestador após sua aprovação final.
+                    O pagamento é feito via Pix e permanece registrado na plataforma. O repasse segue o fluxo de aprovação do serviço e de resolução de eventuais disputas.
                   </p>
                 </div>
               </div>
@@ -149,7 +160,9 @@ export const ProviderProfileModal: React.FC<ProviderProfileModalProps> = ({
               <div className="grid grid-cols-2 gap-3 text-xs sm:text-sm">
                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
                   <span className="text-slate-500 block text-xs font-semibold">Média de Preço</span>
-                  <strong className="text-base font-black text-slate-900">{`R$ ${provider.hourlyRateEstimate}/hora`}</strong>
+                  <strong className="text-base font-black text-slate-900">
+                    {provider.hourlyRateEstimate ? `R$ ${provider.hourlyRateEstimate}/hora` : 'Sob consulta'}
+                  </strong>
                 </div>
                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
                   <span className="text-slate-500 block text-xs font-semibold">Serviços Concluídos</span>
@@ -240,25 +253,15 @@ export const ProviderProfileModal: React.FC<ProviderProfileModalProps> = ({
           )}
         </div>
 
-        {/* Footer com Ações de Chat e Contratação em 52px */}
-        <div className="p-4 sm:p-5 bg-white border-t border-slate-200 flex items-center gap-3">
+        {/* A contratação financeira começa por uma proposta formal no chat. */}
+        <div className="p-4 sm:p-5 bg-white border-t border-slate-200">
           <button
             type="button"
             onClick={() => onOpenChat(provider)}
-            className="py-4 px-5 bg-slate-100 hover:bg-slate-200 text-slate-900 rounded-2xl transition-all font-black text-sm flex items-center justify-center gap-2 active:scale-95 border border-slate-200 shrink-0"
-            title="Tirar dúvidas e pedir orçamento no Chat"
+            className="w-full bg-brand-600 hover:bg-brand-700 text-white font-black text-sm sm:text-base py-4 px-5 rounded-2xl shadow-lg shadow-brand-500/25 transition-all flex items-center justify-center gap-2 active:scale-95"
           >
-            <MessageSquare className="w-5 h-5 text-brand-600" />
-            <span>Chat</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => onStartCheckout(provider)}
-            className="flex-1 bg-brand-600 hover:bg-brand-700 text-white font-black text-sm sm:text-base py-4 px-5 rounded-2xl shadow-lg shadow-brand-500/25 transition-all flex items-center justify-center gap-2 active:scale-95"
-          >
-            <span>{`Contratar (R$ ${provider.hourlyRateEstimate})`}</span>
-            <ArrowRight className="w-5 h-5" />
+            <MessageSquare className="w-5 h-5" />
+            <span>Conversar e Solicitar Orçamento Formal</span>
           </button>
         </div>
       </div>

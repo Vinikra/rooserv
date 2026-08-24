@@ -2,7 +2,7 @@
   "name": "rooserv",
   "version": "1.0.0",
   "private": true,
-  "description": "RooServ - Plataforma hiperlocal de contratação de serviços em Rondonópolis com pagamentos em custódia e split de comissões",
+  "description": "RooServ - Plataforma hiperlocal de contratação de serviços em Rondonópolis com pagamentos Pix e acompanhamento de repasses",
   "workspaces": [
     "apps/*",
     "packages/*"
@@ -13,12 +13,13 @@
     "build:mobile": "npm --workspace=@servicos/mobile run build",
     "dev": "npm --workspace=@servicos/mobile run dev",
     "test": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:payments:sandbox": "node scripts/abacatepay-sandbox-smoke.mjs --simulate"
   },
   "keywords": [
     "servicos",
     "marketplace",
-    "escrow",
+    "pix",
     "rondonopolis",
     "rooserv",
     "react",

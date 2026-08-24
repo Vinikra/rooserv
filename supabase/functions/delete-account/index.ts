@@ -14,6 +14,20 @@ Deno.serve(async (req) => {
       global: { headers: { Authorization: authorization } },
     });
     const adminClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '');
+    const removeFolder = async (bucket: string, path: string) => {
+      while (true) {
+        const { data: files, error: listError } = await adminClient.storage
+          .from(bucket)
+          .list(path, { limit: 100 });
+        if (listError) throw listError;
+        if (!files?.length) return;
+
+        const { error: removeError } = await adminClient.storage
+          .from(bucket)
+          .remove(files.map((file) => `${path}/${file.name}`));
+        if (removeError) throw removeError;
+      }
+    };
 
     const { data: authData, error: authError } = await userClient.auth.getUser();
     if (authError || !authData.user) return errorResponse('Sessão inválida.', 401);
@@ -28,7 +42,7 @@ Deno.serve(async (req) => {
 
     const { error: messagesError } = await adminClient
       .from('messages')
-      .update({ content: '[mensagem removida]', attachment_url: null })
+      .update({ content: JSON.stringify({ text: '[mensagem removida]' }), attachment_url: null })
       .or(`sender_id.eq.${profile.id},recipient_id.eq.${profile.id}`);
     if (messagesError) throw messagesError;
 
@@ -50,18 +64,16 @@ Deno.serve(async (req) => {
     if (providerError) throw providerError;
 
     for (const folder of ['avatars', 'requests', 'proofs']) {
-      const path = `${folder}/${userId}`;
-      const { data: files } = await adminClient.storage.from('rooserv-media').list(path, { limit: 1000 });
-      if (files?.length) {
-        await adminClient.storage.from('rooserv-media').remove(files.map((file) => `${path}/${file.name}`));
-      }
+      await removeFolder('rooserv-media', `${folder}/${userId}`);
     }
-    const { data: kycFiles } = await adminClient.storage.from('rooserv-kyc').list(userId, { limit: 1000 });
-    if (kycFiles?.length) {
-      await adminClient.storage.from('rooserv-kyc').remove(
-        kycFiles.map((file) => `${userId}/${file.name}`)
-      );
+    for (const location of [
+      { bucket: 'rooserv-public-media', folder: 'avatars' },
+      { bucket: 'rooserv-private-media', folder: 'requests' },
+      { bucket: 'rooserv-private-media', folder: 'proofs' },
+    ]) {
+      await removeFolder(location.bucket, `${location.folder}/${userId}`);
     }
+    await removeFolder('rooserv-kyc', userId);
 
     const deletedEmail = `deleted+${userId}@rooserv.invalid`;
     const { error: anonymizeError } = await adminClient

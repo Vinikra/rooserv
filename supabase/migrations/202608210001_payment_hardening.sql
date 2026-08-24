@@ -102,7 +102,7 @@ BEGIN
             IF NEW.client_id IS DISTINCT FROM (SELECT id FROM profiles WHERE user_id = auth.uid()) THEN
                 RAISE EXCEPTION 'Cliente do pedido não corresponde ao usuário autenticado';
             END IF;
-            IF NEW.total_amount < 1 OR NEW.total_amount > 100000 THEN
+            IF NEW.total_amount < 30 OR NEW.total_amount > 100000 THEN
                 RAISE EXCEPTION 'Valor do pedido fora dos limites permitidos';
             END IF;
             IF NOT EXISTS (

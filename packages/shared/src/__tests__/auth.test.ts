@@ -10,6 +10,8 @@ describe('RooServ Authentication & Role Permissions Engine', () => {
       password: 'secretPassword123',
       phone: '(66) 99123-4567',
       neighborhood: 'Vila Aurora',
+      acceptedTerms: true,
+      termsVersion: '2026-08-23',
     };
 
     expect(signupPayload.role).toBe('client');
@@ -25,11 +27,13 @@ describe('RooServ Authentication & Role Permissions Engine', () => {
       password: 'providerSecret123',
       phone: '(66) 98765-4321',
       neighborhood: 'Centro',
-      documentCpf: '123.456.789-00',
+      documentCpf: '529.982.247-25',
+      acceptedTerms: true,
+      termsVersion: '2026-08-23',
     };
 
     expect(providerPayload.role).toBe('provider');
-    expect(providerPayload.documentCpf).toBe('123.456.789-00');
+    expect(providerPayload.documentCpf).toBe('529.982.247-25');
   });
 
   it('validates role switching permissions for providers and clients', () => {

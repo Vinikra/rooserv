@@ -1,4 +1,7 @@
 -- ==============================================================================
+-- REFERÊNCIA LEGADA DE BOOTSTRAP — NÃO USAR PARA DEPLOY ATUAL.
+-- A FONTE CANÔNICA E AUDITÁVEL É supabase/migrations/ EM ORDEM.
+-- ==============================================================================
 -- SCHEMA DA PLATAFORMA HIPERLOCAL DE SERVIÇOS
 -- Cidade de ~240k Habitantes | Pagamentos em Custódia (Escrow) + Split de Comissões
 -- ==============================================================================
