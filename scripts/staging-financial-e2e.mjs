@@ -542,6 +542,25 @@ async function main() {
     'Saldo disponível após saque',
   );
 
+  const operationalHealth = await requireRpc(
+    adminAuth.client,
+    'get_admin_dashboard_metrics',
+    {},
+    'Validar métricas operacionais administrativas',
+  );
+  for (const field of [
+    'webhook_events_24h',
+    'failed_payouts_24h',
+    'stale_processing_payouts_count',
+    'refund_errors_24h',
+    'stale_refunds_count',
+  ]) {
+    assert(Number.isFinite(Number(operationalHealth[field])), `Métrica operacional ausente: ${field}.`);
+  }
+  assert(Number(operationalHealth.webhook_events_24h) >= 3, 'Painel não contabilizou os webhooks E2E recentes.');
+  assert(Number(operationalHealth.stale_processing_payouts_count) === 0, 'Painel marcou saque E2E terminal como parado.');
+  assert(Number(operationalHealth.stale_refunds_count) === 0, 'Painel marcou reembolso E2E terminal como parado.');
+
   const financialCounts = {};
   for (const table of ['orders', 'payment_transactions', 'payment_webhook_events', 'payment_ledger_entries', 'payout_requests']) {
     const { count, error } = await admin.from(table).select('id', { head: true, count: 'exact' });
@@ -581,6 +600,13 @@ async function main() {
       gatewayRejectedInDevMode: payoutGatewayRejectedInDevMode,
       terminalStatus: payoutState.status,
       failedTransferRestoredBalance: payoutState.status === 'failed',
+    },
+    operationalHealth: {
+      webhookEvents24h: Number(operationalHealth.webhook_events_24h),
+      failedPayouts24h: Number(operationalHealth.failed_payouts_24h),
+      staleProcessingPayouts: Number(operationalHealth.stale_processing_payouts_count),
+      refundErrors24h: Number(operationalHealth.refund_errors_24h),
+      staleRefunds: Number(operationalHealth.stale_refunds_count),
     },
     financialCounts,
     cleanupRequired: true,

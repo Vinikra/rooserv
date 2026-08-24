@@ -117,6 +117,12 @@ interface AppContextType {
     activeProvidersCount: number;
     pendingVerificationsCount: number;
     completedOrdersCount: number;
+    webhookEvents24h: number;
+    lastWebhookReceivedAt?: string;
+    failedPayouts24h: number;
+    staleProcessingPayoutsCount: number;
+    refundErrors24h: number;
+    staleRefundsCount: number;
   };
 }
 
@@ -330,6 +336,12 @@ function computeAdminStats(orders: Order[], providers: ProviderProfile[]) {
     activeProvidersCount,
     pendingVerificationsCount,
     completedOrdersCount,
+    webhookEvents24h: 0,
+    lastWebhookReceivedAt: undefined,
+    failedPayouts24h: 0,
+    staleProcessingPayoutsCount: 0,
+    refundErrors24h: 0,
+    staleRefundsCount: 0,
   };
 }
 
@@ -343,6 +355,14 @@ function mapDbAdminStats(data: any): AdminStats {
     activeProvidersCount: Number(data?.active_providers_count) || 0,
     pendingVerificationsCount: Number(data?.pending_verifications_count) || 0,
     completedOrdersCount: Number(data?.completed_orders_count) || 0,
+    webhookEvents24h: Number(data?.webhook_events_24h) || 0,
+    lastWebhookReceivedAt: typeof data?.last_webhook_received_at === 'string'
+      ? data.last_webhook_received_at
+      : undefined,
+    failedPayouts24h: Number(data?.failed_payouts_24h) || 0,
+    staleProcessingPayoutsCount: Number(data?.stale_processing_payouts_count) || 0,
+    refundErrors24h: Number(data?.refund_errors_24h) || 0,
+    staleRefundsCount: Number(data?.stale_refunds_count) || 0,
   };
 }
 

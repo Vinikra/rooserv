@@ -11,7 +11,9 @@ import {
   Scale,
   ShieldCheck,
   KeyRound,
-  Eye
+  Eye,
+  Activity,
+  AlertTriangle
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { formatCurrencyBRL, CITY_CONFIG } from '@servicos/shared';
@@ -134,6 +136,22 @@ export const AdminScreen: React.FC = () => {
 
   const disputedOrders = orders.filter((o) => o.status === 'disputed');
 
+  const operationalAlertCount = stats.failedPayouts24h
+    + stats.staleProcessingPayoutsCount
+    + stats.refundErrors24h
+    + stats.staleRefundsCount;
+  const operationalMetrics = [
+    { label: 'Webhooks em 24h', value: stats.webhookEvents24h, alert: false },
+    { label: 'Saques falhos em 24h', value: stats.failedPayouts24h, alert: stats.failedPayouts24h > 0 },
+    { label: 'Saques parados há 15 min', value: stats.staleProcessingPayoutsCount, alert: stats.staleProcessingPayoutsCount > 0 },
+    { label: 'Erros de reembolso em 24h', value: stats.refundErrors24h, alert: stats.refundErrors24h > 0 },
+    { label: 'Reembolsos parados há 5 min', value: stats.staleRefundsCount, alert: stats.staleRefundsCount > 0 },
+  ];
+  const lastWebhookDate = stats.lastWebhookReceivedAt ? new Date(stats.lastWebhookReceivedAt) : null;
+  const lastWebhookLabel = lastWebhookDate && !Number.isNaN(lastWebhookDate.getTime())
+    ? lastWebhookDate.toLocaleString('pt-BR')
+    : 'Nenhum evento registrado';
+
   return (
     <div className="pb-24 pt-4 px-4 sm:px-6 lg:px-8 space-y-6 max-w-7xl mx-auto w-full">
       {/* Header do Painel */}
@@ -197,6 +215,58 @@ export const AdminScreen: React.FC = () => {
           <span className="text-xs text-slate-400 block font-medium">Aguardando aprovação do morador</span>
         </div>
       </div>
+
+      <section
+        role={operationalAlertCount > 0 ? 'alert' : 'status'}
+        className={`rounded-3xl border p-5 sm:p-6 shadow-sm space-y-4 ${
+          operationalAlertCount > 0
+            ? 'bg-amber-50 border-amber-200'
+            : 'bg-white border-slate-200'
+        }`}
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-2">
+            {operationalAlertCount > 0 ? (
+              <AlertTriangle className="w-5 h-5 text-amber-600" />
+            ) : (
+              <Activity className="w-5 h-5 text-emerald-600" />
+            )}
+            <div>
+              <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">
+                Saúde operacional
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">Último webhook: {lastWebhookLabel}</p>
+            </div>
+          </div>
+          <span className={`self-start text-xs font-bold px-3 py-1.5 rounded-full border ${
+            operationalAlertCount > 0
+              ? 'bg-amber-100 text-amber-800 border-amber-300'
+              : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+          }`}>
+            {operationalAlertCount > 0 ? `${operationalAlertCount} alerta(s)` : 'Sem alertas financeiros'}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+          {operationalMetrics.map((metric) => (
+            <div
+              key={metric.label}
+              className={`rounded-2xl border px-3 py-3 ${
+                metric.alert ? 'bg-white border-amber-300' : 'bg-slate-50 border-slate-200'
+              }`}
+            >
+              <p className={`text-2xl font-black ${metric.alert ? 'text-amber-700' : 'text-slate-900'}`}>
+                {metric.value}
+              </p>
+              <p className="text-xs text-slate-600 font-semibold leading-snug mt-1">{metric.label}</p>
+            </div>
+          ))}
+        </div>
+
+        <p className="text-xs text-slate-500">
+          Contadores sinalizam triagem manual; confirme o estado no gateway antes de repetir reembolso ou saque.
+        </p>
+      </section>
 
       {/* Grid de Operações: Disputas & KYC */}
       {operationError && (
