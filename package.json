@@ -14,6 +14,12 @@
     "dev": "npm --workspace=@servicos/mobile run dev",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
+    "test:e2e": "npm run build && playwright test",
+    "test:e2e:ci": "playwright test",
+    "test:e2e:install": "playwright install chromium",
+    "verify:release": "node scripts/verify-release-config.mjs",
+    "check:live": "node scripts/check-live-security.mjs",
+    "check:release": "npm run test && npm run build && npm run verify:release && npm run test:e2e:ci",
     "test:payments:sandbox": "node scripts/abacatepay-sandbox-smoke.mjs --simulate",
     "test:staging:financial": "node scripts/staging-financial-e2e.mjs --confirm-staging",
     "cleanup:staging:financial": "node scripts/cleanup-staging-financial-e2e.mjs --confirm-staging --delete-fixtures",
@@ -34,6 +40,8 @@
     "@supabase/supabase-js": "^2.112.3"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@playwright/test": "^1.62.1",
     "@vitest/coverage-v8": "^4.1.11",
     "vitest": "^4.1.11"
   }

@@ -23,6 +23,7 @@ export function useDialogAccessibility(): void {
   useEffect(() => {
     let activeDialog: HTMLElement | null = null;
     let previousActiveElement: HTMLElement | null = null;
+    let lastInteractionTarget: HTMLElement | null = null;
     const dialogFocusOrigins = new WeakMap<HTMLElement, HTMLElement | null>();
     const originalBodyOverflow = document.body.style.overflow;
 
@@ -48,6 +49,12 @@ export function useDialogAccessibility(): void {
       const openDialogs = Array.from(
         document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]')
       ).filter((dialog) => dialog.getClientRects().length > 0);
+      const focusedElement = document.activeElement instanceof HTMLElement && document.activeElement !== document.body
+        ? document.activeElement
+        : lastInteractionTarget;
+      const nextDialogFocusOrigin = nextDialog && !dialogFocusOrigins.has(nextDialog)
+        ? focusedElement
+        : null;
 
       openDialogs.forEach((dialog) => {
         if (dialog === nextDialog) {
@@ -67,10 +74,9 @@ export function useDialogAccessibility(): void {
 
       const previousDialog = activeDialog;
       if (nextDialog && !dialogFocusOrigins.has(nextDialog)) {
-        dialogFocusOrigins.set(
-          nextDialog,
-          document.activeElement instanceof HTMLElement ? document.activeElement : null
-        );
+        // Capture antes de tornar o diálogo inferior inert. Alguns navegadores
+        // movem o foco para <body> assim que o controle de origem fica inert.
+        dialogFocusOrigins.set(nextDialog, nextDialogFocusOrigin);
       }
       const nestedReturnTarget = previousDialog && !document.body.contains(previousDialog)
         ? dialogFocusOrigins.get(previousDialog) ?? null
@@ -139,6 +145,10 @@ export function useDialogAccessibility(): void {
       }
     };
 
+    const handleActivation = (event: MouseEvent) => {
+      if (event.target instanceof HTMLElement) lastInteractionTarget = event.target.closest<HTMLElement>(FOCUSABLE_SELECTOR);
+    };
+
     const handleFocusIn = (event: FocusEvent) => {
       if (activeDialog && event.target instanceof Node && !activeDialog.contains(event.target)) {
         focusInsideDialog(activeDialog);
@@ -147,12 +157,14 @@ export function useDialogAccessibility(): void {
 
     const observer = new MutationObserver(syncDialog);
     observer.observe(document.body, { childList: true, subtree: true });
+    document.addEventListener('click', handleActivation, true);
     document.addEventListener('keydown', handleKeyDown);
     document.addEventListener('focusin', handleFocusIn);
     syncDialog();
 
     return () => {
       observer.disconnect();
+      document.removeEventListener('click', handleActivation, true);
       document.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('focusin', handleFocusIn);
       document.body.style.overflow = originalBodyOverflow;

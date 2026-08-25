@@ -60,6 +60,32 @@ O **RooServ** conecta moradores de Rondonópolis a prestadores verificados, com 
 
 4. Acesse em: `http://localhost:3000/`
 
+Copie `apps/mobile/.env.example` para `apps/mobile/.env` e preencha somente a URL e a chave pública anon/publishable do Supabase. Chaves `service_role`, `sb_secret_` e AbacatePay nunca pertencem ao frontend.
+
+## ✅ Qualidade e release
+
+```bash
+# 25 testes unitários
+npm test
+
+# build de produção
+npm run build
+
+# 41 controles estáticos de release
+npm run verify:release
+
+# build + 8 E2E Playwright/axe em desktop e mobile
+npm run test:e2e
+
+# suíte local completa (com a build já gerada antes do E2E)
+npm run check:release
+
+# verificação HTTP somente leitura depois do deploy
+npm run check:live
+```
+
+Na primeira execução do E2E, instale o Chromium isolado com `npm run test:e2e:install`. O workflow `.github/workflows/quality.yml` executa a suíte em PRs e pushes para `main`, sem Sonar e sem depender das credenciais do staging.
+
 ## 💳 Pagamentos com AbacatePay
 
 O checkout Pix e os reembolsos usam os endpoints transparentes da API v2; os saques Pix usam os endpoints oficiais `/v1/withdraw/create` e `/v1/withdraw/get`. Toda comunicação passa exclusivamente pelas Supabase Edge Functions, e a chave privada nunca é enviada ao navegador.
@@ -97,7 +123,13 @@ O script exige confirmação explícita embutida no comando do npm, recusa cobra
 
 Cada saque usa o UUID local como `externalId` no gateway. Antes de criar uma transferência, o backend procura esse identificador na AbacatePay. Timeout, resposta 5xx ou resposta inválida colocam o saque em revisão manual e nunca provocam reenvio automático, evitando uma transferência Pix duplicada. O procedimento de conciliação e decisão administrativa está em [docs/PAYOUT_OPERATIONS.md](docs/PAYOUT_OPERATIONS.md).
 
-Antes de habilitar transações reais, conclua o checklist em [docs/PRODUCTION_READINESS.md](docs/PRODUCTION_READINESS.md).
+Antes de habilitar transações reais, conclua:
+
+- [revisão técnica e bloqueadores](docs/PRODUCTION_READINESS.md);
+- [checklist de go-live e rollback](docs/GO_LIVE_CHECKLIST.md);
+- [runbook do piloto](docs/PILOT_RUNBOOK.md);
+- [insumos para revisão jurídica/LGPD](docs/LEGAL_INPUTS_CHECKLIST.md);
+- [política de reporte de vulnerabilidades](SECURITY.md).
 
 ---
 

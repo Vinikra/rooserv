@@ -37,7 +37,12 @@ export const TermsModal: React.FC<TermsModalProps> = ({ onClose }) => {
         </div>
 
         {/* Conteúdo com Scroll */}
-        <div className="flex-1 overflow-y-auto space-y-3 pr-1 text-xs text-slate-600 leading-relaxed">
+        <div
+          role="region"
+          aria-label="Resumo dos termos"
+          tabIndex={0}
+          className="flex-1 overflow-y-auto space-y-3 pr-1 text-xs text-slate-600 leading-relaxed focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+        >
           <div className="bg-brand-50/60 p-3 rounded-2xl border border-brand-200 text-brand-950 font-medium">
             🛡️ <strong>Fluxo de pagamento e repasse:</strong>
             <p className="mt-1 text-slate-700">

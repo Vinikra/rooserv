@@ -390,6 +390,7 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="font-black text-sm sm:text-base tracking-tight text-white">{CITY_CONFIG.brandName}</span>
           </button>
           <div
+            role="img"
             className="flex items-center gap-1.5 text-xs text-slate-200 font-semibold bg-slate-800 px-2 sm:px-3 py-1.5 rounded-xl border border-slate-700"
             aria-label={`${CITY_CONFIG.name}-${CITY_CONFIG.state}`}
             title={`${CITY_CONFIG.name}-${CITY_CONFIG.state}`}

@@ -525,12 +525,12 @@ export const ProviderOnboardingScreen: React.FC<ProviderOnboardingScreenProps> =
         <button
           type="button"
           onClick={step > 1 ? () => setStep(step - 1) : onCancel}
-          className="p-2 text-slate-500 hover:text-slate-900 rounded-xl transition-colors flex items-center gap-1.5 text-xs sm:text-sm font-bold cursor-pointer"
+          className="p-2 text-slate-600 hover:text-slate-900 rounded-xl transition-colors flex items-center gap-1.5 text-xs sm:text-sm font-bold cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>{step > 1 ? 'Voltar' : 'Cancelar'}</span>
         </button>
-        <span className="text-[11px] font-bold text-slate-500">
+        <span className="text-[11px] font-bold text-slate-600">
           Etapa {step} de {totalSteps}
         </span>
       </div>

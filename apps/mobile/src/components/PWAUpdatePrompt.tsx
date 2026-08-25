@@ -1,25 +1,17 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { RefreshCw, X } from 'lucide-react';
-
-interface PWAUpdateEventDetail {
-  update: () => Promise<void>;
-}
+import { clearPwaUpdate, subscribeToPwaUpdate, type PwaUpdateHandler } from '../lib/pwaUpdate';
 
 export const PWAUpdatePrompt: React.FC = () => {
-  const updateRef = useRef<(() => Promise<void>) | null>(null);
+  const updateRef = useRef<PwaUpdateHandler | null>(null);
   const [isVisible, setIsVisible] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
 
   useEffect(() => {
-    const handleUpdate = (event: Event) => {
-      const detail = (event as CustomEvent<PWAUpdateEventDetail>).detail;
-      if (!detail?.update) return;
-      updateRef.current = detail.update;
+    return subscribeToPwaUpdate((update) => {
+      updateRef.current = update;
       setIsVisible(true);
-    };
-
-    window.addEventListener('rooserv:pwa-update', handleUpdate);
-    return () => window.removeEventListener('rooserv:pwa-update', handleUpdate);
+    });
   }, []);
 
   const applyUpdate = async () => {
@@ -27,6 +19,7 @@ export const PWAUpdatePrompt: React.FC = () => {
     setIsUpdating(true);
     try {
       await updateRef.current();
+      clearPwaUpdate(updateRef.current);
     } finally {
       setIsUpdating(false);
     }

@@ -1,4 +1,7 @@
 -- ==============================================================================
+-- REFERÊNCIA LEGADA DE RLS — NÃO EXECUTAR NO AMBIENTE ATUAL.
+-- AS POLÍTICAS VIGENTES ESTÃO EM supabase/migrations/ EM ORDEM.
+-- ==============================================================================
 -- MIGRAÇÃO DE RLS (Row Level Security) E ÍNDICES DE PERFORMANCE - ROOSERV
 -- ==============================================================================
 

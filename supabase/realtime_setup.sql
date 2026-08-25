@@ -1,4 +1,7 @@
 -- ==============================================================================
+-- REFERÊNCIA LEGADA DE REALTIME — NÃO EXECUTAR NO AMBIENTE ATUAL.
+-- A CONFIGURAÇÃO VIGENTE É CONTROLADA PELAS MIGRATIONS CANÔNICAS.
+-- ==============================================================================
 -- ROOSERV - HABILITAR PUBLICAÇÃO EM TEMPO REAL NO SUPABASE (REALTIME WEBSOCKETS)
 -- ==============================================================================
 

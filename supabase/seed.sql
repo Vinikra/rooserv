@@ -1,4 +1,8 @@
 -- ==============================================================================
+-- LEGADO / SOMENTE DEMONSTRAÇÃO LOCAL — NÃO EXECUTAR EM STAGING OU PRODUÇÃO.
+-- CONTÉM PERFIS, CONTATOS, SALDOS E CHAVES PIX FICTÍCIAS. O AMBIENTE VIGENTE
+-- DEVE SER ATUALIZADO EXCLUSIVAMENTE POR supabase/migrations/ EM ORDEM.
+-- ==============================================================================
 -- DADOS INICIAIS (SEED) - RONDONÓPOLIS (MT) - UUIDs HEX VÁLIDOS
 -- ==============================================================================
 
